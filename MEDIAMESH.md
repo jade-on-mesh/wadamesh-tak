@@ -99,6 +99,11 @@ Both → Off (`tx.user`). Per channel: **Send on** in the channel's settings
 Everything else (schedules, `tempradio`, diagnostics) works from
 **Terminal**: type the commands below, or `help`.
 
+A radio that has never saved MediaMesh settings starts with radio2 **on**
+(send and listen) when its main radio is in the US 902-928 MHz band, and off
+elsewhere, since the default frequency below is a US one. Turning it off is
+remembered.
+
 Default settings: 911.150 MHz, 250 kHz, SF7, CR 4/5 (the *250 kHz fast* preset).
 That is about 4× faster than SF7/62.5 for roughly 6 dB less range. Where that
 falls short of the main mesh's reach, the *125 kHz range* preset is about half

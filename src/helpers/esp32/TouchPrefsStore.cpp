@@ -123,7 +123,7 @@ static void cfgSetDefaults(TouchCfg& c) {
   c.use_miles     = 0;
   c.tiles_from_sd = 0;
   c.clr_bubbles   = 1;          // default ON
-  c.kb_accent     = 1;          // default ON
+  c.kb_accent     = 0;          // default OFF
   c.time_offs     = 0;
   c.scr_to_s      = DEFAULT_SCREEN_TIMEOUT_S;
   c.kb_enabled    = 0;
@@ -423,7 +423,7 @@ static void cfgLoadOrMigrate() {
   if (s_prefs.isKey(LK_LOCK_COLOR))   s_cfg.lock_color   = s_prefs.getUInt(LK_LOCK_COLOR, DEFAULT_LOCK_COLOR) & 0xFFFFFFu;
   if (s_prefs.isKey(LK_ACCENT))       s_cfg.accent       = s_prefs.getUInt(LK_ACCENT, DEFAULT_ACCENT) & 0xFFFFFFu;
   if (s_prefs.isKey(LK_CLR_BUBBLES))  s_cfg.clr_bubbles  = s_prefs.getBool(LK_CLR_BUBBLES, true) ? 1 : 0;
-  if (s_prefs.isKey(LK_KB_ACCENT))    s_cfg.kb_accent    = s_prefs.getBool(LK_KB_ACCENT, true) ? 1 : 0;
+  if (s_prefs.isKey(LK_KB_ACCENT))    s_cfg.kb_accent    = s_prefs.getBool(LK_KB_ACCENT, false) ? 1 : 0;
   if (s_prefs.isKey(LK_DC_SHOW))      s_cfg.dc_show      = s_prefs.getBool(LK_DC_SHOW, DEFAULT_DC_SHOW) ? 1 : 0;
   if (s_prefs.isKey(LK_USE_MILES))    s_cfg.use_miles    = s_prefs.getBool(LK_USE_MILES, false) ? 1 : 0;
   if (s_prefs.isKey(LK_TILES_FROM_SD))s_cfg.tiles_from_sd= s_prefs.getBool(LK_TILES_FROM_SD, false) ? 1 : 0;
@@ -924,7 +924,7 @@ bool touchPrefsSetColorfulBubbles(bool on) {
 }
 
 // Keyboard accent-popup picker: when a typed Latin letter has accented variants,
-// a tap-to-pick box appears. Default ON. (Distinct from the accent THEME colour.)
+// a tap-to-pick box appears. Default OFF. (Distinct from the accent THEME colour.)
 bool touchPrefsGetAccentPopups() {
   if (!s_begun) touchPrefsBegin();
   return s_cfg.kb_accent != 0;
