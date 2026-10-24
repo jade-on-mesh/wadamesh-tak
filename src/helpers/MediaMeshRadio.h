@@ -89,6 +89,17 @@ static constexpr uint8_t kStandbyRc = 0x00;
 static constexpr uint8_t kStandbyXosc = 0x01;
 static constexpr uint32_t kRxForever = RADIOLIB_LR11X0_RX_TIMEOUT_INF;
 #endif
+#if !defined(MEDIAMESH_CHIP_SX126X)
+// RadioLib's LR classes keep their LoRa settings protected (RADIOLIB_GODMODE
+// doesn't open LRxxxx). A derived class may name them, and the pointers to
+// member it forms work on any LR chip object.
+struct LrFields : ScanChip {
+  static uint8_t& sf(ScanChip* c) { return c->*(&LrFields::spreadingFactor); }
+  static uint8_t& cr(ScanChip* c) { return c->*(&LrFields::codingRate); }
+  static float& bwKhz(ScanChip* c) { return c->*(&LrFields::bandwidthKhz); }
+  static uint16_t& preamble(ScanChip* c) { return c->*(&LrFields::preambleLengthLoRa); }
+};
+#endif
 }  // namespace mediamesh
 
 // The profiles a packet about to be sent goes out on (bit 0 primary, bit 1 radio2).
@@ -244,13 +255,13 @@ class MediaMeshRadio : public Base {
     mediamesh::ScanChip* r = chip();
     int16_t rc = r->setFrequency(p.freq);
     if (rc == RADIOLIB_ERR_NONE
-        && (r->spreadingFactor != p.sf || fabsf(r->bandwidthKhz - p.bw) > 0.01f
-            || r->codingRate != (uint8_t)(p.cr - 4))) {
+        && (mediamesh::LrFields::sf(r) != p.sf || fabsf(mediamesh::LrFields::bwKhz(r) - p.bw) > 0.01f
+            || mediamesh::LrFields::cr(r) != (uint8_t)(p.cr - 4))) {
       rc = r->setBandwidth(p.bw);
       if (rc == RADIOLIB_ERR_NONE) rc = r->setSpreadingFactor(p.sf);
       if (rc == RADIOLIB_ERR_NONE) rc = r->setCodingRate(p.cr);
     }
-    r->preambleLengthLoRa = preamble;
+    mediamesh::LrFields::preamble(r) = preamble;
     PacketMillis pm = this->calcMaxPacketMillis(p.sf, p.bw, p.cr, preamble > 255 ? 255 : (uint8_t)preamble);
     r->setPreambleMillis(pm.preambleMillis);
     r->setMaxPayloadMillis(pm.payloadMillis);
@@ -529,7 +540,7 @@ class MediaMeshRadio : public Base {
   void restorePreamble() {
     if (!_main_known) return;
     this->radioAcquire();
-    chip()->preambleLengthLoRa = _cur ? (_timing.valid ? _timing.preamble[1] : mediamesh::kMaxAutoPreamble)
+    mediamesh::LrFields::preamble(chip()) = _cur ? (_timing.valid ? _timing.preamble[1] : mediamesh::kMaxAutoPreamble)
                                       : mainPreamble();
     this->radioRelease();
   }
