@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+# Packs the baked colour emoji (src/ui-touch/emoji_raw.inc, RGB565+alpha at
+# 16 px, written by add-emoji.py) into src/ui-touch/emoji_data.c, compressed:
+# each image is stored as its alpha plane, then the RGB565 of only its visible
+# pixels, each through a small LZ77 (below). About a quarter smaller in flash.
+# emojiGlyphLookup() unpacks an image the first time it is asked for, into
+# PSRAM where there is some, and keeps it: callers hold on to the pointer.
+#
+#   python3 scripts/build/pack-emoji.py
+#
+# Also writes test/emoji_pack_expected.h (each glyph's size and FNV-1a hash of
+# its pixels, a fully transparent pixel's colour taken as 0: it never shows) for test/test_emoji_pack.c, and checks every image round-
+# trips here before writing anything.
+#
+# LZ token stream: a byte t < 0x80 is a run of t+1 literal bytes that follow;
+# t >= 0x80 copies (t & 0x7F) + 3 bytes from `off` back, off = 1 + the next two
+# bytes (little-endian), within the plane being decoded.
+import os, re, sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+RAW = os.path.join(ROOT, "src", "ui-touch", "emoji_raw.inc")
+OUTC = os.path.join(ROOT, "src", "ui-touch", "emoji_data.c")
+OUTT = os.path.join(ROOT, "test", "emoji_pack_expected.h")
+WINDOW = 1024
+MAXRUN = 130
+
+
+def lz(b):
+    out = bytearray()
+    lit = bytearray()
+    i, n = 0, len(b)
+
+    def flush():
+        nonlocal lit
+        while lit:
+            k = lit[:128]
+            out.append(len(k) - 1)
+            out.extend(k)
+            lit = lit[128:]
+
+    while i < n:
+        best = bo = 0
+        for j in range(max(0, i - WINDOW), i):
+            l = 0
+            while i + l < n and b[j + l] == b[i + l] and l < MAXRUN:
+                l += 1
+            if l > best:
+                best, bo = l, i - j
+        if best >= 4:
+            flush()
+            out.append(0x80 | (best - 3))
+            out += bytes(((bo - 1) & 0xFF, (bo - 1) >> 8))
+            i += best
+        else:
+            lit.append(b[i])
+            i += 1
+    flush()
+    return bytes(out)
+
+
+def unlz(c, n):
+    o = bytearray()
+    i = 0
+    while i < len(c):
+        t = c[i]
+        i += 1
+        if t < 0x80:
+            o += c[i:i + t + 1]
+            i += t + 1
+        else:
+            l = (t & 0x7F) + 3
+            off = (c[i] | (c[i + 1] << 8)) + 1
+            i += 2
+            for _ in range(l):
+                o.append(o[-off])
+    if len(o) != n:
+        raise ValueError("bad stream")
+    return bytes(o)
+
+
+def pack(px, w, h):
+    alpha = bytes(px[k + 2] for k in range(0, len(px), 3))
+    rgb = bytearray()
+    for k in range(0, len(px), 3):
+        if px[k + 2]:
+            rgb += px[k:k + 2]
+    za, zr = lz(alpha), lz(bytes(rgb))
+    return za + zr, len(za)
+
+
+def unpack(z, alen, w, h):
+    n = w * h
+    alpha = unlz(z[:alen], n)
+    vis = sum(1 for a in alpha if a)
+    rgb = unlz(z[alen:], 2 * vis)
+    out = bytearray(3 * n)
+    r = 0
+    for p in range(n):
+        if alpha[p]:
+            out[3 * p] = rgb[r]
+            out[3 * p + 1] = rgb[r + 1]
+            r += 2
+        out[3 * p + 2] = alpha[p]
+    return bytes(out)
+
+
+def fnv(b):
+    h = 0x811C9DC5
+    for x in b:
+        h = ((h ^ x) * 0x01000193) & 0xFFFFFFFF
+    return h
+
+
+def main():
+    src = open(RAW).read()
+    arrays = {m.group(1): bytes(int(x) for x in m.group(2).split(",") if x.strip())
+              for m in re.finditer(r"static const uint8_t (\w+)\[\] = \{([^}]*)\};", src)}
+    descs = {}
+    for m in re.finditer(r"static const lv_img_dsc_t (\w+) = \{ \{ LV_IMG_CF_TRUE_COLOR_ALPHA, 0, 0, (\d+), (\d+) \}, "
+                         r"sizeof\((\w+)\), (\w+) \};", src):
+        descs[m.group(1)] = (int(m.group(2)), int(m.group(3)), m.group(5))
+    glyphs = [(int(m.group(1), 16), m.group(2))
+              for m in re.finditer(r"\{ 0x([0-9A-Fa-f]+)u, &(\w+) \}", src)]
+    if not arrays or not descs or not glyphs:
+        sys.exit("pack-emoji: nothing parsed from " + RAW)
+
+    names = sorted({d for _, d in glyphs}, key=lambda d: [g for g, x in glyphs if x == d][0])
+    index = {d: i for i, d in enumerate(names)}
+    packed = []
+    raw_total = z_total = 0
+    for d in names:
+        w, h, arr = descs[d]
+        px = bytearray(arrays[arr])
+        # A fully transparent pixel's colour never shows: store it as 0.
+        for k in range(0, len(px), 3):
+            if px[k + 2] == 0:
+                px[k] = px[k + 1] = 0
+        px = bytes(px)
+        if len(px) != 3 * w * h:
+            sys.exit("pack-emoji: %s is %d bytes, not %dx%dx3" % (d, len(px), w, h))
+        z, alen = pack(px, w, h)
+        if unpack(z, alen, w, h) != px:
+            sys.exit("pack-emoji: %s doesn't round-trip" % d)
+        packed.append((d, w, h, z, alen, px))
+        raw_total += len(px)
+        z_total += len(z)
+
+    out = []
+    out.append("// AUTO-GENERATED by scripts/build/pack-emoji.py from emoji_raw.inc — do not edit.")
+    out.append("// %d images, %d bytes packed (%d raw). Add emoji with add-emoji.py." % (len(packed), z_total, raw_total))
+    out.append('#include "emoji_data.h"')
+    out.append("#include <stdlib.h>")
+    out.append("#include <string.h>")
+    out.append("#if defined(ESP_PLATFORM)")
+    out.append('#include "esp_heap_caps.h"')
+    out.append("#endif")
+    out.append("")
+    for d, w, h, z, alen, px in packed:
+        out.append("static const uint8_t z_%s[] = {%s};" % (d, ",".join(str(x) for x in z)))
+    out.append("")
+    out.append("typedef struct { const uint8_t* z; uint16_t zlen; uint16_t alen; uint8_t w, h; } EmojiPacked;")
+    out.append("static const EmojiPacked kImgs[] = {")
+    for d, w, h, z, alen, px in packed:
+        out.append("  { z_%s, %d, %d, %d, %d }," % (d, len(z), alen, w, h))
+    out.append("};")
+    out.append("#define EMOJI_IMGS %d" % len(packed))
+    out.append("typedef struct { uint32_t cp; uint16_t img; } EmojiGlyph;")
+    out.append("static const EmojiGlyph kGlyphs[] = {")
+    for cp, d in glyphs:
+        out.append("  { 0x%Xu, %d }," % (cp, index[d]))
+    out.append("};")
+    out.append("const uint16_t kEmojiGlyphCount = %d;" % sum(1 for _, d in glyphs if d != "d_zero"))
+    out.append(r"""
+// One plane: the token stream above. Returns 0 when it doesn't fill `n` exactly.
+static int emojiUnlz(const uint8_t* in, int inlen, uint8_t* out, int n) {
+  int i = 0, o = 0;
+  while (i < inlen) {
+    const int t = in[i++];
+    if (t < 0x80) {
+      const int k = t + 1;
+      if (i + k > inlen || o + k > n) return 0;
+      memcpy(out + o, in + i, (size_t)k);
+      i += k; o += k;
+    } else {
+      if (i + 2 > inlen) return 0;
+      const int k = (t & 0x7F) + 3;
+      const int off = (in[i] | (in[i + 1] << 8)) + 1;
+      i += 2;
+      if (off > o || o + k > n) return 0;
+      for (int j = 0; j < k; ++j, ++o) out[o] = out[o - off];
+    }
+  }
+  return o == n;
+}
+
+// Unpacks image `p` into `px` (w*h*3 bytes: RGB565 low, high, alpha), using
+// `tmp` (w*h*3 bytes too) for the two planes.
+static int emojiUnpack(const EmojiPacked* p, uint8_t* px, uint8_t* tmp) {
+  const int n = p->w * p->h;
+  uint8_t* alpha = tmp;
+  uint8_t* rgb = tmp + n;
+  if (!emojiUnlz(p->z, p->alen, alpha, n)) return 0;
+  int vis = 0;
+  for (int k = 0; k < n; ++k) vis += alpha[k] != 0;
+  if (!emojiUnlz(p->z + p->alen, p->zlen - p->alen, rgb, 2 * vis)) return 0;
+  for (int k = 0, r = 0; k < n; ++k) {
+    if (alpha[k]) { px[3 * k] = rgb[r]; px[3 * k + 1] = rgb[r + 1]; r += 2; }
+    else { px[3 * k] = 0; px[3 * k + 1] = 0; }
+    px[3 * k + 2] = alpha[k];
+  }
+  return 1;
+}
+
+static void* emojiAlloc(size_t n) {
+#if defined(ESP_PLATFORM)
+  void* p = heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (p) return p;
+#endif
+  return malloc(n);
+}
+
+// Unpacked images, made on first use and kept: a caller may hold the pointer
+// (an lv_img source, the emoji font) for as long as it likes.
+static lv_img_dsc_t* s_unpacked[EMOJI_IMGS];
+
+static const lv_img_dsc_t* emojiImage(int i) {
+  if (s_unpacked[i]) return s_unpacked[i];
+  const EmojiPacked* p = &kImgs[i];
+  const size_t n = (size_t)p->w * p->h * 3u;
+  uint8_t tmp[16 * 16 * 3];
+  if (n > sizeof tmp) return 0;
+  lv_img_dsc_t* d = (lv_img_dsc_t*)emojiAlloc(sizeof(lv_img_dsc_t) + n);
+  if (!d) return 0;
+  uint8_t* px = (uint8_t*)(d + 1);
+  if (!emojiUnpack(p, px, tmp)) { free(d); return 0; }
+  memset(d, 0, sizeof *d);
+  d->header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA;
+  d->header.w = p->w;
+  d->header.h = p->h;
+  d->data_size = (uint32_t)n;
+  d->data = px;
+  s_unpacked[i] = d;
+  return d;
+}
+
+const lv_img_dsc_t* emojiGlyphLookup(uint32_t cp) {
+  int lo = 0, hi = (int)(sizeof(kGlyphs)/sizeof(kGlyphs[0])) - 1;
+  while (lo <= hi) {
+    int mid = (lo + hi) >> 1;
+    uint32_t v = kGlyphs[mid].cp;
+    if (cp == v) return emojiImage(kGlyphs[mid].img);
+    if (cp < v) hi = mid - 1; else lo = mid + 1;
+  }
+  return 0;
+}
+""")
+    open(OUTC, "w").write("\n".join(out))
+
+    t = ["// AUTO-GENERATED by scripts/build/pack-emoji.py — do not edit.",
+         "// Each baked glyph: codepoint, width, height, FNV-1a of its raw RGB565+alpha pixels.",
+         "static const struct { uint32_t cp; int w, h; uint32_t fnv; } kEmojiExpected[] = {"]
+    by = {d: (w, h, px) for d, w, h, z, alen, px in packed}
+    for cp, d in glyphs:
+        w, h, px = by[d]
+        t.append("  { 0x%Xu, %d, %d, 0x%08Xu }," % (cp, w, h, fnv(px)))
+    t.append("};")
+    open(OUTT, "w").write("\n".join(t) + "\n")
+    print("pack-emoji: %d images, %d -> %d bytes" % (len(packed), raw_total, z_total))
+
+
+if __name__ == "__main__":
+    main()

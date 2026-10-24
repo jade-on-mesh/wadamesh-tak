@@ -44,6 +44,13 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_shared_pins test/test_shared_pins.cpp
           /tmp/test_shared_pins
+      - name: Packed emoji unpack to their baked pixels
+        run: |
+          python3 scripts/build/pack-emoji.py
+          git diff --exit-code src/ui-touch/emoji_data.c test/emoji_pack_expected.h
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -I test/stub_lvgl -I src/ui-touch -I test \
+              -o /tmp/test_emoji_pack test/test_emoji_pack.c src/ui-touch/emoji_data.c
+          /tmp/test_emoji_pack
       - name: MediaMesh settings, CLI and scan timing
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \

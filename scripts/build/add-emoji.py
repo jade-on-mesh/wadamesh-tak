@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Bake a few EXTRA Noto colour emoji into src/ui-touch/emoji_data.{c,h} WITHOUT
+# Bake a few EXTRA Noto colour emoji into src/ui-touch/emoji_raw.inc (+ emoji_data.h) WITHOUT
 # regenerating (and re-downloading) the existing 252 — those stay byte-identical,
 # so there's no Noto-`main` art drift. Splices new glyph arrays + sorted lookup
 # entries into the file in place. Re-run is idempotent (new cps replace, existing
@@ -15,7 +15,7 @@ PX     = 16
 HERE   = os.path.dirname(os.path.abspath(__file__))
 ROOT   = os.path.abspath(os.path.join(HERE, "..", ".."))
 OUTDIR = os.path.join(ROOT, "src", "ui-touch")
-OUTC   = os.path.join(OUTDIR, "emoji_data.c")
+OUTC   = os.path.join(OUTDIR, "emoji_raw.inc")   # raw pixels; pack-emoji.py makes emoji_data.c
 OUTH   = os.path.join(OUTDIR, "emoji_data.h")
 CACHE  = os.path.join(ROOT, "data", "emoji-cache")
 BASE   = "https://raw.githubusercontent.com/googlefonts/noto-emoji/v2.051/png/128/emoji_u{}.png"
@@ -212,3 +212,7 @@ open(OUTH, "w").write(h)
 
 print("added {} glyphs -> {} total ({} lookup rows incl zero-width)".format(
     len(new_defs), count, len(entries)))
+
+# The firmware compiles the packed table: regenerate it from the raw one.
+import subprocess
+subprocess.run([sys.executable, os.path.join(HERE, "pack-emoji.py")], check=True)
