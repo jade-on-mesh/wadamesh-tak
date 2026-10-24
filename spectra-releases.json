@@ -1,0 +1,142 @@
+[
+ {
+  "tag_name": "v1.18.0.3",
+  "name": "Spectra-Cascadia v1.18.0.3",
+  "published_at": "2026-10-23T07:03:42Z",
+  "prerelease": false,
+  "html_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/tag/v1.18.0.3",
+  "body": "\nAdds Halo Keymind Cascade's **radio2** (a second LoRa profile, time-shared on the one SX1262), aimed at relaying MediaMesh next to the normal network. XL only.\nNot yet tested on hardware; the scanner's real switch time on the DX-LR30 is still to be measured (`get radio2.status`).\n\n### Added (XL)\n- `set radio2 MHz,kHz,SF,CR,rx|rxtx[,preamble]`, `set radio2 mediamesh` (911.150 / 250 kHz / SF7 / CR5, rxtx), `mediamesh-range` (125 kHz), `set radio2 off`; `get radio2` warns when radio2 is within 6 kHz of radio's channel and suggests a centre\n- Scanning: 4.6 symbols on the slower profile, then the rest of half its preamble on the faster one; a packet being received holds the profile. The first four hops each way measure the switch time (largest + 10%), which sizes the automatic preambles (radio 32, MediaMesh 48 on the default pair)\n- Relays on the profile a packet arrived on; `set radio2.cross off|auto|on` (default off) copies relays and own adverts to the other profile. A radio2 copy has its own retry slot, and an echo only cancels the retry on its own profile\n- `set tx.reply both|radio|radio2|auto|off [force]` (default both): which profiles replies to logins, requests, CLI and discovery use\n- Discovery: a request with flag `0x02` gets the version-1 radio2 trailer (configured, mode, frequency, bandwidth, SF, CR)\n- `get radio2.status`, `get radio2.scan`, `get radio2.timing` (alias `radio.timing`)\n\n### Fixed\n- Preamble length follows official 1.18 (`preambleLengthForSF`): 32 symbols at SF5\u20138, 16 above (was always 16). Both builds\n\n### Changed (XL)\n- The CLI and remote-admin handlers moved to the upper 64 KB (`XL_HI`), freeing ~14 KB in the lower 62 KB (14.7 KB now free there)\n- Send queue: 8 slots (was 6) so each profile can hold copies\n\n### Upstream sync\nPorted from mikecarper's `docs/radio_profiles.md` (Halo Keymind Cascade 1.18.0.1): `radio2` / `rx` / `rxtx`, MediaMesh presets, `radio2.cross`, `tx.reply` (+ force), scan timing and automatic preambles, switch self-test, discovery trailer, spacing warning, status/scan/timing getters.\nLeft out: `tempradio2`, scheduled profiles (`radioat2`, `tempradioat2`), Meshtext, Ethernet over LoRa, Companion per-contact/channel/media routing, the two-minute advice delay.\n\nSize: standard 63,316-byte image (+56: preamble rule); XL lower 62 KB 48.8 KB used, upper 44.6 KB of 63 KB, RAM +640 bytes.\n\n\n### Files\n- `*-xl-us.hex` / `*-xl-eu.hex`: XL build for boards that pass the 128 KB flash test. Flash the **.hex** (never a .bin) with STM32CubeProgrammer, without a full chip erase.\n- `*-us.bin` / `*-eu.bin`: standard build for 64 KB boards.\n",
+  "mirrored": true,
+  "assets": [
+   {
+    "name": "spectra-cascadia-v1.18.0.3-eu.bin",
+    "size": 63324,
+    "digest": "sha256:23865f67c315ab8cba247a9d92fc398a34ef79d31153bff318ea15ae5e28e6fe",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.3/spectra-cascadia-v1.18.0.3-eu.bin"
+   },
+   {
+    "name": "spectra-cascadia-v1.18.0.3-us.bin",
+    "size": 63316,
+    "digest": "sha256:de58444147df21ac4e20edda1ff680f1f66bec3b336161266230dc4af45a8c91",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.3/spectra-cascadia-v1.18.0.3-us.bin"
+   },
+   {
+    "name": "spectra-cascadia-v1.18.0.3-xl-eu.hex",
+    "size": 262846,
+    "digest": "sha256:07e2dd44183351f8d5a5c3f1cd0de2236b01f796ff68d836f201885516c59044",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.3/spectra-cascadia-v1.18.0.3-xl-eu.hex"
+   },
+   {
+    "name": "spectra-cascadia-v1.18.0.3-xl-us.hex",
+    "size": 262846,
+    "digest": "sha256:29d8b10a048f7561a310440764a78914cd411ed182e21222f874d2dcf51ea46a",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.3/spectra-cascadia-v1.18.0.3-xl-us.hex"
+   }
+  ]
+ },
+ {
+  "tag_name": "v1.18.0.2",
+  "name": "Spectra-Cascadia v1.18.0.2",
+  "published_at": "2026-10-23T04:25:03Z",
+  "prerelease": false,
+  "html_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/tag/v1.18.0.2",
+  "body": "\nRolls in mikecarper Halo Keymind Cascade 1.18.0.1 changes from after the last sync (up to [e34e83e6](https://github.com/mikecarper/MeshCore/commit/e34e83e6b), 2026-10-22). XL only; the standard build is unchanged.\nNot yet tested on hardware.\n\n### Added (XL)\n- `set repeat.battery off|on|1-100` and `set flood.battery off|on|1-100`: stop relaying (everything, or floods only) when the battery drops below a percentage. `on` uses 10 % and 20 %; a number sets the threshold and turns it on. Relaying resumes 2 points above the threshold. Own adverts, replies and alerts still go out; pending relay retries are dropped while paused. Needs `battery.pin`: without it there is no battery reading and nothing is paused. Both off by default\n- `get battery.forward` (`> battery=55% mv=3660 repeat=allowed flood=allowed`), and `set battery.empty` / `battery.full` (mV for 0 % / 100 %, default 3000 / 4200)\n- `get guest` / `set guest on|off`: guest logins have a switch. `off` ends guest sessions at once. With `on` and an empty guest password, guests need no password (as Halo Keymind Cascade)\n- `get guests [page]`: live guest sessions, one full key and last activity per page\n- `get logins [page]`: the 16 keys that most recently tried to log in, newest first: 12-hex key prefix, attempt count, time and result (`accepted`, `wrong-password`, `guests-disabled`, `replay/state`). RAM only\n\n### Changed (XL)\n- Guest logins default to **off** on new installs. Nodes upgrading with a guest password already set keep guests on; nodes without one stay as they were (no guest access)\n- `set guest.password` while guests are off replies `OK - guest logins are off (set guest on)`\n- A cached guest can no longer log back in with a blank password; it must pass the current guest policy. Admins still can. A blank password doesn't count toward the login lockout\n- A blank-password admin reconnect now gets the same replay (timestamp) check as a password login\n\n### Upstream sync\nPorted:\n- [af106a0e](https://github.com/mikecarper/MeshCore/commit/af106a0ee) battery thresholds for repeat and flood forwarding (same commands, defaults, 2-point recovery and reply text; percentage from our battery.pin reading)\n- [c433b40e](https://github.com/mikecarper/MeshCore/commit/c433b40e5) guest login switch and `get guests`\n- [f68d4ca5](https://github.com/mikecarper/MeshCore/commit/f68d4ca54) `get logins` (we keep 8-byte key prefixes, not full keys, to save RAM; the display is the same)\n\nAlready have / not applicable:\n- [862260de](https://github.com/mikecarper/MeshCore/commit/862260de1) AGC interval range: we follow official 1.18 (clamp to 1020 s)\n- [e980d983](https://github.com/mikecarper/MeshCore/commit/e980d983b), [4dc3b43f](https://github.com/mikecarper/MeshCore/commit/4dc3b43f1) flood retry bucket CLI checks: we have no `flood.retry.bucket`\n- [e4119a12](https://github.com/mikecarper/MeshCore/commit/e4119a120), [41564bf6](https://github.com/mikecarper/MeshCore/commit/41564bf6b) SX126x driver fixes: his RadioLib wrappers, not used here\n- [21ab0b9d](https://github.com/mikecarper/MeshCore/commit/21ab0b9d4), [ca67494f](https://github.com/mikecarper/MeshCore/commit/ca67494f8) and other radio-profile work: needs a second radio profile\n\nDeclined:\n- [f4ade738](https://github.com/mikecarper/MeshCore/commit/f4ade738d) noise-floor history: part of his telemetry history/upload system, which he also leaves out of STM32 repeaters\n- [ab6412e7](https://github.com/mikecarper/MeshCore/commit/ab6412e73) battery ADC calibration: `battery.divider` already does this here\n- [953ad6de](https://github.com/mikecarper/MeshCore/commit/953ad6def) flood filters / moderation rules engine: large, and we don't have the base feature\n- Solar/MPPT, regulator modes, LED controls, ESP-NOW/UDP/RS232 bridges, Wi-Fi, BLE, MQTT, displays, new boards: other hardware\n\nSize: standard build unchanged (63,260-byte image); XL +4.0 KB flash (\u22483.5 KB left in the lower 62 KB), +356 bytes RAM.\n\n\n### Files\n- `*-xl-us.hex` / `*-xl-eu.hex`: XL build for boards that pass the 128 KB flash test. Flash the **.hex** (never a .bin) with STM32CubeProgrammer, without a full chip erase.\n- `*-us.bin` / `*-eu.bin`: standard build for 64 KB boards.\n",
+  "mirrored": true,
+  "assets": [
+   {
+    "name": "spectra-cascadia-v1.18.0.2-eu.bin",
+    "size": 63260,
+    "digest": "sha256:73686bcd30398c41961f6b7e365f9aad2c5a0a1f025769d765c193b6105af1f0",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.2/spectra-cascadia-v1.18.0.2-eu.bin"
+   },
+   {
+    "name": "spectra-cascadia-v1.18.0.2-us.bin",
+    "size": 63260,
+    "digest": "sha256:a253d0d53f7b1f0ec5b52993c85f072bf8f6296f51d0a9e7fdf818ed61ad27f1",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.2/spectra-cascadia-v1.18.0.2-us.bin"
+   },
+   {
+    "name": "spectra-cascadia-v1.18.0.2-xl-eu.hex",
+    "size": 251837,
+    "digest": "sha256:0abd1118b13ded05fa29b6c41aa44ce48f74828e3e00b59c6e71272970d938e9",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.2/spectra-cascadia-v1.18.0.2-xl-eu.hex"
+   },
+   {
+    "name": "spectra-cascadia-v1.18.0.2-xl-us.hex",
+    "size": 251837,
+    "digest": "sha256:5c7224cb22805efd22f25d6ecabd4060a7a3992aa46ba6ee3b92f3261d9c7494",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.2/spectra-cascadia-v1.18.0.2-xl-us.hex"
+   }
+  ]
+ },
+ {
+  "tag_name": "v1.18.0.1",
+  "name": "Spectra-Cascadia v1.18.0.1",
+  "published_at": "2026-10-16T13:33:40Z",
+  "prerelease": false,
+  "html_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/tag/v1.18.0.1",
+  "body": "\nCovers official MeshCore `repeater-v1.18.0` and mikecarper Halo Keymind Cascade `v1.18.0.1` (preview1, incl. `v1.17.1.10`).\nThis release was ported automatically by the upstream-sync task and has **not yet been tested on hardware**.\n\n### Fixed\n- Floods with transport code 0 are treated as un-scoped (were dropped): the un-scoped hop limit and the wildcard's flood policy apply, as in Halo Keymind Cascade\n- Packets with a payload version above 1 are no longer parsed or relayed (as upstream `Dispatcher`). This keeps Halo Keymind Cascade's new negotiated direct LoRa OTA frames (`F2 00 \u2026`) off the mesh\n- Forwarded direct ACKs now wait the random direct retransmit delay like other direct packets (upstream sent them at once). Multipart ACKs add it to their (remaining + 1) \u00d7 300 ms\n- XL: `multi.acks` copies start after that delay, 300 ms apart, with the plain ACK last\n- XL: encrypted requests and messages whose ciphertext isn't whole AES blocks are rejected before the MAC check (upstream stack overflow fix; our decrypt already ignored partial blocks)\n\n### Changed\n- Discover requests aren't answered when both `advert.interval` and `flood.advert.interval` are 0 (node doesn't want to be discoverable)\n- `set af` accepts 0-9 and replies `ERROR: af must be 0-9` otherwise, as upstream\n- XL: `set agc.reset.interval` above 1020 s is clamped to 1020 instead of refused, as upstream\n- XL: remote CLI accepts the new `TXT_TYPE_CLI_COMMAND` (3) text type\n- Offline toolchain: SCons pinned to 4.8.1, the version PlatformIO 6.1.18 asks for\n\n### Added (XL)\n- `power` (upstream 1.18): `batt:<mV> mV usb:n/a solar_chg:n/a ext:no charger:no` (this board has no USB, solar or charger sensing)\n\n### Upstream sync\nPorted:\n- [9c9a2ba2](https://github.com/meshcore-dev/MeshCore/commit/9c9a2ba2db59) / [b74ba545](https://github.com/meshcore-dev/MeshCore/commit/b74ba545308f) MACThenDecrypt block-alignment check\n- [6df5aaed](https://github.com/meshcore-dev/MeshCore/commit/6df5aaed4335) ACK forwarding (direct) had zero delay\n- [01f9293b](https://github.com/meshcore-dev/MeshCore/commit/01f9293be073) transport code 0 = un-scoped, with keymind's [b842438e](https://github.com/mikecarper/MeshCore/commit/b842438e6469) (wildcard deny + hop limits apply; official alone would forward it even when the wildcard denies flood)\n- [f19733e4](https://github.com/meshcore-dev/MeshCore/commit/f19733e47879) don't answer DISCOVER when adverts are off\n- [0c3fe356](https://github.com/meshcore-dev/MeshCore/commit/0c3fe356d06e) `agc.reset.interval` clamp (the 1020 s range we already had)\n- [41588d80](https://github.com/meshcore-dev/MeshCore/commit/41588d805253) `set af` 0-9 range and reply text (CommonRadioPrefs refactor; other CLI names and replies unchanged)\n- [2c0ace25](https://github.com/meshcore-dev/MeshCore/commit/2c0ace2519d9) `TXT_TYPE_CLI_COMMAND`\n- [77057aef](https://github.com/meshcore-dev/MeshCore/commit/77057aefdd39) / [6b696a4e](https://github.com/meshcore-dev/MeshCore/commit/6b696a4ef6db) `power` command\n- keymind [938f6374](https://github.com/mikecarper/MeshCore/commit/938f63748799) direct LoRa OTA frames must not be relayed \u2192 payload-version filter\n\nAlready have:\n- [95214e8c](https://github.com/meshcore-dev/MeshCore/commit/95214e8c4026) serial command buffer NUL-termination (our reader is bounded)\n- [1d5283de](https://github.com/meshcore-dev/MeshCore/commit/1d5283de7678) StaticPoolPacketManager null/index checks (no packet pool here)\n\nDeclined:\n- [2db4b406](https://github.com/meshcore-dev/MeshCore/commit/2db4b40617c3) `loop.detect` default `minimal`: we already default to `moderate` (stricter)\n- [9bc60608](https://github.com/meshcore-dev/MeshCore/commit/9bc6060831a0) and follow-ups: REQ_TYPE_SUBSCRIBE / region load-save / DynamicConfigSerializer: sensor role and file-system prefs\n- LR1110/LR1121/LR2021 radio fixes, new boards, FEM prefs, board loop hook, LED off, RadioLib pin, `gps diag`: other hardware or out of scope\n- keymind: OTA install and identity restamping ([39eaf8d8](https://github.com/mikecarper/MeshCore/commit/39eaf8d8b7ef)), direct OTA transport itself, Ethernet/Wi-Fi/BLE/MQTT/Meshtext/MeshTalk, SD seeder, new variants: out of scope (OTA install stays paused, see Cheapeater OTA design)\n\nSize: standard build 62,948 / 63,488 bytes (8 bytes smaller than 1.17.1.3); XL +128 bytes, RAM unchanged.\n\n\n### Files\n- `*-xl-us.hex` / `*-xl-eu.hex`: XL build for boards that pass the 128 KB flash test. Flash the **.hex** (never a .bin) with STM32CubeProgrammer, without a full chip erase.\n- `*-us.bin` / `*-eu.bin`: standard build for 64 KB boards.\n",
+  "mirrored": true,
+  "assets": [
+   {
+    "name": "spectra-cascadia-v1.18.0.1-eu.bin",
+    "size": 63260,
+    "digest": "sha256:cbc61286875f0cba67a7f407f1ca6499e96c0b229403f7032737fc87d886a291",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.1/spectra-cascadia-v1.18.0.1-eu.bin"
+   },
+   {
+    "name": "spectra-cascadia-v1.18.0.1-us.bin",
+    "size": 63260,
+    "digest": "sha256:c6ce4de5b22cc43d023648b8d355712ccc62c208ddf5237ea6db5afe4367f5d6",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.1/spectra-cascadia-v1.18.0.1-us.bin"
+   },
+   {
+    "name": "spectra-cascadia-v1.18.0.1-xl-eu.hex",
+    "size": 240624,
+    "digest": "sha256:3dbfb8f3e3a64d7fffa57b6a147a4b7cded5709a6074a1ddb69ab19f82852d68",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.1/spectra-cascadia-v1.18.0.1-xl-eu.hex"
+   },
+   {
+    "name": "spectra-cascadia-v1.18.0.1-xl-us.hex",
+    "size": 240640,
+    "digest": "sha256:56b392a956fbb6e7bc751dbc2c0c96c45aa563cc4af1cc0032a8170008471b32",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.18.0.1/spectra-cascadia-v1.18.0.1-xl-us.hex"
+   }
+  ]
+ },
+ {
+  "tag_name": "v1.17.1.3",
+  "name": "Spectra-Cascadia v1.17.1.3",
+  "published_at": "2026-10-15T19:07:42Z",
+  "prerelease": false,
+  "html_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/tag/v1.17.1.3",
+  "body": "\n### Added (XL)\n- Relays mikecarper/MeshCore LoRa OTA packets (`PAYLOAD_TYPE_OTA` 0x0C) during a `tempradio` window, as his relay-only repeaters do, so Cheapeaters can sit between an OTA source and a destination. Packets are carried opaquely and ignored outside the window. Ordinary flood limits and region rules apply. Duplicates use a time-limited cache, so a copy re-sent after a loss is forwarded again while echoes are not. Active-transfer messages go at top priority and discovery at background priority; discovery is dropped first when the send queue is nearly full\n- `normalradio`: ends a `tempradio` window early (2 s after the reply goes out)\n\n\n### Files\n- `*-xl-us.hex` / `*-xl-eu.hex`: XL build for boards that pass the 128 KB flash test. Flash the **.hex** (never a .bin) with STM32CubeProgrammer, without a full chip erase.\n- `*-us.bin` / `*-eu.bin`: standard build for 64 KB boards.\n",
+  "mirrored": true,
+  "assets": [
+   {
+    "name": "spectra-cascadia-v1.17.1.3-eu.bin",
+    "size": 63268,
+    "digest": "sha256:0afc0b2f5ee7b5e37381d9ed422daa0760dc8d7d77789e315d1d13e2324de706",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.17.1.3/spectra-cascadia-v1.17.1.3-eu.bin"
+   },
+   {
+    "name": "spectra-cascadia-v1.17.1.3-us.bin",
+    "size": 63268,
+    "digest": "sha256:bef0e3ecd1bd0a6a361f9f2e6943d5a2ca5321991c5752b34ad4c4fd0226e83b",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.17.1.3/spectra-cascadia-v1.17.1.3-us.bin"
+   },
+   {
+    "name": "spectra-cascadia-v1.17.1.3-xl-eu.hex",
+    "size": 240264,
+    "digest": "sha256:2f90068114659542e5c3df3cdc443c78200392f5869e1dc568b63a20e56b0324",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.17.1.3/spectra-cascadia-v1.17.1.3-xl-eu.hex"
+   },
+   {
+    "name": "spectra-cascadia-v1.17.1.3-xl-us.hex",
+    "size": 240280,
+    "digest": "sha256:a3f423d8734844161bd2fd4a1bae0309f745a66ec16b7f9e56a99d2acf6e5146",
+    "browser_download_url": "https://github.com/jade-on-mesh/spectra-cascadia/releases/download/v1.17.1.3/spectra-cascadia-v1.17.1.3-xl-us.hex"
+   }
+  ]
+ }
+]

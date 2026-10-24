@@ -1,0 +1,1375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MediaMesh Flasher</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Install Wadamesh TAK on standalone radios, Keymind Cascade on companions and repeaters, and Spectra-Cascadia on DX-LR30 repeaters, over USB from Chrome or Edge.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: navy masthead with two firmware tabs, then one narrow column:
+   two tab-specific steps (device, firmware) and one shared install step with a serial log. */
+:root{
+  --bg:#F2F5F9; --surface:#FFFFFF; --sunk:#E8EDF4; --line:#D3DCE8;
+  --ink:#14213D; --mut:#56637A; --accent:#1E4C86; --accent-ink:#FFFFFF;
+  --green:#2C6B2F; --green-soft:#E3EFDA; --leaf:#8FB673; --gold:#D8B84A;
+  --warn:#7A4F00; --warn-soft:#FBF1D6; --bad:#A3261B; --bad-soft:#FBE3E0;
+  --band:#14213D; --band-ink:#FFFFFF; --band-mut:#AFC0DA; --tab-on:#F2F5F9;
+  --log-bg:#0F1A30; --log-ink:#CFE0C3;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --body:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0B1324; --surface:#14213D; --sunk:#0F1A30; --line:#2A3B5E;
+  --ink:#E8EEF7; --mut:#9DAECB; --accent:#7FA9E6; --accent-ink:#0B1324;
+  --green:#A6CC8A; --green-soft:#1D3322; --leaf:#8FB673; --gold:#D8B84A;
+  --warn:#F0C96A; --warn-soft:#33290F; --bad:#FF9C90; --bad-soft:#3A1915;
+  --band:#0F1A30; --band-ink:#FFFFFF; --band-mut:#9DAECB; --tab-on:#0B1324;
+  --log-bg:#070D1A; --log-ink:#CFE0C3; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0B1324; --surface:#14213D; --sunk:#0F1A30; --line:#2A3B5E;
+  --ink:#E8EEF7; --mut:#9DAECB; --accent:#7FA9E6; --accent-ink:#0B1324;
+  --green:#A6CC8A; --green-soft:#1D3322; --leaf:#8FB673; --gold:#D8B84A;
+  --warn:#F0C96A; --warn-soft:#33290F; --bad:#FF9C90; --bad-soft:#3A1915;
+  --band:#0F1A30; --band-ink:#FFFFFF; --band-mut:#9DAECB; --tab-on:#0B1324;
+  --log-bg:#070D1A; --log-ink:#CFE0C3; color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--body);-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono);font-size:.86em}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.wrap{max-width:820px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* masthead + tabs */
+.band{background:var(--band);color:var(--band-ink)}
+.band .wrap{padding-block:26px 0;display:flex;flex-direction:column;gap:10px}
+.org{display:flex;align-items:center;gap:10px;font:600 .78rem/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--band-mut)}
+h1{margin:0;font:800 clamp(1.9rem,5.5vw,2.8rem)/1.05 var(--display);letter-spacing:-.01em;text-wrap:balance}
+h1 span{color:var(--leaf)}
+.lede{margin:0;color:var(--band-mut);max-width:62ch}
+.tabs{display:flex;gap:6px;margin-top:14px;overflow-x:auto}
+.tab{flex:0 1 auto;border:0;cursor:pointer;text-align:left;padding:11px 16px 12px;border-radius:10px 10px 0 0;background:transparent;color:var(--band-mut);display:flex;flex-direction:column;gap:1px;min-width:0}
+.tab b{font:700 1rem/1.2 var(--display);color:var(--band-ink)}
+.tab small{font-size:.8rem}
+.tab:hover{background:rgba(255,255,255,.06)}
+.tab[aria-selected="true"]{background:var(--tab-on);color:var(--mut)}
+.tab[aria-selected="true"] b{color:var(--ink)}
+
+main{padding-block:22px 56px;display:flex;flex-direction:column;gap:18px}
+.banner{border-radius:10px;padding:12px 14px;font-size:.93rem;display:flex;gap:10px;align-items:flex-start;margin:0}
+.banner.warn{background:var(--warn-soft);color:var(--warn)}
+.banner.bad{background:var(--bad-soft);color:var(--bad)}
+.banner.ok{background:var(--green-soft);color:var(--green)}
+.banner.info{background:var(--sunk);color:var(--ink)}
+.banner b,.banner a{color:inherit}
+
+.step{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.step>header{display:flex;align-items:baseline;gap:12px}
+.num{flex:none;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font:700 .9rem/1 var(--display);transform:translateY(-1px)}
+.step h2{margin:0;font:700 1.2rem/1.2 var(--display)}
+.step .sub{margin:2px 0 0;color:var(--mut);font-size:.92rem}
+
+/* cards */
+.boards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.boards.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:700px){.boards.three{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.boards,.boards.three{grid-template-columns:1fr}}
+.board{display:flex;flex-direction:column;gap:3px;text-align:left;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer;min-width:0}
+.board:hover{border-color:var(--accent)}
+.board[aria-checked="true"]{border-color:var(--accent);background:var(--sunk);box-shadow:inset 0 0 0 1px var(--accent)}
+.board .bn{font-weight:700;line-height:1.25}
+.board .bm{color:var(--mut);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em}
+.board .bd{color:var(--mut);font-size:.86rem}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.chip{display:inline-block;font:600 .7rem/1 var(--mono);letter-spacing:.04em;padding:3px 6px;border-radius:5px;background:var(--sunk);color:var(--mut);border:1px solid var(--line)}
+.board[aria-checked="true"] .chip{background:var(--surface)}
+.scroll{max-height:390px;overflow:auto;padding:2px;margin:-2px}
+.empty{color:var(--mut);font-size:.92rem;padding:12px 0}
+
+.opt{display:flex;flex-direction:column;gap:6px}
+.ol{font-weight:600;font-size:.92rem}
+.oh{color:var(--mut);font-size:.85rem;margin:0}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{padding:7px 12px;border-radius:8px;border:1.5px solid var(--line);background:var(--surface);cursor:pointer;font-size:.92rem}
+.seg button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.search{flex:1 1 220px;min-width:0;padding:9px 12px;border-radius:8px;border:1.5px solid var(--line);background:var(--surface)}
+.count{color:var(--mut);font-size:.85rem}
+
+.picked{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.9rem;color:var(--mut)}
+.picked code{color:var(--ink);background:var(--sunk);padding:2px 6px;border-radius:5px;word-break:break-all}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+select{padding:9px 12px;border-radius:8px;border:1.5px solid var(--line);background:var(--surface);min-width:0;max-width:100%}
+.meta{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px;font-size:.9rem;margin:0}
+.meta dt{color:var(--mut)}
+.meta dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.notes{margin:0;font-size:.9rem;color:var(--mut);max-width:65ch}
+
+.variants{display:flex;flex-direction:column;gap:8px}
+.variant{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;cursor:pointer;background:var(--surface);text-align:left;min-width:0}
+.variant[aria-checked="true"]{border-color:var(--accent);background:var(--sunk)}
+.variant .dot{flex:none;width:16px;height:16px;border-radius:50%;border:2px solid var(--line);margin-top:3px}
+.variant[aria-checked="true"] .dot{border-color:var(--accent);background:radial-gradient(var(--accent) 45%,transparent 50%)}
+.variant .vt{font-weight:700}
+.variant .vs{display:block;color:var(--mut);font-size:.85rem;overflow-wrap:anywhere}
+
+/* install */
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;font-size:.92rem;background:var(--sunk)}
+.drop.over{border-color:var(--accent)}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:.9rem;align-self:flex-start}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:.93rem}
+.check input{margin-top:4px;width:18px;height:18px;accent-color:var(--accent);flex:none}
+.check small{display:block;color:var(--mut)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border-radius:9px;border:1.5px solid var(--accent);background:var(--surface);color:var(--accent);font-weight:600;cursor:pointer;text-decoration:none}
+.btn.primary{background:var(--accent);color:var(--accent-ink);font-size:1.05rem;padding:13px 22px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.small{padding:5px 10px;font-size:.82rem;border-radius:7px;border-width:1px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+ol.howto{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;font-size:.95rem}
+
+.prog{display:flex;flex-direction:column;gap:6px}
+.prog .pl{display:flex;justify-content:space-between;gap:10px;font-size:.92rem}
+.bar{height:10px;border-radius:999px;background:var(--sunk);overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--leaf));transition:width .2s}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+.logbox{display:flex;flex-direction:column;gap:6px}
+.loghead{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.85rem;color:var(--mut)}
+.loghead .actions{gap:6px}
+pre.log{margin:0;background:var(--log-bg);color:var(--log-ink);font:12.5px/1.5 var(--mono);padding:12px;border-radius:10px;height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+pre.log .e{color:#FF9C90} pre.log .w{color:#F0C96A} pre.log .o{color:#A6CC8A} pre.log .d{color:#7F8DA8}
+.help{font-size:.9rem;color:var(--mut)}
+.help summary{cursor:pointer;color:var(--ink);font-weight:600}
+.help ul{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+/* about MediaMesh */
+.about{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px}
+.about h2{margin:0;font:700 1.2rem/1.2 var(--display)}
+.about p{margin:0;max-width:65ch}
+.paths{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media(max-width:700px){.paths{grid-template-columns:1fr}}
+.paths li{background:var(--sunk);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;font-size:.92rem;min-width:0}
+.paths b{font:700 .78rem/1.2 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+.paths .linkbtn{font-size:.92rem;font-weight:600}
+.guides{display:flex;flex-wrap:wrap;gap:10px}
+/* video */
+.video{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.video summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:12px 16px;font-weight:600}
+.video summary::-webkit-details-marker{display:none}
+.video summary::before{content:"";width:0;height:0;border-left:9px solid var(--accent);border-top:6px solid transparent;border-bottom:6px solid transparent;transition:transform .15s}
+.video[open] summary::before{transform:rotate(90deg)}
+.video summary small{font-weight:400;color:var(--mut)}
+.video .frame{position:relative;width:100%;max-width:100%;aspect-ratio:16/9;background:#000}
+.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+@media (prefers-reduced-motion:reduce){.video summary::before{transition:none}}
+footer{color:var(--mut);font-size:.85rem;padding-bottom:40px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:6px 18px}
+</style>
+
+<div class="band">
+  <div class="wrap">
+    <div class="org">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 16 L11 5 L18 16 Z"/><path d="M4 16 L11 11 L18 16 M11 5 L11 11"/></g><g fill="#8FB673"><circle cx="4" cy="16" r="2.3"/><circle cx="11" cy="5" r="2.3"/><circle cx="18" cy="16" r="2.3"/><circle cx="11" cy="11" r="2.3"/></g></svg>
+      CascadiaMesh.org
+    </div>
+    <h1>Media<span>Mesh</span> Flasher</h1>
+    <p class="lede">Install mesh firmware over USB, right from your browser. Pick a firmware below, then your device.</p>
+    <div class="tabs" role="tablist" aria-label="Firmware">
+      <button class="tab" role="tab" id="tab-wadamesh" aria-controls="pane-wadamesh" type="button"><b>Wadamesh TAK</b><small>Standalone radios</small></button>
+      <button class="tab" role="tab" id="tab-cascade" aria-controls="pane-cascade" type="button"><b>Keymind Cascade</b><small>Companions and repeaters</small></button>
+      <button class="tab" role="tab" id="tab-spectra" aria-controls="pane-spectra" type="button"><b>Spectra-Cascadia</b><small>DX-LR30 repeaters</small></button>
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+  <details class="video" id="video" open>
+    <summary>Introducing MediaMesh <small id="videoHint">Hide</small></summary>
+    <div class="frame">
+      <iframe src="https://www.youtube-nocookie.com/embed/YB6AKfYkQNI?rel=0" title="CascadiaMesh: Introducing MediaMesh" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+    </div>
+  </details>
+
+  <section class="about" aria-labelledby="aboutH">
+    <h2 id="aboutH">What is MediaMesh?</h2>
+    <p>MediaMesh gives photos and voice their own lane. Text, adverts and acknowledgements stay on the main mesh, while the photos and voice clips that MeshCore Open TAK and Wadamesh TAK send go out on a second, faster LoRa profile (radio2). A device with MediaMesh on still hears the main mesh, so it keeps working with every repeater around it.</p>
+    <ul class="paths">
+      <li><b>Standalone radio</b><span>Flash Wadamesh TAK, then turn MediaMesh on under Settings › Radio › MediaMesh Settings.</span><button class="linkbtn" type="button" data-goto="wadamesh">Wadamesh TAK tab</button></li>
+      <li><b>With a phone</b><span>Flash a Keymind Cascade companion and pair it with the <a href="https://github.com/jade-on-mesh/meshcore-open-tak/releases" target="_blank" rel="noopener">MeshCore Open TAK app</a>.</span><button class="linkbtn" type="button" data-goto="cascade" data-role="companion">Keymind Cascade companions</button></li>
+      <li><b>Repeater</b><span>Flash Keymind Cascade and set up radio2. Every MediaMesh repeater carries photos and voice farther.</span><button class="linkbtn" type="button" data-goto="cascade" data-role="repeater">Keymind Cascade repeaters</button></li>
+    </ul>
+    <div class="guides">
+      <a class="btn" href="https://cascadiamesh.org/wadamesh-tak-user-guide/" target="_blank" rel="noopener">Wadamesh-TAK user guide ↗</a>
+      <a class="btn" href="https://cascadiamesh.org/meshcore-open-tak-user-guide/" target="_blank" rel="noopener">MeshCore Open TAK user guide ↗</a>
+    </div>
+  </section>
+
+  <p id="serialBanner" class="banner warn" hidden><span><b>This browser can't talk to USB devices.</b> Open this page in Chrome, Edge or an up-to-date Firefox on a Windows, Mac, Linux or ChromeOS computer. Phones and Safari can't flash.</span></p>
+
+  <!-- ===== Wadamesh TAK ===== -->
+  <div id="pane-wadamesh" role="tabpanel" aria-labelledby="tab-wadamesh" style="display:flex;flex-direction:column;gap:18px">
+    <p class="banner info"><span>Wadamesh TAK is touch-UI MeshCore firmware that turns a handheld into a standalone radio, with MeshCore Open TAK photos and voice, OTP Messenger and Team.</span></p>
+    <section class="step" aria-labelledby="w1">
+      <header><span class="num">1</span><div><h2 id="w1">Pick your device</h2></div></header>
+      <div class="boards" id="wBoards" role="radiogroup" aria-labelledby="w1"></div>
+      <div id="wOpts" style="display:flex;flex-direction:column;gap:12px"></div>
+    </section>
+    <section class="step" aria-labelledby="w2">
+      <header><span class="num">2</span><div><h2 id="w2">Pick a release</h2><p class="sub">The newest build is selected. Older builds stay here in case you need to roll back.</p></div></header>
+      <div class="row">
+        <label for="wRelease" class="ol">Release</label>
+        <select id="wRelease"><option>Loading releases…</option></select>
+        <a id="wRelLink" href="https://github.com/jade-on-mesh/wadamesh-tak/releases" target="_blank" rel="noopener">Release page ↗</a>
+      </div>
+      <p class="notes" id="wNotes"></p>
+    </section>
+  </div>
+
+  <!-- ===== Keymind Cascade ===== -->
+  <div id="pane-cascade" role="tabpanel" aria-labelledby="tab-cascade" hidden style="display:flex;flex-direction:column;gap:18px">
+    <p class="banner info"><span id="cIntro">Keymind Cascade is MeshCore tuned for the Cascade region (USA Cascade 910.525 MHz, BW62.5, SF7, CR5), with OTAFix wireless updates on supported boards.</span></p>
+    <section class="step" aria-labelledby="c1">
+      <header><span class="num">1</span><div><h2 id="c1">Pick a role and your device</h2></div></header>
+      <div class="opt">
+        <span class="ol" id="cRoleL">Role</span>
+        <div class="seg" id="cRole" role="group" aria-labelledby="cRoleL">
+          <button type="button" data-role="companion" aria-pressed="true">Companion</button>
+          <button type="button" data-role="repeater" aria-pressed="false">Repeater</button>
+        </div>
+        <p class="oh" id="cRoleHelp"></p>
+      </div>
+      <div class="tools">
+        <input class="search" id="cSearch" type="search" placeholder="Search boards, e.g. Heltec v3, T1000-E, RAK" aria-label="Search boards">
+        <div class="seg" id="cChip" role="group" aria-label="Chip">
+          <button type="button" data-chip="" aria-pressed="true">All</button>
+          <button type="button" data-chip="esp32" aria-pressed="false">ESP32</button>
+          <button type="button" data-chip="nrf52" aria-pressed="false">nRF52</button>
+          <button type="button" data-chip="noflash" aria-pressed="false">Other</button>
+        </div>
+      </div>
+      <div class="count" id="cCount"></div>
+      <div class="scroll"><div class="boards three" id="cBoards" role="radiogroup" aria-labelledby="c1"></div></div>
+    </section>
+    <section class="step" aria-labelledby="c2">
+      <header><span class="num">2</span><div><h2 id="c2">Pick the firmware build</h2><p class="sub">Each build is for one exact board, radio, screen and storage combination.</p></div></header>
+      <div class="variants" id="cVariants" role="radiogroup" aria-labelledby="c2"></div>
+      <dl class="meta" id="cMeta"></dl>
+      <div class="row" id="cLinks"></div>
+    </section>
+  </div>
+
+  <!-- ===== Spectra-Cascadia ===== -->
+  <div id="pane-spectra" role="tabpanel" aria-labelledby="tab-spectra" hidden style="display:flex;flex-direction:column;gap:18px">
+    <p class="banner info"><span>Spectra-Cascadia is CascadiaMesh's MeshCore repeater firmware for the DX-LR30 (STM32F103 + SX1262), following the CascadiaMesh airtime policy. After flashing it runs on its own; change settings over USB serial with the usual MeshCore repeater commands.</span></p>
+    <section class="step" aria-labelledby="s1">
+      <header><span class="num">1</span><div><h2 id="s1">Pick the build</h2><p class="sub">Both builds are for the DX-LR30 module.</p></div></header>
+      <div class="boards" id="sBuild" role="radiogroup" aria-labelledby="s1"></div>
+      <div class="opt">
+        <span class="ol" id="sRegionL">Region</span>
+        <div class="seg" id="sRegion" role="group" aria-labelledby="sRegionL">
+          <button type="button" data-region="us" aria-pressed="true">US/Can (915 MHz band)</button>
+          <button type="button" data-region="eu" aria-pressed="false">EU (868 MHz band)</button>
+        </div>
+        <p class="oh">Sets the first-boot radio defaults. A node you upgrade keeps its saved radio settings.</p>
+      </div>
+    </section>
+    <section class="step" aria-labelledby="s2">
+      <header><span class="num">2</span><div><h2 id="s2">Pick a release</h2><p class="sub">The newest release is selected.</p></div></header>
+      <div class="row">
+        <label for="sRelease" class="ol">Release</label>
+        <select id="sRelease"><option>Loading releases…</option></select>
+        <a id="sRelLink" href="https://github.com/jade-on-mesh/spectra-cascadia/releases" target="_blank" rel="noopener">Release page ↗</a>
+      </div>
+      <p class="notes" id="sNotes"></p>
+    </section>
+  </div>
+
+  <!-- ===== shared install ===== -->
+  <section class="step" aria-labelledby="h3">
+    <header><span class="num">3</span><div><h2 id="h3">Install</h2><p class="sub" id="iSub"></p></div></header>
+    <div class="picked" id="iFile"></div>
+    <div id="iStatus"></div>
+
+    <!-- ESP32: Web Serial -->
+    <div id="espBox" style="display:flex;flex-direction:column;gap:14px">
+      <p class="banner warn" id="bootTip"></p>
+      <div class="drop" id="drop" hidden>
+        <div>Download <a id="dlLink" href="#" target="_blank" rel="noopener">the file</a>, then drop it here or choose it. The page checks it before flashing.</div>
+        <label class="btn small" for="fileIn" style="align-self:flex-start">Choose file…</label>
+        <input type="file" id="fileIn" accept=".bin,.hex,.zip,application/octet-stream,application/zip" hidden>
+        <div id="fileInfo"></div>
+        <label class="check" id="forceRow" hidden><input type="checkbox" id="force"><span>Flash this file anyway<small>Only if you know it is a merged image for this exact board.</small></span></label>
+      </div>
+      <button class="linkbtn" id="useLocal" type="button">Use a file from my computer instead</button>
+      <label class="check" id="eraseRow"><input type="checkbox" id="eraseAll"><span>Erase everything first<small id="eraseHelp"></small></span></label>
+      <label class="check" id="xlRow" hidden><input type="checkbox" id="xlOk"><span>This board passed <code>tools/flash128_test</code><small>XL uses the upper 64 KB of flash, which only some STM32F103C8 chips really have. Run the test on each board first.</small></span></label>
+      <div class="actions">
+        <button class="btn" id="dfuMode" type="button" hidden>1. Start update mode</button>
+        <button class="btn primary" id="install" type="button">Install firmware</button>
+        <button class="btn" id="monitor" type="button">Watch serial log</button>
+        <span class="oh" id="installHint"></span>
+      </div>
+    </div>
+
+    <!-- nRF52: UF2 drag and drop (the fallback when USB install isn't possible) -->
+    <details id="uf2Box" class="help" hidden>
+      <summary id="uf2Summary">Or install by drag-and-drop instead</summary>
+      <div style="display:flex;flex-direction:column;gap:14px;margin-top:10px;color:var(--ink)">
+      <ol class="howto">
+        <li>Download the <b>.uf2</b> file.</li>
+        <li>Plug the device in over USB and <b>double-press its reset button</b> quickly. A USB drive appears (its name depends on the board, such as <code>NRF52BOOT</code>, <code>RAK4631</code> or the board's own name).</li>
+        <li>Drag the .uf2 onto that drive. The drive disappears and the device restarts on its own when it's done. A "disk not ejected" warning is normal.</li>
+      </ol>
+      <div class="actions" id="uf2Actions"></div>
+      <p class="banner warn" id="uf2Note" style="margin:0"></p>
+      </div>
+    </details>
+
+    <div class="prog" id="prog" hidden>
+      <div class="pl"><b id="phase">Ready</b><span id="pct" class="mono"></span></div>
+      <div class="bar"><i id="barFill"></i></div>
+    </div>
+    <div id="result"></div>
+
+    <!-- other: download only -->
+    <div id="dlBox" hidden style="display:flex;flex-direction:column;gap:12px">
+      <p class="banner info" style="margin:0"><span>This board isn't flashed through a browser. Download the file and install it with the board's own tool (UF2 drag-and-drop for RP2040 boards, STM32CubeProgrammer for STM32WL).</span></p>
+      <div class="actions" id="dlActions"></div>
+    </div>
+
+    <div class="logbox">
+      <div class="loghead"><span>Log <label style="margin-left:10px;font-size:.82rem;color:var(--mut);white-space:nowrap"><input type="checkbox" id="debugLog" style="vertical-align:-2px"> Detailed (for troubleshooting)</label></span><div class="actions"><button class="btn small" id="copyLog" type="button">Copy log</button><button class="btn small" id="clearLog" type="button">Clear</button></div></div>
+      <pre class="log" id="log" aria-live="polite"></pre>
+    </div>
+    <details class="help">
+      <summary>If it doesn't work</summary>
+      <ul>
+        <li><b>No port shows up:</b> try another cable (many are charge-only) and another USB port. On Windows, a CH340 or CP210x driver may be needed for some boards.</li>
+        <li><b>nRF52 board doesn't answer in step 2:</b> double-press its reset button so it shows up as a USB drive, then press <b>2. Install firmware</b> and pick its port. Or use drag-and-drop instead.</li>
+        <li><b>"Failed to connect" or it times out:</b> put the board in download mode (see the tip above), then press Install again.</li>
+        <li><b>Port is busy:</b> close the MeshCore app, Arduino, PlatformIO or any other tab that has the device open.</li>
+        <li><b>Screen stays black after flashing:</b> unplug the board and plug it back in.</li>
+        <li><b>DX-LR30 doesn't answer:</b> enter the bootloader again right before pressing Install (hold BOOT0, press and release RESET, release BOOT0; the LED stays on). The page talks to it at 57600 baud, the only speed this board's bootloader answers at.</li>
+        <li><b>Already running the firmware?</b> Wadamesh TAK updates itself from <b>Settings › About › Install update</b>. Keymind Cascade repeaters with OTAFix can update over Wi-Fi or LoRa; see the setup guide linked in step 2.</li>
+      </ul>
+    </details>
+  </section>
+</main>
+
+<footer><div class="wrap">
+  <span>Wadamesh TAK: <a href="https://github.com/jade-on-mesh/wadamesh-tak" target="_blank" rel="noopener">jade-on-mesh/wadamesh-tak</a></span>
+  <span>Keymind Cascade: <a href="https://github.com/mikecarper/MeshCore" target="_blank" rel="noopener">mikecarper/MeshCore</a></span>
+  <span>Spectra-Cascadia: <a href="https://github.com/jade-on-mesh/spectra-cascadia" target="_blank" rel="noopener">jade-on-mesh/spectra-cascadia</a></span>
+  <span>Flashing by <a href="https://github.com/espressif/esptool-js" target="_blank" rel="noopener">esptool-js</a></span>
+  <span>Questions: cascadiamesh@gmail.com</span>
+</div></footer>
+
+<script type="module">
+const CONFIG = {
+  wadamesh: {
+    repo: "jade-on-mesh/wadamesh-tak",
+    // GitHub Pages copy of releases.json + firmware/<tag>/<file>, published by
+    // .github/workflows/flasher-pages.yml.
+    pagesBase: "https://jade-on-mesh.github.io/wadamesh-tak",
+  },
+  cascade: {
+    catalog: "https://raw.githubusercontent.com/mikecarper/MeshCore/keymindCascade/mesh-america/keymind-cascade-v1.16.0-provider.json",
+    picker: "https://mikecarper.github.io/MeshCore/firmware_picker/",
+    bootloaderDoc: "https://github.com/mikecarper/MeshCore/blob/keymindCascade/docs/ota_nrf52_bootloader_update.md",
+    // keymind-mirror.json + keymind/<tag>/<file>: ESP32 companion and repeater
+    // USB images copied to Pages by flasher-pages (refreshed daily).
+    pagesBase: "https://jade-on-mesh.github.io/wadamesh-tak",
+  },
+  spectra: {
+    repo: "jade-on-mesh/spectra-cascadia",
+    // spectra-releases.json + spectra/<tag>/<file> are mirrored next to the
+    // Wadamesh files by the same Pages workflow (the images are tiny).
+    pagesBase: "https://jade-on-mesh.github.io/wadamesh-tak",
+  },
+  // GitHub release downloads send no CORS headers, so the browser needs a copy
+  // (the Pages mirrors above) or a relay. Optional last resort: deploy cors-proxy-worker.js (Cloudflare Workers) and put its URL here, e.g.
+  // "https://mediamesh-fw.example.workers.dev". Empty = people download the file
+  // themselves and drop it on the page.
+  proxy: "",
+  esptool: "https://unpkg.com/esptool-js@0.7.0/bundle.js",
+  baud: 921600,
+};
+
+/* ================= shared helpers ================= */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const store = { get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+                set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
+const fmtMB = n => (n / 1048576).toFixed(2) + " MB";
+const shortSha = s => s ? s.slice(0, 12) + "…" + s.slice(-6) : "";
+async function getJSON(url) { const r = await fetch(url, { cache: "no-cache" }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
+async function sha256hex(bytes) { const h = await crypto.subtle.digest("SHA-256", bytes); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join(""); }
+// URL of a file next to this page, or null when the page has no real address (e.g. a WordPress srcdoc embed).
+const here = p => { try { return /^https?:$/.test(location.protocol) ? new URL(p, location.href).href : null; } catch { return null; } };
+const proxied = url => CONFIG.proxy ? `${CONFIG.proxy.replace(/\/$/, "")}/?url=${encodeURIComponent(url)}` : null;
+
+const S = {
+  tab: "wadamesh",
+  target: null,        // what step 3 installs; built by the active tab
+  local: null,         // {bytes, name, sha, ok}
+  cache: new Map(), port: null, busy: false, monitorStop: null,
+};
+
+/* ---------- log ---------- */
+const logEl = $("log");
+function log(msg, cls) {
+  const line = document.createElement("span"); if (cls) line.className = cls;
+  line.textContent = msg + "\n";
+  const atEnd = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 4;
+  logEl.append(line); if (atEnd) logEl.scrollTop = logEl.scrollHeight;
+}
+function logRaw(t) { logEl.append(document.createTextNode(t)); logEl.scrollTop = logEl.scrollHeight; }
+$("clearLog").onclick = () => { logEl.textContent = ""; };
+$("copyLog").onclick = async () => {
+  try { await navigator.clipboard.writeText(logEl.textContent); $("copyLog").textContent = "Copied"; }
+  catch { const r = document.createRange(); r.selectNodeContents(logEl); const s = getSelection(); s.removeAllRanges(); s.addRange(r); $("copyLog").textContent = "Selected"; }
+  setTimeout(() => $("copyLog").textContent = "Copy log", 1500);
+};
+
+/* ---------- ESP image inspection ----------
+   A merged image puts the second-stage bootloader where the ROM looks for it
+   (0x1000 on ESP32/ESP32-S2, 0x2000 on ESP32-P4, 0x0 elsewhere) and the
+   partition table at 0x8000. Byte 12 of the bootloader's header is the chip ID. */
+const CHIP_IDS = { 0: "ESP32", 2: "ESP32-S2", 5: "ESP32-C3", 9: "ESP32-S3", 12: "ESP32-C2", 13: "ESP32-C6", 16: "ESP32-H2", 18: "ESP32-P4", 23: "ESP32-C5", 20: "ESP32-C61" };
+const BOOT_OFF = { 0: 0x1000, 2: 0x1000, 18: 0x2000 };
+function inspectImage(b) {
+  if (b.length < 0x10000) return { err: "That file is too small to be a firmware image." };
+  for (const off of [0x0, 0x1000, 0x2000]) {
+    if (b[off] !== 0xE9) continue;
+    const id = b[off + 12] | (b[off + 13] << 8);
+    if ((BOOT_OFF[id] ?? 0) !== off) continue;
+    if (b[0x8000] !== 0xAA || b[0x8001] !== 0x50)
+      return { err: "That file has no partition table at 0x8000, so it's an app-only image. USB installs need the -merged.bin." };
+    return { chipId: id, chip: CHIP_IDS[id] || `chip ID ${id}` };
+  }
+  return { err: "That file isn't a merged ESP32 image (no bootloader where the chip expects one). Use the -merged.bin for this device." };
+}
+
+/* ================= tabs ================= */
+const TABS = ["wadamesh", "cascade", "spectra"];
+function setTab(t) {
+  S.tab = TABS.includes(t) ? t : "wadamesh";
+  for (const n of TABS) {
+    $("tab-" + n).setAttribute("aria-selected", String(n === S.tab));
+    $("pane-" + n).hidden = n !== S.tab;
+  }
+  store.set("mm.tab", S.tab);
+  if (S.tab === "cascade") Cascade.ensureLoaded();
+  if (S.tab === "spectra") Spectra.ensureLoaded();
+  refreshTarget();
+}
+$("tab-wadamesh").onclick = () => setTab("wadamesh");
+$("tab-cascade").onclick = () => setTab("cascade");
+$("tab-spectra").onclick = () => setTab("spectra");
+function refreshTarget() {
+  S.manualBoot = false;
+  S.target = S.tab === "wadamesh" ? Wada.target() : S.tab === "cascade" ? Cascade.target() : Spectra.target();
+  S.local = null; $("fileIn").value = ""; $("fileInfo").textContent = ""; $("forceRow").hidden = true; $("force").checked = false;
+  renderInstall();
+}
+
+/* ================= Wadamesh TAK tab ================= */
+const Wada = (() => {
+  const BOARDS = [
+    { id: "tdeck", name: "LilyGo T-Deck / T-Deck Plus", chip: "ESP32-S3", desc: "Keyboard, trackball and touch screen.",
+      boot: "Usually connects on its own. If not: switch it off, hold the trackball down, plug in USB (or switch on), then release.", slug: () => "tdeck" },
+    { id: "m9", name: "Elecrow ThinkNode M9", chip: "ESP32-S3", desc: "QWERTY keyboard and d-pad, LR1110 radio.",
+      boot: "Usually connects on its own. If not: hold the BOOT button while plugging in USB, then release.", slug: () => "thinknode-m9" },
+    { id: "pager", name: "LilyGo T-LoRa Pager", chip: "ESP32-S3", desc: "QWERTY keyboard and rotary encoder, no touch screen.",
+      boot: "Usually connects on its own. If not: hold the BOOT button while plugging in USB, then release. The first USB install resizes the app slots, so it has to be this full install once.",
+      options: [{ key: "radio", label: "Radio", help: "Check the label on the back of your unit. The wrong build leaves the radio dead.", choices: [["sx1262", "SX1262"], ["lr1121", "LR1121"]] }],
+      slug: o => `tlora-pager-${o.radio}` },
+    { id: "heltec-v4", name: "Heltec V4 + TFT", chip: "ESP32-S3", desc: "Heltec V4 with the 2.4\" TFT touch screen, on-screen keyboard.",
+      boot: "Usually connects on its own. If not: hold the USER (BOOT) button while plugging in USB, then release. The first install resizes the app slots, so it has to be this full install once.",
+      options: [{ key: "model", label: "Model", help: "V4-R8 is the one with 8 MB of PSRAM, sold with the Expansion Kit V2 (microSD, buzzer, sensors).", choices: [["v4", "V4"], ["r8", "V4-R8 + Expansion Kit V2"]] }],
+      slug: o => o.model === "r8" ? "heltec-v4-r8" : "heltec-v4" },
+    { id: "wio-l2", name: "Seeed Wio Tracker L2", chip: "ESP32-S3", desc: "Touch screen, GPS. Pre-release: still being brought up.",
+      boot: "Usually connects on its own. If not: hold the BOOT button while plugging in USB, then release. The first install resizes the app slots, so it has to be this full install once.",
+      slug: () => "wio-tracker-l2" },
+    { id: "crowpanel", name: "Elecrow CrowPanel Advance", chip: "ESP32-S3", desc: "3.5\" or 5\" touch screen. Needs an SX1262 module fitted (the 5\": in the wireless slot, with the DIP switch set to it).",
+      boot: "Usually connects on its own. If not: hold the BOOT button, press RST, then release BOOT. The first install resizes the app slots, so it has to be this full install once.",
+      options: [{ key: "size", label: "Screen", help: "The size on the box: 3.5\" (480x320) or 5\" (800x480).", choices: [["35", "3.5\""], ["50", "5\""]] }],
+      slug: o => `crowpanel-${o.size}` },
+    { id: "p4", name: "LilyGo T-Display P4 AMOLED", chip: "ESP32-P4", desc: "Large AMOLED touch screen, ESP32-C6 for Wi-Fi.",
+      boot: "Usually connects on its own. If not: hold BOOT, tap RST, then release BOOT.",
+      options: [
+        { key: "radio", label: "Radio", help: "SX1262 is the common one; LR2021 units say so on the label.", choices: [["sx1262", "SX1262"], ["lr2021", "LR2021"]] },
+        { key: "c6", label: "Wi-Fi chip firmware", help: "Current units ship esp-hosted. Pick ESP-AT only for an older unit whose C6 still runs LilyGo's factory ESP-AT.", choices: [["hosted", "esp-hosted (current)"], ["at", "ESP-AT (older units)"]] }],
+      slug: o => `tdisplay-p4${o.radio === "lr2021" ? "-lr2021" : ""}${o.c6 === "at" ? "-at" : ""}` },
+  ];
+  let board = BOARDS[0], opts = {}, releases = [], rel = null;
+  const slug = () => board.slug(opts);
+  const assetName = () => `wadamesh-${slug()}-merged.bin`;
+
+  function render() {
+    const box = $("wBoards"); box.textContent = "";
+    for (const b of BOARDS) {
+      const el = document.createElement("button");
+      el.type = "button"; el.className = "board"; el.setAttribute("role", "radio"); el.setAttribute("aria-checked", String(b === board));
+      el.innerHTML = `<span class="bn">${esc(b.name)}</span><span class="bd">${esc(b.desc)}</span><span class="chips"><span class="chip">${b.chip}</span></span>`;
+      el.onclick = () => select(b.id); box.append(el);
+    }
+    const ob = $("wOpts"); ob.textContent = "";
+    for (const o of board.options || []) {
+      const wrap = document.createElement("div"); wrap.className = "opt";
+      wrap.innerHTML = `<div class="ol">${esc(o.label)}</div><div class="seg" role="group" aria-label="${esc(o.label)}"></div><p class="oh">${esc(o.help)}</p>`;
+      for (const [v, t] of o.choices) {
+        const btn = document.createElement("button"); btn.type = "button"; btn.textContent = t;
+        btn.setAttribute("aria-pressed", String(opts[o.key] === v));
+        btn.onclick = () => { opts[o.key] = v; store.set("mm.w.opts." + board.id, JSON.stringify(opts)); render(); refreshTarget(); };
+        wrap.querySelector(".seg").append(btn);
+      }
+      ob.append(wrap);
+    }
+  }
+  function select(id) {
+    board = BOARDS.find(b => b.id === id) || BOARDS[0];
+    let saved = {}; try { saved = JSON.parse(store.get("mm.w.opts." + board.id) || "{}"); } catch {}
+    opts = {}; for (const o of board.options || []) opts[o.key] = o.choices.some(c => c[0] === saved[o.key]) ? saved[o.key] : o.choices[0][0];
+    store.set("mm.w.board", board.id); render(); if (S.tab === "wadamesh") refreshTarget();
+  }
+
+  async function load() {
+    const sources = [
+      ["mirror", here("releases.json")],
+      ["mirror", CONFIG.wadamesh.pagesBase + "/releases.json"],
+      ["github", `https://api.github.com/repos/${CONFIG.wadamesh.repo}/releases?per_page=40`],
+    ];
+    for (const [kind, url] of sources) {
+      if (!url) continue;
+      try {
+        const data = await getJSON(url); if (!Array.isArray(data)) continue;
+        const rels = data.filter(r => /^tak-beta_/.test(r.tag_name) && !r.draft)
+          .map(r => ({ ...r, mirrored: kind === "mirror" ? r.mirrored !== false : false }))
+          .sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""));
+        if (!rels.length) continue;
+        releases = rels; log(`Wadamesh TAK: ${rels.length} releases from ${kind === "mirror" ? "the firmware mirror" : "GitHub"}.`, "d"); break;
+      } catch (e) { log(`Release list not available from ${new URL(url).host} (${e.message}).`, "d"); }
+    }
+    if (!releases.length) releases = [{ tag_name: "latest", name: "Latest release (couldn't load the list)", html_url: `https://github.com/${CONFIG.wadamesh.repo}/releases/latest`, assets: [], offline: true }];
+    const sel = $("wRelease"); sel.textContent = "";
+    releases.forEach((r, i) => {
+      const o = document.createElement("option"); o.value = r.tag_name;
+      const d = r.published_at ? new Date(r.published_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+      o.textContent = (r.name || r.tag_name) + (d ? ` · ${d}` : "") + (i === 0 && !r.offline ? " · newest" : "");
+      sel.append(o);
+    });
+    rel = releases[0];
+    sel.onchange = () => { rel = releases.find(r => r.tag_name === sel.value); if (S.tab === "wadamesh") refreshTarget(); };
+    if (S.tab === "wadamesh") refreshTarget();
+  }
+
+  function target() {
+    if (!rel) return { kind: "none", msg: "Loading the release list…" };
+    $("wRelLink").href = rel.html_url || `https://github.com/${CONFIG.wadamesh.repo}/releases`;
+    const first = (rel.body || "").split(/\n\s*\n/)[0] || "";
+    $("wNotes").innerHTML = first ? esc(first.replace(/Built from `([0-9a-f]{7})[0-9a-f]+`/, "Built from `$1`")).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>") : "";
+    const name = assetName();
+    const a = (rel.assets || []).find(x => x.name === name);
+    const link = a?.browser_download_url || (rel.offline ? `https://github.com/${CONFIG.wadamesh.repo}/releases/latest` : `https://github.com/${CONFIG.wadamesh.repo}/releases/download/${rel.tag_name}/${name}`);
+    if (!rel.offline && !a) return { kind: "none", msg: `${rel.tag_name} has no ${name}. Pick another release or device.` };
+    const urls = [];
+    if (rel.mirrored) urls.push(here(`firmware/${rel.tag_name}/${name}`), `${CONFIG.wadamesh.pagesBase}/firmware/${rel.tag_name}/${name}`);
+    if (a && proxied(link)) urls.push(proxied(link));
+    return {
+      kind: "esp", name, link, urls: [...new Set(urls.filter(Boolean))], size: a?.size, digest: a?.digest?.replace(/^sha256:/, "") || null,
+      chip: board.chip, boot: board.boot, label: `Wadamesh TAK ${rel.offline ? "" : rel.tag_name.replace(/^tak-/, "")} for ${board.name}`,
+      eraseHelp: "Off: your identity, contacts and channels are kept; on-device settings and saved Wi-Fi reset. On: a factory-clean device with a new identity.",
+      wrongName: n => { const m = /^wadamesh-(.+?)-merged\.bin$/.exec(n); return m && m[1] !== slug() ? m[1] : null; },
+    };
+  }
+  return { BOARDS, select, load, target, initialId: () => store.get("mm.w.board") };
+})();
+
+/* ================= Keymind Cascade tab ================= */
+const Cascade = (() => {
+  const ROLE_HELP = {
+    companion: "A companion pairs with the MeshCore app on your phone or computer, over Bluetooth, USB or Wi-Fi.",
+    repeater: "A repeater relays traffic for everyone, usually mounted high and running unattended.",
+  };
+  const TYPE_LABEL = { esp32: "ESP32", nrf52: "nRF52", noflash: "Other" };
+  let devices = [], loaded = false, loading = null, version = "";
+  let mirror = {};   // catalog URL -> {path, size, digest}: ESP32 images copied to Pages by flasher-pages
+  let role = "companion", chipFilter = "", query = "", dev = null, fwSel = null;
+
+  function ensureLoaded() { if (!loaded && !loading) loading = load(); }
+  async function load() {
+    $("cCount").textContent = "Loading the Keymind Cascade catalog…";
+    for (const url of [CONFIG.cascade.catalog, here("keymind-catalog.json")]) {
+      if (!url) continue;
+      try {
+        const d = await getJSON(url);
+        devices = (d.device || []).map(x => ({
+          name: x.name, maker: x.maker, type: x.type,
+          fw: (x.firmware || []).map(fw => {
+            const [tag, v] = Object.entries(fw.version || {})[0] || [];
+            return { role: fw.role, title: fw.title, sub: fw.subTitle || "", tag, notes: v?.notes || "", files: v?.files || [] };
+          }),
+        }));
+        const m = /MeshCore ([\d.]+)/.exec(d.description || ""); version = m ? m[1] : "";
+        for (const m of [here("keymind-mirror.json"), CONFIG.cascade.pagesBase + "/keymind-mirror.json"]) {
+          if (!m) continue;
+          try { mirror = await getJSON(m); log(`Keymind Cascade: ${Object.keys(mirror).length} USB images on the firmware mirror.`, "d"); break; } catch {}
+        }
+        loaded = true; log(`Keymind Cascade${version ? " " + version : ""}: ${devices.length} boards from ${new URL(url).host === location.host ? "the bundled catalog" : "the live catalog"}.`, "d");
+        break;
+      } catch (e) { log(`Catalog not available from ${new URL(url).host} (${e.message}).`, "d"); }
+    }
+    loading = null;
+    if (!loaded) { $("cCount").innerHTML = `<span class="banner bad">Couldn't load the Keymind Cascade catalog. Check your connection and reload, or use the <a href="${CONFIG.cascade.picker}" target="_blank" rel="noopener">Keymind firmware picker</a>.</span>`; return; }
+    if (version) $("cIntro").textContent = `Keymind Cascade ${version} is MeshCore tuned for the Cascade region (USA Cascade 910.525 MHz, BW62.5, SF7, CR5), with OTAFix wireless updates on supported boards. Saved radio settings on your device take precedence.`;
+    const savedDev = store.get("mm.c.dev"); dev = devices.find(d => d.name === savedDev) || null;
+    render();
+  }
+  const roleMatch = fw => role === "companion" ? fw.role.startsWith("companion") : fw.role === "repeater";
+  function render() {
+    for (const b of $("cRole").children) b.setAttribute("aria-pressed", String(b.dataset.role === role));
+    for (const b of $("cChip").children) b.setAttribute("aria-pressed", String(b.dataset.chip === chipFilter));
+    $("cRoleHelp").textContent = ROLE_HELP[role];
+    if (!loaded) return;
+    const q = query.trim().toLowerCase();
+    const list = devices.filter(d => d.fw.some(roleMatch) && (!chipFilter || d.type === chipFilter) && (!q || `${d.name} ${d.maker}`.toLowerCase().includes(q)))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (dev && !dev.fw.some(roleMatch)) dev = null;
+    $("cCount").textContent = `${list.length} board${list.length === 1 ? "" : "s"} with a ${role} build`;
+    const box = $("cBoards"); box.textContent = "";
+    if (!list.length) box.innerHTML = `<div class="empty">No boards match. Try a shorter search or the All filter.</div>`;
+    for (const d of list) {
+      const el = document.createElement("button"); el.type = "button"; el.className = "board"; el.setAttribute("role", "radio"); el.setAttribute("aria-checked", String(d === dev));
+      const n = d.fw.filter(roleMatch).length;
+      el.innerHTML = `<span class="bm">${esc(d.maker)}</span><span class="bn">${esc(d.name)}</span><span class="chips"><span class="chip">${TYPE_LABEL[d.type] || d.type}</span>${n > 1 ? `<span class="chip">${n} builds</span>` : ""}</span>`;
+      el.onclick = () => { dev = d; fwSel = null; store.set("mm.c.dev", d.name); render(); };
+      box.append(el);
+    }
+    renderVariants();
+  }
+  function renderVariants() {
+    const vb = $("cVariants"); vb.textContent = ""; $("cMeta").textContent = ""; $("cLinks").textContent = "";
+    if (!dev) { vb.innerHTML = `<div class="empty">Pick your board in step 1.</div>`; if (S.tab === "cascade") refreshTarget(); return; }
+    const fws = dev.fw.filter(roleMatch);
+    if (!fwSel || !fws.includes(fwSel)) fwSel = fws[0];
+    for (const fw of fws) {
+      const el = document.createElement("button"); el.type = "button"; el.className = "variant"; el.setAttribute("role", "radio"); el.setAttribute("aria-checked", String(fw === fwSel));
+      el.innerHTML = `<span class="dot"></span><span><span class="vt">${esc(fw.title)}</span><span class="vs mono">${esc(fw.sub)}</span></span>`;
+      el.onclick = () => { fwSel = fw; renderVariants(); };
+      vb.append(el);
+    }
+    const notes = {};
+    for (const p of fwSel.notes.split(/\n\s*\n/)) { const m = /^([A-Z][A-Z -]+?) - ([\s\S]*)$/.exec(p.trim()); if (m) notes[m[1]] = m[2].trim(); }
+    const meta = $("cMeta");
+    const add = (k, v) => { if (!v) return; const dt = document.createElement("dt"); dt.textContent = k; const dd = document.createElement("dd"); dd.textContent = v; meta.append(dt, dd); };
+    add("Board", dev.name); add("Exact build", notes["EXACT TARGET"]?.split(".")[0]); add("Updates later via", notes["SELF-UPDATE"]?.replace(/^Verified methods:\s*/, "").replace(/\.$/, ""));
+    add("Capacity", notes["CAPACITY"]);
+    const links = $("cLinks");
+    const link = (href, text) => { if (!href) return; const a = document.createElement("a"); a.href = href; a.target = "_blank"; a.rel = "noopener"; a.textContent = text; links.append(a); };
+    link(notes["SETUP"], "Setup guide ↗"); link(notes["CAPABILITIES"], "Capabilities ↗"); link(notes["RELEASE"], "Release page ↗");
+    if (S.tab === "cascade") refreshTarget();
+  }
+  $("cRole").onclick = e => { const b = e.target.closest("button"); if (!b) return; role = b.dataset.role; fwSel = null; store.set("mm.c.role", role); render(); };
+  $("cChip").onclick = e => { const b = e.target.closest("button"); if (!b) return; chipFilter = b.dataset.chip; render(); };
+  $("cSearch").oninput = e => { query = e.target.value; render(); };
+  role = store.get("mm.c.role") === "repeater" ? "repeater" : "companion";
+  render();
+
+  function target() {
+    if (!loaded) return { kind: "none", msg: loading ? "Loading the Keymind Cascade catalog…" : "The Keymind Cascade catalog didn't load." };
+    if (!dev || !fwSel) return { kind: "none", msg: "Pick a board and a firmware build above." };
+    const f = t => fwSel.files.find(x => x.type === t);
+    const label = `Keymind Cascade ${fwSel.title} for ${dev.name}`;
+    if (dev.type === "esp32") {
+      const m = f("flash-wipe"); const app = f("flash-update");
+      const mm = m && mirror[m.url];
+      const urls = mm ? [here(mm.path), `${CONFIG.cascade.pagesBase}/${mm.path}`] : [];
+      if (m && proxied(m.url)) urls.push(proxied(m.url));
+      if (!m) return { kind: "none", msg: "This build has no USB install image." };
+      return {
+        kind: "esp", name: m.name, link: m.url, urls: [...new Set(urls.filter(Boolean))], size: mm?.size, digest: mm?.digest?.replace(/^sha256:/, "") || null, chip: null, app,
+        boot: "Most boards connect on their own. If not: hold BOOT (sometimes labelled PRG or IO0) while plugging in USB, then release.",
+        label, eraseHelp: role === "repeater" ? "Off: keeps the stored identity and settings where the layout allows. On: a clean device with a new identity (the repeater's public key changes)." : "Off: keeps the stored identity, contacts and settings where the layout allows. On: a clean device with a new identity.",
+        wrongName: n => n !== m.name && /-merged\.bin$/.test(n) ? n : null,
+      };
+    }
+    if (dev.type === "nrf52") {
+      const uf2 = fwSel.files.find(x => /\.uf2$/i.test(x.name)); const zip = fwSel.files.find(x => /\.zip$/i.test(x.name));
+      const note = /SELF-UPDATE - Verified methods: [^\n]*lora/i.test(fwSel.notes)
+        ? `Wireless (LoRa) updates later need this board's matching OTAFix bootloader. The setup guide lists the exact one; see also the bootloader update guide.`
+        : `This installs the application only; your bootloader stays as it is.`;
+      if (!zip) return { kind: "uf2", label, uf2, note };
+      const mz = mirror[zip.url];
+      const urls = mz ? [here(mz.path), `${CONFIG.cascade.pagesBase}/${mz.path}`] : [];
+      if (proxied(zip.url)) urls.push(proxied(zip.url));
+      return {
+        kind: "nrf", name: zip.name, link: zip.url, urls: [...new Set(urls.filter(Boolean))], size: mz?.size,
+        digest: mz?.digest?.replace(/^sha256:/, "") || null, uf2, note, label,
+        boot: "If step 2 can't find the board, double-press its reset button (it shows up as a USB drive), then press 2 again and pick its port.",
+        wrongName: n => n !== zip.name && /\.zip$/i.test(n) ? n : null,
+      };
+    }
+    return { kind: "download", label, files: fwSel.files };
+  }
+  return { ensureLoaded, target };
+})();
+
+/* ================= Spectra-Cascadia tab ================= */
+const Spectra = (() => {
+  const BUILDS = [
+    { id: "std", name: "Standard", size: "64 KB", desc: "Every DX-LR30. Relays traffic; set it up over USB serial." },
+    { id: "xl", name: "XL", size: "128 KB", desc: "Adds app login, status, telemetry, neighbours and remote settings. Only for boards that pass tools/flash128_test." },
+  ];
+  let build = store.get("mm.s.build") === "xl" ? "xl" : "std";
+  let region = store.get("mm.s.region") === "eu" ? "eu" : "us";
+  let releases = [], rel = null, loaded = false, loading = null;
+  const assetName = r => `spectra-cascadia-${r.tag_name}-${build === "xl" ? "xl-" : ""}${region}.${build === "xl" ? "hex" : "bin"}`;
+
+  function render() {
+    const box = $("sBuild"); box.textContent = "";
+    for (const b of BUILDS) {
+      const el = document.createElement("button"); el.type = "button"; el.className = "board"; el.setAttribute("role", "radio"); el.setAttribute("aria-checked", String(b.id === build));
+      el.innerHTML = `<span class="bn">${esc(b.name)}</span><span class="bd">${esc(b.desc)}</span><span class="chips"><span class="chip">STM32F103</span><span class="chip">${b.size}</span></span>`;
+      el.onclick = () => { build = b.id; store.set("mm.s.build", build); render(); if (S.tab === "spectra") refreshTarget(); };
+      box.append(el);
+    }
+    for (const b of $("sRegion").children) b.setAttribute("aria-pressed", String(b.dataset.region === region));
+  }
+  $("sRegion").onclick = e => { const b = e.target.closest("button"); if (!b) return; region = b.dataset.region; store.set("mm.s.region", region); render(); if (S.tab === "spectra") refreshTarget(); };
+  render();
+
+  function ensureLoaded() { if (!loaded && !loading) loading = load(); }
+  async function load() {
+    const sources = [
+      ["mirror", here("spectra-releases.json")],
+      ["mirror", CONFIG.spectra.pagesBase + "/spectra-releases.json"],
+      ["github", `https://api.github.com/repos/${CONFIG.spectra.repo}/releases?per_page=30`],
+    ];
+    for (const [kind, url] of sources) {
+      if (!url) continue;
+      try {
+        const data = await getJSON(url); if (!Array.isArray(data)) continue;
+        const rels = data.filter(r => !r.draft && (r.assets || []).some(a => /^spectra-cascadia-.+\.(bin|hex)$/.test(a.name)))
+          .map(r => ({ ...r, mirrored: kind === "mirror" ? r.mirrored !== false : false }))
+          .sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""));
+        if (!rels.length) continue;
+        releases = rels; log(`Spectra-Cascadia: ${rels.length} releases from ${kind === "mirror" ? "the firmware mirror" : "GitHub"}.`, "d"); break;
+      } catch (e) { log(`Spectra release list not available from ${new URL(url).host} (${e.message}).`, "d"); }
+    }
+    loaded = true; loading = null;
+    const sel = $("sRelease"); sel.textContent = "";
+    if (!releases.length) { const o = document.createElement("option"); o.textContent = "Couldn't load the release list"; sel.append(o); }
+    releases.forEach((r, i) => {
+      const o = document.createElement("option"); o.value = r.tag_name;
+      const d = r.published_at ? new Date(r.published_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+      o.textContent = (r.name || r.tag_name) + (d ? ` · ${d}` : "") + (i === 0 ? " · newest" : "") + (r.prerelease ? " · pre-release" : "");
+      sel.append(o);
+    });
+    rel = releases[0] || null;
+    sel.onchange = () => { rel = releases.find(r => r.tag_name === sel.value); if (S.tab === "spectra") refreshTarget(); };
+    if (S.tab === "spectra") refreshTarget();
+  }
+
+  function target() {
+    if (!loaded) return { kind: "none", msg: "Loading the Spectra-Cascadia releases…" };
+    if (!rel) return { kind: "none", msg: `The release list didn't load. Download the file from the release page and flash it with STM32CubeProgrammer, or reload this page.` };
+    $("sRelLink").href = rel.html_url || `https://github.com/${CONFIG.spectra.repo}/releases`;
+    const first = (rel.body || "").split(/\n\s*\n/)[0] || "";
+    $("sNotes").innerHTML = esc(first).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>");
+    const name = assetName(rel); const a = (rel.assets || []).find(x => x.name === name);
+    if (!a) return { kind: "none", msg: `${rel.tag_name} has no ${name}. Pick another release or build.` };
+    const urls = [];
+    if (rel.mirrored) urls.push(here(`spectra/${rel.tag_name}/${name}`), `${CONFIG.spectra.pagesBase}/spectra/${rel.tag_name}/${name}`);
+    if (proxied(a.browser_download_url)) urls.push(proxied(a.browser_download_url));
+    return {
+      kind: "stm32", name, link: a.browser_download_url, urls: [...new Set(urls.filter(Boolean))], size: a.size,
+      digest: a.digest?.replace(/^sha256:/, "") || null, xl: build === "xl",
+      untested: /not (yet )?been tested on hardware/i.test(rel.body || ""),
+      label: `Spectra-Cascadia ${rel.tag_name} ${build === "xl" ? "XL" : "Standard"} (${region.toUpperCase()}) for the DX-LR30`,
+      boot: "Put the DX-LR30 in bootloader mode before pressing Install: hold BOOT0, press and release RESET, then release BOOT0. The LED stays on while the bootloader waits.",
+      wrongName: n => /^spectra-cascadia-.+\.(bin|hex)$/.test(n) && n !== name ? n : null,
+    };
+  }
+  return { ensureLoaded, target };
+})();
+
+/* ---------- STM32F103 image + UART bootloader (ST AN3155) ----------
+   Flash 0x08000000..0x0801FFFF in 1 KB pages. 0x0800F800..0x0800FFFF holds the
+   node's settings and clock journal, so it is never erased or written; only the
+   pages the image covers are erased, which keeps identity, name and passwords. */
+const STM = { BASE: 0x08000000, END: 0x08020000, KEEP_LO: 0x0800F800, KEEP_HI: 0x08010000, HI: 0x08010000 };
+function parseStm32(bytes, isHex) {
+  const segs = [];
+  if (isHex) {
+    let base = 0;
+    for (const raw of new TextDecoder().decode(bytes).split(/\r?\n/)) {
+      const l = raw.trim(); if (!l) continue;
+      if (l[0] !== ":" || l.length % 2 === 0) return { err: "That isn't an Intel HEX file." };
+      const b = []; for (let i = 1; i < l.length; i += 2) b.push(parseInt(l.slice(i, i + 2), 16));
+      if (b.some(Number.isNaN) || b.length !== b[0] + 5 || (b.reduce((x, y) => x + y, 0) & 255)) return { err: "That HEX file is damaged (a line fails its checksum)." };
+      const off = (b[1] << 8) | b[2], type = b[3], data = b.slice(4, 4 + b[0]);
+      if (type === 0) segs.push({ addr: base + off, data });
+      else if (type === 1) break;
+      else if (type === 4) base = (((data[0] << 8) | data[1]) << 16) >>> 0;
+      else if (type === 2) base = ((data[0] << 8) | data[1]) << 4;
+    }
+  } else {
+    if (bytes.length > STM.END - STM.BASE) return { err: "That file is far too big to be DX-LR30 firmware." };
+    segs.push({ addr: STM.BASE, data: bytes });
+  }
+  const blocks = new Map();
+  for (const s of segs) for (let i = 0; i < s.data.length; i++) {
+    const a = s.addr + i;
+    if (a < STM.BASE || a >= STM.END) return { err: `That image writes outside the DX-LR30's flash (at 0x${a.toString(16)}).` };
+    if (a >= STM.KEEP_LO && a < STM.KEEP_HI) return { err: isHex ? "That image would overwrite the settings pages (0x0800F800–0x0800FFFF)." : "That .bin is too big for the standard build: it would overwrite the settings pages. XL images must be flashed from the .hex." };
+    const ba = a - (a % 256); let blk = blocks.get(ba);
+    if (!blk) { blk = new Uint8Array(256).fill(0xFF); blocks.set(ba, blk); }
+    blk[a - ba] = s.data[i];
+  }
+  const first = blocks.get(STM.BASE);
+  if (!first) return { err: "That image has no vector table at 0x08000000." };
+  const sp = (first[0] | first[1] << 8 | first[2] << 16 | first[3] << 24) >>> 0, rv = (first[4] | first[5] << 8 | first[6] << 16 | first[7] << 24) >>> 0;
+  if (sp <= 0x20000000 || sp > 0x20005000 || !(rv & 1) || rv < STM.BASE || rv >= STM.END) return { err: "That doesn't look like STM32F103 firmware (its vector table is wrong)." };
+  const list = [...blocks.entries()].filter(([, d]) => d.some(x => x !== 0xFF)).sort((x, y) => x[0] - y[0]);
+  const pages = [...new Set(list.map(([a]) => (a - STM.BASE) >> 10))];
+  return { blocks: list, pages, hi: list.some(([a]) => a >= STM.HI), bytes: list.length * 256 };
+}
+
+class Stm32Uart {
+  constructor(port) { this.port = port; this.buf = []; this.wake = null; }
+  async open() {
+    await this.port.open({ baudRate: 57600, dataBits: 8, parity: "even", stopBits: 1, bufferSize: 4096 });
+    this.writer = this.port.writable.getWriter(); this.reader = this.port.readable.getReader();
+    this.loop = (async () => { try { for (;;) { const { value, done } = await this.reader.read(); if (done) break; for (const b of value) this.buf.push(b); this.wake?.(); } } catch {} })();
+  }
+  async close() {
+    try { await this.reader?.cancel(); } catch {} await this.loop;
+    try { this.reader?.releaseLock(); } catch {} try { this.writer?.releaseLock(); } catch {}
+    try { await this.port.close(); } catch {}
+  }
+  write(b) { return this.writer.write(Uint8Array.from(b)); }
+  async read(n, ms = 2000) {
+    const end = Date.now() + ms;
+    while (this.buf.length < n) {
+      const left = end - Date.now(); if (left <= 0) throw new Error("timeout");
+      await new Promise(r => { const t = setTimeout(r, left); this.wake = () => { clearTimeout(t); r(); }; }); this.wake = null;
+    }
+    return this.buf.splice(0, n);
+  }
+  async ack(ms = 2000) { const [b] = await this.read(1, ms); if (b === 0x79) return; throw new Error(b === 0x1F ? "NACK" : `unexpected reply 0x${b.toString(16)}`); }
+  async cmd(c) { await this.write([c, c ^ 0xFF]); await this.ack(); }
+  static xor(a) { return a.reduce((x, y) => x ^ y, 0); }
+  addr(a) { const b = [a >>> 24 & 255, a >>> 16 & 255, a >>> 8 & 255, a & 255]; return [...b, Stm32Uart.xor(b)]; }
+  async sync() {
+    for (let i = 0; i < 6; i++) {
+      this.buf.length = 0; await this.write([0x7F]);
+      try { const [b] = await this.read(1, 500); if (b === 0x79 || b === 0x1F) return; } catch {}
+    }
+    throw new Error("No answer from the DX-LR30 bootloader. Hold BOOT0, press and release RESET, release BOOT0, then press Install again.");
+  }
+  async get() { await this.cmd(0x00); const [n] = await this.read(1); const d = await this.read(n + 1); await this.ack(); return { version: d[0], cmds: d.slice(1) }; }
+  async getId() { await this.cmd(0x02); const [n] = await this.read(1); const d = await this.read(n + 1); await this.ack(); return d.reduce((x, y) => x * 256 + y, 0); }
+  async erase(pages, extended) {
+    let p;
+    if (extended) { await this.cmd(0x44); p = [(pages.length - 1) >> 8, (pages.length - 1) & 255]; for (const g of pages) p.push(g >> 8, g & 255); }
+    else { await this.cmd(0x43); p = [pages.length - 1, ...pages]; }
+    await this.write([...p, Stm32Uart.xor(p)]); await this.ack(20000);
+  }
+  async writeMem(a, data) { await this.cmd(0x31); await this.write(this.addr(a)); await this.ack(); const p = [data.length - 1, ...data]; await this.write([...p, Stm32Uart.xor(p)]); await this.ack(); }
+  async readMem(a, n) { await this.cmd(0x11); await this.write(this.addr(a)); await this.ack(); await this.write([n - 1, (n - 1) ^ 0xFF]); await this.ack(); return this.read(n); }
+  async go(a) { await this.cmd(0x21); await this.write(this.addr(a)); await this.ack(); }
+}
+
+async function installStm32(t) {
+  await stopMonitor(); setBusy(true); result(); let link;
+  try {
+    if (t.xl && !$("xlOk").checked) throw new Error("Confirm that this board passed tools/flash128_test before flashing XL.");
+    const port = await pickPort();
+    const data = await getFirmware(t);
+    const img = parseStm32(data, /\.hex$/i.test(S.local?.name || t.name)); if (img.err) throw new Error(img.err);
+    if (img.hi && !t.xl) throw new Error("That is an XL image. Pick the XL build in step 1.");
+    if (!img.hi && t.xl) throw new Error("That image doesn't use the upper 64 KB, so it isn't an XL build.");
+    setPhase("Connecting to the bootloader", 0, ""); log("Connecting at 57600 baud, 8E1…", "d");
+    link = new Stm32Uart(port);
+    try { await link.open(); } catch (e) { S.port = null; throw new Error(`Couldn't open the port (${e.message}). Close other programs using it and try again.`); }
+    await link.sync();
+    const info = await link.get(); const pid = await link.getId();
+    log(`Bootloader v${info.version >> 4}.${info.version & 15}, chip ID 0x${pid.toString(16).padStart(3, "0")}`, "o");
+    if (pid !== 0x410) throw new Error(`This chip reports ID 0x${pid.toString(16)}, not the STM32F103 (0x410) on the DX-LR30.`);
+    const extended = info.cmds.includes(0x44) && !info.cmds.includes(0x43);
+    for (let i = 0; i < img.pages.length; i += 16) {
+      setPhase(`Erasing ${img.pages.length} KB (settings pages kept)`, i / img.pages.length);
+      try { await link.erase(img.pages.slice(i, i + 16), extended); }
+      catch (e) { if (img.pages.slice(i, i + 16).some(g => g >= 64)) throw new Error("The bootloader refused to erase above 64 KB. This chip may not have 128 KB; flash the Standard build instead."); throw e; }
+    }
+    let n = 0;
+    for (const [a, d] of img.blocks) {
+      try { await link.writeMem(a, d); }
+      catch (e) {
+        if (a >= STM.HI) throw new Error("The bootloader refused to write above 64 KB. This chip may not have 128 KB; flash the Standard build instead.");
+        throw new Error(`Write failed at 0x${a.toString(16)} (${e.message}). Enter the bootloader again and retry.`);
+      }
+      setPhase("Writing firmware", ++n / img.blocks.length);
+    }
+    n = 0;
+    for (const [a, d] of img.blocks) {
+      const back = await link.readMem(a, 256);
+      if (back.some((x, i) => x !== d[i])) throw new Error(`Verify failed at 0x${a.toString(16)}. Enter the bootloader and flash again.`);
+      setPhase("Verifying", ++n / img.blocks.length);
+    }
+    log(`Wrote and verified ${(img.bytes / 1024).toFixed(1)} KB in ${img.blocks.length} blocks.`, "o");
+    await link.go(STM.BASE);
+    setPhase("Installed", 1, "100%"); log("Done. The DX-LR30 is starting.", "o");
+    result("ok", `<b>${esc(t.label)} is installed.</b> Press RESET if it doesn't start. Use “Watch serial log” for the boot banner, or send <code>ver</code> from a serial terminal at 115200 baud.`);
+  } catch (e) {
+    const m = String(e?.message || e); log(m, "e"); result("bad", esc(m)); $("phase").textContent = "Stopped";
+  } finally { await link?.close(); setBusy(false); }
+}
+
+/* ================= install step ================= */
+function renderInstall() {
+  const t = S.target || { kind: "none", msg: "" };
+  const flashable = t.kind === "esp" || t.kind === "stm32" || t.kind === "nrf";
+  // The Install button stays on screen (greyed out with a reason) until a flashable build is picked.
+  $("espBox").hidden = !(flashable || t.kind === "none");
+  $("uf2Box").hidden = !(t.kind === "uf2" || (t.kind === "nrf" && t.uf2)); $("uf2Box").open = t.kind === "uf2";
+  $("dlBox").hidden = t.kind !== "download";
+  $("bootTip").hidden = !flashable; $("dfuMode").hidden = t.kind !== "nrf";
+  $("install").textContent = t.kind === "nrf" ? "2. Install firmware" : "Install firmware";
+  if (!flashable) { $("drop").hidden = true; $("useLocal").hidden = true; $("eraseRow").hidden = true; $("xlRow").hidden = true; }
+  $("iFile").innerHTML = ""; $("iStatus").innerHTML = ""; $("result").innerHTML = ""; $("prog").hidden = true;
+  updateInstallBtn();
+  if (t.kind === "none") { $("iSub").textContent = ""; if (t.msg) $("iStatus").innerHTML = `<p class="banner info"><span>${esc(t.msg)}</span></p>`; return; }
+  $("iSub").textContent = t.label;
+  const ready = () => t.urls.length
+    ? `<p class="banner ok"><span>Ready. The page downloads ${t.digest ? "and checks " : ""}this file when you install.</span></p>`
+    : `<p class="banner warn"><span>Download the file yourself and give it to the page below. Your browser can't fetch it from GitHub directly.</span></p>`;
+  if (flashable) { $("dlLink").href = t.link; $("dlLink").textContent = t.name; }
+  if (t.kind === "esp") {
+    $("iSub").textContent = t.label + ". Plug the device in with a data USB cable, press Install, then pick its port in the browser's list.";
+    $("iFile").innerHTML = `File <code>${esc(t.name)}</code>${t.size ? ` <span>${fmtMB(t.size)}</span>` : ""} <span>written at 0x0 (bootloader, partition table and app)</span>`;
+    $("bootTip").textContent = t.boot; $("eraseHelp").textContent = t.eraseHelp;
+    $("eraseRow").hidden = false; $("xlRow").hidden = true;
+    $("iStatus").innerHTML = ready(); showDrop(!t.urls.length);
+  } else if (t.kind === "nrf") {
+    $("iSub").textContent = `${t.label}. Plug the board in with a data USB cable. Press 1 and pick its port to restart it into update mode, then press 2 and pick its port again (the name may change).`;
+    $("iFile").innerHTML = `File <code>${esc(t.name)}</code>${t.size ? ` <span>${fmtMB(t.size)}</span>` : ""} <span>application update; the bootloader stays as it is</span>`;
+    $("bootTip").textContent = t.boot; $("eraseRow").hidden = true; $("eraseAll").checked = false; $("xlRow").hidden = true;
+    $("iStatus").innerHTML = ready(); showDrop(!t.urls.length);
+    fillUf2(t);
+  } else if (t.kind === "stm32") {
+    $("iSub").textContent = t.label + ".";
+    $("iFile").innerHTML = `File <code>${esc(t.name)}</code>${t.size ? ` <span>${(t.size / 1024).toFixed(0)} KB</span>` : ""} <span>${t.xl ? "written to 0x08000000 and 0x08010000" : "written from 0x08000000"}; the settings pages are left alone, so name, identity and passwords are kept</span>`;
+    $("bootTip").textContent = t.boot; $("eraseRow").hidden = true; $("eraseAll").checked = false;
+    $("xlRow").hidden = !t.xl; $("xlOk").checked = false;
+    let st = ready();
+    if (t.untested) st += `<p class="banner warn" style="margin-top:10px"><span><b>Not yet tested on hardware.</b> The release notes say this build was ported automatically. Try it on a bench node before upgrading a repeater on a roof.</span></p>`;
+    $("iStatus").innerHTML = st; showDrop(!t.urls.length);
+  } else if (t.kind === "uf2") {
+    $("iSub").textContent = `${t.label}. This build installs by dragging a file onto the board, like a USB stick.`;
+    $("iFile").innerHTML = t.uf2 ? `File <code>${esc(t.uf2.name)}</code>` : "";
+    fillUf2(t);
+  } else {
+    $("iSub").textContent = `${t.label}. This board isn't flashed from the browser, so there's no Install button.`;
+    $("dlActions").innerHTML = t.files.map(f => `<a class="btn" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.title || f.name)}</a>`).join("");
+  }
+}
+function fillUf2(t) {
+  const a = $("uf2Actions"); a.innerHTML = "";
+  if (t.uf2) a.innerHTML += `<a class="btn ${t.kind === "uf2" ? "primary" : ""}" href="${esc(t.uf2.url)}" target="_blank" rel="noopener">Download .uf2</a>`;
+  $("uf2Note").innerHTML = `${esc(t.note)} <a href="${CONFIG.cascade.bootloaderDoc}" target="_blank" rel="noopener">Bootloader guide ↗</a>`;
+}
+function showDrop(on) { $("drop").hidden = !on; $("useLocal").hidden = on; }
+$("useLocal").onclick = () => showDrop(true);
+
+async function takeFile(file) {
+  const t = S.target; if (!file) return;
+  if (t?.kind === "stm32") return takeStm32File(file, t);
+  if (t?.kind === "nrf") return takeNrfFile(file, t);
+  if (t?.kind !== "esp") return;
+  const bytes = new Uint8Array(await file.arrayBuffer()); const sha = await sha256hex(bytes);
+  S.local = { bytes, name: file.name, sha, ok: false };
+  const info = $("fileInfo"); $("forceRow").hidden = true; $("force").checked = false;
+  const img = inspectImage(bytes); const other = t.wrongName?.(file.name);
+  const bad = m => { S.local = null; info.innerHTML = `<p class="banner bad"><span>${m}</span></p>`; };
+  if (img.err) bad(esc(img.err));
+  else if (t.chip && img.chip !== t.chip) bad(`That file is for an ${esc(img.chip)}, but this device uses an ${esc(t.chip)}.`);
+  else if (other) bad(`That's <b>${esc(other)}</b>, not the build picked above. Choose <code>${esc(t.name)}</code>.`);
+  else if (t.digest ? sha === t.digest : file.name === t.name) {
+    S.local.ok = true; info.innerHTML = `<p class="banner ok"><span>Checked: ${t.digest ? "matches the release checksum" : "right file name"}, ${esc(img.chip)} merged image.</span></p>`;
+  } else {
+    info.innerHTML = `<p class="banner warn"><span>This ${esc(img.chip)} image doesn't match ${t.digest ? "the release checksum" : `the expected name <code>${esc(t.name)}</code>`}.</span></p>`;
+    $("forceRow").hidden = false;
+  }
+  log(`Loaded ${file.name} (${fmtMB(bytes.length)}, sha256 ${shortSha(sha)}${img.chip ? ", " + img.chip : ""}).`);
+}
+async function takeNrfFile(file, t) {
+  const bytes = new Uint8Array(await file.arrayBuffer()); const sha = await sha256hex(bytes);
+  S.local = { bytes, name: file.name, sha, ok: false };
+  const info = $("fileInfo"); $("forceRow").hidden = true; $("force").checked = false;
+  const bad = m => { S.local = null; info.innerHTML = `<p class="banner bad"><span>${m}</span></p>`; };
+  let pkg; try { pkg = await readDfuZip(bytes); } catch (e) { return bad(esc(e.message)); }
+  const other = t.wrongName(file.name);
+  if (other) bad(`That's <b>${esc(other)}</b>, not the build picked above. Choose <code>${esc(t.name)}</code>.`);
+  else if (t.digest ? sha === t.digest : file.name === t.name) {
+    S.local.ok = true; info.innerHTML = `<p class="banner ok"><span>Checked: ${t.digest ? "matches the release checksum" : "right file name"}, ${(pkg.app.length / 1024).toFixed(0)} KB application.</span></p>`;
+  } else {
+    info.innerHTML = `<p class="banner warn"><span>This DFU package doesn't match ${t.digest ? "the release checksum" : `the expected name <code>${esc(t.name)}</code>`}.</span></p>`;
+    $("forceRow").hidden = false;
+  }
+  log(`Loaded ${file.name} (${fmtMB(bytes.length)}, sha256 ${shortSha(sha)}).`);
+}
+async function takeStm32File(file, t) {
+  const bytes = new Uint8Array(await file.arrayBuffer()); const sha = await sha256hex(bytes);
+  S.local = { bytes, name: file.name, sha, ok: false };
+  const info = $("fileInfo"); $("forceRow").hidden = true; $("force").checked = false;
+  const bad = m => { S.local = null; info.innerHTML = `<p class="banner bad"><span>${m}</span></p>`; };
+  const isHex = /\.hex$/i.test(file.name);
+  const img = parseStm32(bytes, isHex); const other = t.wrongName(file.name);
+  if (t.xl && !isHex) bad("XL must be flashed from the <b>.hex</b> file. A .bin would fill the settings pages with zeros.");
+  else if (img.err) bad(esc(img.err));
+  else if (img.hi !== t.xl) bad(img.hi ? "That is an XL image. Pick the XL build in step 1." : "That isn't an XL image. Pick the Standard build in step 1, or choose the -xl- .hex.");
+  else if (other) bad(`That's <b>${esc(other)}</b>, not the build picked above. Choose <code>${esc(t.name)}</code>.`);
+  else if (t.digest ? sha === t.digest : file.name === t.name) {
+    S.local.ok = true; info.innerHTML = `<p class="banner ok"><span>Checked: ${t.digest ? "matches the release checksum" : "right file name"}, ${(img.bytes / 1024).toFixed(1)} KB to write.</span></p>`;
+  } else {
+    info.innerHTML = `<p class="banner warn"><span>This STM32 image doesn't match ${t.digest ? "the release checksum" : `the expected name <code>${esc(t.name)}</code>`}.</span></p>`;
+    $("forceRow").hidden = false;
+  }
+  log(`Loaded ${file.name} (${(bytes.length / 1024).toFixed(1)} KB, sha256 ${shortSha(sha)}).`);
+}
+$("fileIn").onchange = e => takeFile(e.target.files[0]);
+const drop = $("drop");
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); takeFile(e.dataTransfer.files[0]); });
+
+async function fetchBytes(url, onProg) {
+  const r = await fetch(url, { cache: "no-cache" }); if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const total = +r.headers.get("content-length") || 0;
+  if (!r.body) return new Uint8Array(await r.arrayBuffer());
+  const rd = r.body.getReader(); const parts = []; let got = 0;
+  for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; onProg(got, total); }
+  const out = new Uint8Array(got); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out;
+}
+async function getFirmware(t) {
+  if (S.local) {
+    if (!S.local.ok && !$("force").checked) throw new Error("The chosen file doesn't match this build. Tick “Flash this file anyway” or choose the right file.");
+    return S.local.bytes;
+  }
+  for (const url of t.urls) {
+    if (S.cache.has(url)) return S.cache.get(url);
+    try {
+      setPhase("Downloading firmware", 0);
+      const bytes = await fetchBytes(url, (g, n) => setPhase("Downloading firmware", n ? g / n : 0, `${fmtMB(g)}${n ? " / " + fmtMB(n) : ""}`));
+      if (t.digest && await sha256hex(bytes) !== t.digest) { log(`Checksum mismatch from ${new URL(url).host}; ignoring that copy.`, "w"); continue; }
+      log(`Downloaded ${t.name} (${fmtMB(bytes.length)})${t.digest ? ", checksum OK" : ""}.`, "o");
+      S.cache.set(url, bytes); return bytes;
+    } catch (e) { log(`Couldn't download from ${new URL(url).host} (${e.message}).`, "d"); }
+  }
+  showDrop(true);
+  $("iStatus").innerHTML = `<p class="banner warn"><span>The page couldn't download the firmware itself. Download <b>${esc(t.name)}</b> with the link below, give it to the page, then press Install again. Your device stays connected.</span></p>`;
+  throw new Error("Firmware download didn't work. Use the file option.");
+}
+
+function setPhase(label, frac, right) {
+  $("prog").hidden = false; $("phase").textContent = label;
+  $("barFill").style.width = Math.round((frac || 0) * 100) + "%";
+  $("pct").textContent = right ?? (frac != null ? Math.round(frac * 100) + "%" : "");
+}
+const result = (kind, html) => { $("result").innerHTML = html ? `<p class="banner ${kind}"><span>${html}</span></p>` : ""; };
+function updateInstallBtn() {
+  const k = S.target?.kind, ok = k === "esp" || k === "stm32" || k === "nrf", serial = "serial" in navigator;
+  $("install").disabled = S.busy || !ok || !serial; $("monitor").disabled = S.busy || !serial;
+  $("dfuMode").disabled = S.busy || k !== "nrf" || !serial;
+  $("installHint").textContent = serial && k === "none" ? "Pick your device and firmware above to turn on Install." : "";
+}
+function setBusy(b) { S.busy = b; updateInstallBtn(); for (const el of document.querySelectorAll(".tab")) el.disabled = b; }
+
+let esptool;
+async function loadEsptool() { if (!esptool) { log("Loading flasher…", "d"); esptool = await import(CONFIG.esptool); } return esptool; }
+async function pickPort() {
+  if (!("serial" in navigator)) throw new Error("This browser has no Web Serial. Use Chrome or Edge on a computer.");
+  if (S.port) return S.port;
+  try { S.port = await navigator.serial.requestPort(); }
+  catch (e) {
+    if (e.name === "NotFoundError") throw new Error("No port was picked.");
+    if (e.name === "SecurityError") throw new Error("USB access is blocked where this page is embedded. Open the flasher in its own tab.");
+    throw e;
+  }
+  return S.port;
+}
+
+/* ---------- nRF52: Adafruit bootloader serial DFU ----------
+   The same protocol as adafruit-nrfutil (nordicsemi/dfu/dfu_transport_serial.py)
+   and the MeshCore web flasher: HCI packets in SLIP frames at 115200 baud;
+   START (app mode, sizes) → INIT (.dat) → DATA (512-byte chunks) → STOP. */
+async function readDfuZip(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let e = bytes.length - 22; while (e >= 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error("That isn't a .zip file.");
+  const files = {}; let p = dv.getUint32(e + 16, true);
+  for (let n = dv.getUint16(e + 10, true); n > 0; n--) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error("That .zip file is damaged.");
+    const method = dv.getUint16(p + 10, true), size = dv.getUint32(p + 20, true);
+    const nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), lo = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(bytes.subarray(p + 46, p + 46 + nl));
+    const start = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true), raw = bytes.subarray(start, start + size);
+    if (method === 0) files[name] = raw;
+    else if (method === 8) files[name] = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer());
+    p += 46 + nl + xl + cl;
+  }
+  let m; try { m = JSON.parse(new TextDecoder().decode(files["manifest.json"])).manifest; } catch { throw new Error("That .zip has no DFU manifest, so it isn't an nRF52 DFU package."); }
+  const a = m?.application;
+  if (!a || !files[a.bin_file] || !files[a.dat_file]) throw new Error("That DFU package has no application image. (Bootloader or SoftDevice packages aren't installed here.)");
+  return { app: files[a.bin_file], init: files[a.dat_file] };
+}
+class NrfDfu {
+  constructor(port) { this.port = port; this.buf = []; this.wake = null; this.seq = 0; }
+  async open() {
+    await this.port.open({ baudRate: 115200 });
+    this.writer = this.port.writable.getWriter(); this.reader = this.port.readable.getReader();
+    this.loop = (async () => { try { for (;;) { const { value, done } = await this.reader.read(); if (done) break; for (const b of value) this.buf.push(b); this.wake?.(); } } catch {} })();
+  }
+  async close() {
+    try { await this.reader?.cancel(); } catch {} await this.loop;
+    try { this.reader?.releaseLock(); } catch {} try { this.writer?.releaseLock(); } catch {}
+    try { await this.port.close(); } catch {}
+  }
+  static crc16(d) {
+    let c = 0xFFFF;
+    for (const b of d) { c = ((c >> 8) & 0xFF) | ((c << 8) & 0xFF00); c ^= b; c ^= (c & 0xFF) >> 4; c ^= (c << 12) & 0xFFFF; c ^= ((c & 0xFF) << 5) & 0xFFFF; }
+    return c & 0xFFFF;
+  }
+  static u32(v) { return [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255]; }
+  packet(payload) {
+    this.seq = (this.seq + 1) % 8; const s = this.seq, n = payload.length;
+    const h = [s | (((s + 1) % 8) << 3) | (1 << 6) | (1 << 7), 14 | ((n & 0xF) << 4), (n & 0xFF0) >> 4];
+    h.push((~(h[0] + h[1] + h[2]) + 1) & 0xFF);
+    const body = [...h, ...payload]; const c = NrfDfu.crc16(body); body.push(c & 255, c >> 8);
+    const out = [0xC0]; for (const b of body) { if (b === 0xC0) out.push(0xDB, 0xDC); else if (b === 0xDB) out.push(0xDB, 0xDD); else out.push(b); }
+    out.push(0xC0); return Uint8Array.from(out);
+  }
+  async ack(ms = 5000) {
+    const end = Date.now() + ms;
+    for (;;) {
+      const a = this.buf.indexOf(0xC0), b = a < 0 ? -1 : this.buf.indexOf(0xC0, a + 1);
+      if (b > a + 1) { const f = this.buf.slice(a + 1, b); this.buf.splice(0, b + 1); const first = f[0] === 0xDB ? (f[1] === 0xDC ? 0xC0 : 0xDB) : f[0]; return (first >> 3) & 7; }
+      if (b === a + 1) { this.buf.splice(0, a + 1); continue; }   // back-to-back delimiters: skip the empty frame
+      const left = end - Date.now(); if (left <= 0) throw new Error("The bootloader stopped answering.");
+      await new Promise(r => { const t = setTimeout(r, left); this.wake = () => { clearTimeout(t); r(); }; }); this.wake = null;
+    }
+  }
+  async send(payload, ms) { await this.writer.write(this.packet(payload)); return this.ack(ms); }
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+$("dfuMode").onclick = async () => {
+  if (S.busy) return;
+  await stopMonitor(); setBusy(true); result();
+  try {
+    let port;
+    try { port = await navigator.serial.requestPort(); }
+    catch (e) { if (e.name === "NotFoundError") throw new Error("No port was picked."); if (e.name === "SecurityError") throw new Error("USB access is blocked where this page is embedded. Open the flasher in its own tab."); throw e; }
+    log("Restarting the board into update mode (1200 baud touch)…", "d");
+    await port.open({ baudRate: 1200 }); await sleep(100); await port.close(); await sleep(1500);
+    S.port = null;
+    log("The board should now be in update mode. Press 2. Install firmware and pick its port.", "o");
+    result("ok", "<b>Update mode.</b> Now press <b>2. Install firmware</b> and pick the board's port. It may show a different name now.");
+  } catch (e) { log(String(e.message || e), "e"); result("bad", esc(String(e.message || e))); }
+  finally { setBusy(false); }
+};
+
+async function installNrf(t) {
+  await stopMonitor(); setBusy(true); result(); let dfu;
+  try {
+    let port;
+    try { port = await navigator.serial.requestPort(); }   // the bootloader's port: a new pick every time
+    catch (e) { if (e.name === "NotFoundError") throw new Error("No port was picked."); if (e.name === "SecurityError") throw new Error("USB access is blocked where this page is embedded. Open the flasher in its own tab."); throw e; }
+    const zip = await getFirmware(t);
+    const { app, init } = await readDfuZip(zip);
+    log(`DFU package: ${(app.length / 1024).toFixed(0)} KB application, ${init.length}-byte init packet.`, "d");
+    dfu = new NrfDfu(port);
+    try { await dfu.open(); } catch (e) { throw new Error(`Couldn't open the port (${e.message}). Close other programs using it and try again.`); }
+    setPhase("Starting the update", 0, "");
+    try { await dfu.send([...NrfDfu.u32(3), ...NrfDfu.u32(4), ...NrfDfu.u32(0), ...NrfDfu.u32(0), ...NrfDfu.u32(app.length)]); }
+    catch { throw new Error("No answer from the bootloader. Press 1 first (or double-press the board's reset button), then press 2 and pick the port the board shows in update mode."); }
+    setPhase("Erasing", 0, "");
+    await sleep(Math.max(500, (Math.floor(app.length / 4096) + 1) * 89.7));
+    await dfu.send([...NrfDfu.u32(1), ...init, 0, 0]);
+    const PAGE_WRITE = 4096 / 4 * 0.1;   // ms, as nrfutil: FLASH_PAGE_WRITE_TIME
+    const chunks = Math.ceil(app.length / 512);
+    for (let i = 0; i < chunks; i++) {
+      await dfu.send([...NrfDfu.u32(4), ...app.subarray(i * 512, (i + 1) * 512)]);
+      if (i % 8 === 0) await sleep(PAGE_WRITE);
+      setPhase("Writing firmware", (i + 1) / chunks);
+    }
+    await sleep(PAGE_WRITE);
+    setPhase("Finishing", 1, "");
+    await dfu.send([...NrfDfu.u32(5)], 10000);
+    setPhase("Installed", 1, "100%"); log("Done. The board is restarting with the new firmware.", "o");
+    result("ok", `<b>${esc(t.label)} is installed.</b> The board restarts on its own. If it doesn't, press its reset button once.`);
+  } catch (e) {
+    const m = String(e?.message || e); log(m, "e"); result("bad", esc(m)); $("phase").textContent = "Stopped";
+  } finally { await dfu?.close(); S.port = null; setBusy(false); }
+}
+
+$("install").onclick = async () => {
+  const t = S.target; if (S.busy) return;
+  if (t?.kind === "stm32") return installStm32(t);
+  if (t?.kind === "nrf") return installNrf(t);
+  if (t?.kind !== "esp") return;
+  await stopMonitor(); setBusy(true); result(); let transport;
+  try {
+    const port = await pickPort();               // first, while the click still counts as a user gesture
+    const [{ ESPLoader, Transport }, data] = await Promise.all([loadEsptool(), getFirmware(t)]);
+    const img = inspectImage(data); if (img.err) throw new Error(img.err);
+    if (t.chip && img.chip !== t.chip) throw new Error(`The image is for an ${img.chip}, but this device uses an ${t.chip}.`);
+
+    setPhase("Connecting", 0, "");
+    // Getting the chip into download mode. esptool-js picks a reset from the USB IDs:
+    // the native-USB (USB-Serial-JTAG) sequence for Espressif 303a:1001, else the
+    // classic DTR/RTS auto-reset used by USB-UART chips (the ThinkNode M9's CH340).
+    // Browsers differ in how they apply DTR/RTS changes (Firefox's Web Serial is
+    // newer), so these resets are our own: they set only defined signals (no empty
+    // `break`), alternate setting both lines in one call with one-at-a-time calls
+    // as Espressif's esptool.py does, at short and long timings, and log any
+    // refusal. After a failed install the next press skips the reset entirely,
+    // for a board put into download mode by hand.
+    const info = (() => { try { return port.getInfo() || {}; } catch { return {}; } })();
+    const idsKnown = !!(info.usbVendorId && info.usbProductId);
+    const nativeUsb = info.usbVendorId === 0x303a && info.usbProductId === 0x1001;
+    if (!idsKnown) log("This browser doesn't say which USB chip the board uses, so the flasher tries both reset methods.", "d");
+    let refusedLogged = false;
+    const signals = async (tr, sig) => {
+      try { await tr.device.setSignals(sig); }
+      catch (e) { if (!refusedLogged) { refusedLogged = true; log(`The browser refused to set the USB reset lines (${e.message || e}). Put the board in download mode by hand: ${t.boot.replace(/^(Usually|Most boards) connects? on (its|their) own\. If not: /, "")}`, "w"); } }
+    };
+    const pause = ms => new Promise(r => setTimeout(r, ms));
+    const classicTogether = (tr, d) => ({ async reset() {
+      await signals(tr, { dataTerminalReady: false, requestToSend: true }); await pause(100);    // IO0 high, EN low: hold in reset
+      await signals(tr, { dataTerminalReady: true, requestToSend: false }); await pause(d);      // IO0 low, EN high: boot into download mode
+      await signals(tr, { dataTerminalReady: false, requestToSend: false }); } });
+    const classicSeparate = (tr, d) => ({ async reset() {
+      await signals(tr, { dataTerminalReady: false }); await signals(tr, { requestToSend: true }); await pause(100);
+      await signals(tr, { dataTerminalReady: true }); await signals(tr, { requestToSend: false }); await pause(d);
+      await signals(tr, { dataTerminalReady: false }); } });
+    const usbJtag = tr => ({ async reset() {
+      await signals(tr, { dataTerminalReady: false, requestToSend: false }); await pause(100);
+      await signals(tr, { dataTerminalReady: true, requestToSend: false }); await pause(100);
+      await signals(tr, { dataTerminalReady: false, requestToSend: true }); await pause(100);
+      await signals(tr, { dataTerminalReady: false, requestToSend: false }); } });
+    // esptool builds classicReset(50 ms) and classicReset(550 ms) once and reuses them for
+    // every attempt, so switch between the two signalling styles on each reset call.
+    const classic = (tr, d) => { let n = 0; return { reset: () => (n++ % 2 ? classicSeparate : classicTogether)(tr, d).reset() }; };
+    const resetsFor = mode => ({ classicReset: mode === "mixed" ? ((tr, d) => d < 100 ? usbJtag(tr) : classic(tr, d)) : classic,
+                                 usbJTAGSerialReset: usbJtag,
+                                 hardReset: (tr, otg) => ({ async reset() {
+                                   if (otg) { await pause(200); await signals(tr, { requestToSend: false }); await pause(200); return; }
+                                   await signals(tr, { dataTerminalReady: false, requestToSend: true }); await pause(100);
+                                   await signals(tr, { dataTerminalReady: false, requestToSend: false }); } }) });
+    const manual = S.manualBoot;
+    // First try: exactly what Espressif's own esptool-js page does (the library's default
+    // resets, picked from the USB IDs). Our own reset variants are only the fallback.
+    const plans = manual ? [{ mode: "no_reset" }, { mode: "default_reset" }]
+                : idsKnown ? [{ mode: "default_reset" }, { mode: "default_reset", resets: resetsFor(nativeUsb ? "mixed" : "") }]
+                : [{ mode: "default_reset", resets: resetsFor("mixed") }, { mode: "usb_reset" }];
+    if (manual) log("Connecting without a reset, for a board already in download mode…", "d");
+    const terminal = { clean() {}, writeLine: s => log(s), write: s => logRaw(s) };
+    let loader, desc;
+    for (let i = 0; i < plans.length; i++) {
+      const detail = $("debugLog").checked;
+      transport = new Transport(port, detail);
+      loader = new ESPLoader({ transport, baudrate: CONFIG.baud, terminal, debugLogging: detail, ...(plans[i].resets ? { resetConstructors: plans[i].resets } : {}) });
+      try { desc = await loader.main(plans[i].mode); S.manualBoot = false; break; }
+      catch (e) {
+        if (i === plans.length - 1 || !/connect|sync|timed? ?out/i.test(String(e?.message || e))) {
+          if (/connect|sync|timed? ?out/i.test(String(e?.message || e))) S.manualBoot = true;   // next press: no reset
+          throw e;
+        }
+        log("No answer yet; trying the other reset method…", "w");
+        try { await transport.disconnect(); } catch {}
+        transport = null; await sleep(300);
+      }
+    }
+    log(`Connected: ${desc}`, "o");
+    const id = loader.chip?.IMAGE_CHIP_ID;
+    if (id != null && id !== img.chipId) throw new Error(`This device is an ${loader.chip.CHIP_NAME}, but the firmware is for an ${img.chip}. Check the board picked above.`);
+
+    const erase = $("eraseAll").checked;
+    setPhase(erase ? "Erasing flash (can take a minute)" : "Writing", 0);
+    await loader.writeFlash({ fileArray: [{ data, address: 0 }], flashMode: "keep", flashFreq: "keep", flashSize: "keep",
+      eraseAll: erase, compress: true, reportProgress: (_i, w, n) => setPhase("Writing firmware", w / n) });
+    setPhase("Restarting", 1, "");
+    await loader.after("hard_reset");
+    log("Done. The device is restarting.", "o"); setPhase("Installed", 1, "100%");
+    result("ok", `<b>${esc(t.label)} is installed.</b> If the screen stays black or nothing happens, unplug the device and plug it back in.`);
+  } catch (e) {
+    const m = String(e?.message || e); log(m, "e");
+    const hint = /connect|sync|timed? ?out/i.test(m)
+      ? `<br><b>Put the board in download mode by hand, then press Install again:</b> ${esc(t.boot.replace(/^(Usually|Most boards) connects? on (its|their) own\. If not: /, ""))} The next try connects without resetting the board, so it stays in download mode.`
+      : "";
+    result("bad", esc(m) + hint); $("phase").textContent = "Stopped";
+    if (/Failed to open|lost|disconnected|NetworkError/i.test(m)) S.port = null;
+  } finally { try { await transport?.disconnect(); } catch {} setBusy(false); }
+};
+
+async function stopMonitor() { if (S.monitorStop) { await S.monitorStop(); S.monitorStop = null; $("monitor").textContent = "Watch serial log"; } }
+$("monitor").onclick = async () => {
+  if (S.monitorStop) return stopMonitor();
+  let port;
+  try { port = await pickPort(); await port.open({ baudRate: 115200 }); }
+  catch (e) { if (!/already open/i.test(e.message)) { log(e.message, "e"); S.port = null; return; } }
+  log("— serial log (115200) —", "d"); $("monitor").textContent = "Stop log";
+  const dec = new TextDecoder(); let stop = false, reader;
+  const loop = (async () => {
+    try { while (!stop && port.readable) { reader = port.readable.getReader();
+      try { for (;;) { const { value, done } = await reader.read(); if (done || stop) break; logRaw(dec.decode(value, { stream: true })); } }
+      finally { reader.releaseLock(); } } }
+    catch (e) { log(`Serial log stopped: ${e.message}`, "w"); S.port = null; }
+  })();
+  S.monitorStop = async () => { stop = true; try { await reader?.cancel(); } catch {} await loop; try { await port.close(); } catch {} log("— log stopped —", "d"); };
+};
+
+/* ================= boot ================= */
+// "What is MediaMesh?" shortcuts: open the matching tab (and role) and scroll to step 1
+for (const b of document.querySelectorAll("[data-goto]")) b.addEventListener("click", () => {
+  setTab(b.dataset.goto);
+  if (b.dataset.role) document.querySelector(`#cRole [data-role="${b.dataset.role}"]`)?.click();
+  $("pane-" + S.tab).scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+});
+{ // remember whether this visitor collapsed the video
+  const v = $("video"), hint = () => { $("videoHint").textContent = v.open ? "Hide" : "Show"; };
+  if (store.get("mm.video") === "closed") v.open = false;
+  hint(); v.addEventListener("toggle", () => { store.set("mm.video", v.open ? "open" : "closed"); hint(); });
+}
+// Embedded on another site (e.g. WordPress): ?theme=light|dark pins the look, and the
+// page reports its height so the host page can size the frame (see wordpress/).
+const setTheme = th => { if (th === "light" || th === "dark") document.documentElement.dataset.theme = th; };
+try { setTheme(new URLSearchParams(location.search).get("theme")); } catch {}
+// The host page (e.g. the WordPress block following DarkMySite's day/night switch) can change it live.
+window.addEventListener("message", e => { if (e.source === window.parent && e.data?.mediamesh === "theme") setTheme(e.data.theme); });
+if (window.parent !== window) {
+  const post = () => { try { window.parent.postMessage({ mediamesh: "height", h: Math.ceil(document.documentElement.getBoundingClientRect().height) }, "*"); } catch {} };
+  if (window.ResizeObserver) new ResizeObserver(post).observe(document.documentElement);
+  post();
+}
+if (!("serial" in navigator)) { $("serialBanner").hidden = false; $("install").disabled = true; $("monitor").disabled = true; }
+navigator.serial?.addEventListener?.("disconnect", e => { if (e.target === S.port) { S.port = null; log("Device unplugged.", "w"); } });
+const hash = (location.hash || (() => { try { return parent.location.hash; } catch { return ""; } })()).slice(1);
+const hashBoard = Wada.BOARDS.find(b => b.id === hash);
+Wada.select(hashBoard?.id || Wada.initialId() || "tdeck");
+setTab(TABS.includes(hash) ? hash : hash === "dxlr30" ? "spectra" : hashBoard ? "wadamesh" : store.get("mm.tab") || "wadamesh");
+log("Pick a firmware and your device, then install.", "d");
+Wada.load();
+Cascade.ensureLoaded();
+Spectra.ensureLoaded();
+</script>
+
+</html>
