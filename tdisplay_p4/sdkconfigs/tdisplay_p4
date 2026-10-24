@@ -132,3 +132,6 @@ CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH=y
 # largest piece ~42 KB, too little to count on for a handshake.
 CONFIG_LWIP_MAX_SOCKETS=16
 CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
+
+# Fork updates use IDF's esp_http_client, which checks the server against this bundle.
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y

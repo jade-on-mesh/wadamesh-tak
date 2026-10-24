@@ -9,6 +9,10 @@
 
 #include <esp_heap_caps.h>
 #include <mbedtls/md.h>
+#if defined(HAS_TDISPLAY_P4) && TDP4_C6_HOSTED
+#include <esp_crt_bundle.h>
+#include <esp_http_client.h>
+#endif
 #include <mbedtls/platform.h>
 
 #include "ForkUpdateCore.h"
@@ -65,91 +69,215 @@ static void ramNote(char* out, size_t cap) {
            (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024));
 }
 
-// Why a connection failed, beyond HTTPClient's -1: whether the name resolved,
-// and what TLS said (mbedTLS's error), so a report says which of DNS, the
-// socket and the handshake it was.
-static void connectNote(WiFiClientSecure& c, const char* host, char* out, size_t cap) {
-  if (!cap) return;
-  out[0] = 0;
-#if !(defined(HAS_TDISPLAY_P4) && !TDP4_C6_HOSTED)   // the AT backend has neither
-  IPAddress ip;
-  if (!WiFi.hostByName(host, ip)) { snprintf(out, cap, "DNS failed"); return; }
-  char tls[64] = "";
-  c.lastError(tls, sizeof tls);
-  if (tls[0]) snprintf(out, cap, "TLS: %s", tls);
-  else snprintf(out, cap, "no TCP connection");
-#else
-  (void)c; (void)host;
-#endif
-}
-
 static void say(Job& j, const char* m) {
   if (j.msg && j.msg_cap) snprintf(j.msg, j.msg_cap, "%s", m);
 }
 
-static void setup(HTTPClient& h, bool follow) {
-  h.setReuse(false);
-  h.setConnectTimeout(10000);
-  h.setTimeout(20000);
-  h.setUserAgent("wadamesh-fork");
-  h.setFollowRedirects(follow ? HTTPC_STRICT_FOLLOW_REDIRECTS : HTTPC_DISABLE_FOLLOW_REDIRECTS);
+static void hostOf(const char* url, char* out, size_t cap) {
+  const char* a = strstr(url, "://");
+  a = a ? a + 3 : url;
+  const char* b = strchr(a, '/');
+  const size_t n = b ? (size_t)(b - a) : strlen(a);
+  snprintf(out, cap, "%.*s", (int)(n < cap ? n : cap - 1), a);
+}
+
+// One HTTPS GET, redirects not followed (the callers follow them, reading
+// Location). Two backends:
+//  - Arduino's HTTPClient over WiFiClientSecure (the S3 boards);
+//  - ESP-IDF's esp_http_client on the T-Display P4 with the C6 over esp-hosted.
+//    Arduino's TLS client doesn't link on the P4 (an ABI mismatch in
+//    arduino-esp32's ssl_client; variants/tdisplay_p4/ssl_client_stub.cpp
+//    stands in, failing every connection), which was the P4's "connection
+//    refused (-1), TLS: ERROR - Generic error" on every update check. IDF's
+//    client does TLS itself, and checks github's certificate against IDF's
+//    bundle.
+#if defined(HAS_TDISPLAY_P4) && TDP4_C6_HOSTED
+#define FORKUPD_IDF_HTTP 1
+#else
+#define FORKUPD_IDF_HTTP 0
+#endif
+
+#if FORKUPD_IDF_HTTP
+struct Get {
+  esp_http_client_handle_t c = nullptr;
+  int code = 0;          // HTTP status, or < 0 when it didn't get one
+  long len = -1;         // Content-Length, -1 when not given
+  char loc[1024] = "";   // Location of a redirect (release assets' are long)
+  esp_err_t err = ESP_OK;
+
+  static esp_err_t onEvent(esp_http_client_event_t* e) {
+    Get* g = static_cast<Get*>(e->user_data);
+    if (g && e->event_id == HTTP_EVENT_ON_HEADER && e->header_key && e->header_value &&
+        !strcasecmp(e->header_key, "Location"))
+      snprintf(g->loc, sizeof g->loc, "%s", e->header_value);
+    return ESP_OK;
+  }
+  int open(const char* url) {
+    close();
+    loc[0] = 0;
+    len = -1;
+    esp_http_client_config_t cfg = {};
+    cfg.url = url;
+    cfg.method = HTTP_METHOD_GET;
+    cfg.timeout_ms = 20000;
+    cfg.disable_auto_redirect = true;
+    cfg.buffer_size = 4096;        // github's response headers
+    cfg.buffer_size_tx = 2048;     // a release asset's signed URL in the request line
+    cfg.user_agent = "wadamesh-fork";
+    cfg.crt_bundle_attach = esp_crt_bundle_attach;
+    cfg.event_handler = onEvent;
+    cfg.user_data = this;
+    cfg.keep_alive_enable = false;
+    c = esp_http_client_init(&cfg);
+    if (!c) { err = ESP_ERR_NO_MEM; return code = -1; }
+    err = esp_http_client_open(c, 0);
+    if (err != ESP_OK) return code = -1;
+    const int64_t n = esp_http_client_fetch_headers(c);
+    code = esp_http_client_get_status_code(c);
+    if (code <= 0) { err = n < 0 ? (esp_err_t)n : ESP_FAIL; return code = -1; }
+    len = n > 0 ? (long)n : -1;
+    return code;
+  }
+  // Body bytes: > 0 read, 0 none yet, -1 at its end or on an error.
+  int read(uint8_t* b, size_t n) {
+    if (!c) return -1;
+    const int r = esp_http_client_read(c, (char*)b, (int)n);
+    if (r > 0) return r;
+    if (r == -ESP_ERR_HTTP_EAGAIN) return 0;
+    return -1;
+  }
+  bool connected() const { return c != nullptr; }
+  // Why it couldn't connect, for the message.
+  void note(const char* host, char* out, size_t cap) {
+    (void)host;
+    const int e = c ? esp_http_client_get_errno(c) : 0;
+    if (e) snprintf(out, cap, "%s, errno %d", esp_err_to_name(err), e);
+    else snprintf(out, cap, "%s", esp_err_to_name(err));
+  }
+  void close() {
+    if (c) { esp_http_client_close(c); esp_http_client_cleanup(c); c = nullptr; }
+  }
+  ~Get() { close(); }
+};
+#else
+struct Get {
+  WiFiClientSecure* cl = nullptr;
+  HTTPClient* h = nullptr;
+  decltype(((HTTPClient*)nullptr)->getStreamPtr()) st = nullptr;
+  int code = 0;
+  long len = -1;
+  char loc[1024] = "";
+
+  int open(const char* url) {
+    close();
+    loc[0] = 0;
+    len = -1;
+    cl = new (std::nothrow) WiFiClientSecure();
+    h = new (std::nothrow) HTTPClient();
+    if (!cl || !h) return code = -1;
+    cl->setInsecure();   // the image is checked against the release key's signature
+    h->setReuse(false);
+    h->setConnectTimeout(10000);
+    h->setTimeout(20000);
+    h->setUserAgent("wadamesh-fork");
+    h->setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    const char* keys[] = {"Location"};
+    h->collectHeaders(keys, 1);
+    if (!h->begin(*cl, url)) return code = -1;
+    code = h->GET();
+    if (code > 0) {
+      snprintf(loc, sizeof loc, "%s", h->header("Location").c_str());
+      len = h->getSize();
+      st = h->getStreamPtr();
+    }
+    return code;
+  }
+  int read(uint8_t* b, size_t n) {
+    if (!st) return -1;
+    const int a = st->available();
+    if (a <= 0) return st->connected() ? 0 : -1;
+    const int r = st->read(b, n < (size_t)a ? n : (size_t)a);
+    return r > 0 ? r : 0;
+  }
+  bool connected() const { return st != nullptr; }
+  // Whether the name resolved, and what TLS said (mbedTLS's error), so a
+  // report says which of DNS, the socket and the handshake it was.
+  void note(const char* host, char* out, size_t cap) {
+    if (!cap) return;
+    out[0] = 0;
+#if !(defined(HAS_TDISPLAY_P4) && !TDP4_C6_HOSTED)   // the AT backend has neither
+    IPAddress ip;
+    if (!WiFi.hostByName(host, ip)) { snprintf(out, cap, "DNS failed"); return; }
+    char tls[64] = "";
+    if (cl) cl->lastError(tls, sizeof tls);
+    if (tls[0]) snprintf(out, cap, "TLS: %s", tls);
+    else snprintf(out, cap, "no TCP connection");
+#else
+    (void)host;
+#endif
+  }
+  void close() {
+    st = nullptr;
+    if (h) { h->end(); delete h; h = nullptr; }
+    if (cl) { cl->stop(); delete cl; cl = nullptr; }
+  }
+  ~Get() { close(); }
+};
+#endif
+
+static bool isRedirect(int code) { return code == 301 || code == 302 || code == 303 || code == 307 || code == 308; }
+
+// open() with two retries of a connection that failed outright: on the P4 the
+// first TLS connection after Wi-Fi comes up often doesn't make it.
+static int openRetrying(Get& g, const char* url, char* note, size_t note_cap) {
+  if (note_cap) note[0] = 0;
+  for (int attempt = 0; attempt < 3; attempt++) {
+    if (g.open(url) > 0) return g.code;
+    char host[64];
+    hostOf(url, host, sizeof host);
+    g.note(host, note, note_cap);
+    g.close();
+    vTaskDelay(pdMS_TO_TICKS(1500 * (attempt + 1)));
+  }
+  return g.code;
 }
 
 // Newest release: github.com answers /releases/latest with a redirect to its tag.
 // A renamed repo answers with a redirect to its new name first (and that one
 // with the tag), so redirects are followed until one names a tag: a build that
 // knows the old name keeps finding updates after a rename.
-static void hostOf(const String& url, char* out, size_t cap);
-
 static int latest() {
-  String url = "https://github.com/" WADA_FORK_REPO "/releases/latest";
+  static char url[1024];
+  snprintf(url, sizeof url, "https://github.com/%s/releases/latest", WADA_FORK_REPO);
   s_verchk_why[0] = 0;
   for (int hop = 0; hop < 4; hop++) {
-    char host[64];
+    char host[64], note[96];
     hostOf(url, host, sizeof host);
-    int code = 0;
-    String loc;
-    char note[96] = "";
-    // A connection that fails outright (-1) is tried again, with a fresh client
-    // each time: on the P4 the first TLS connection after Wi-Fi comes up often
-    // doesn't make it, and one failure used to cost the whole check.
-    for (int attempt = 0; attempt < 3; attempt++) {
-      WiFiClientSecure c;
-      c.setInsecure();
-      HTTPClient h;
-      setup(h, false);
-      const char* keys[] = {"Location"};
-      h.collectHeaders(keys, 1);
-      if (!h.begin(c, url)) {
-        snprintf(s_verchk_why, sizeof s_verchk_why, "bad address %s", host);
-        return -1;
-      }
-      code = h.GET();
-      loc = h.header("Location");
-      if (code < 0) connectNote(c, host, note, sizeof note);
-      h.end();
-      if (code >= 0) break;
-      vTaskDelay(pdMS_TO_TICKS(1500 * (attempt + 1)));
-    }
-    if (code != 301 && code != 302 && code != 307 && code != 308) {
+    Get g;
+    const int code = openRetrying(g, url, note, sizeof note);
+    if (!isRedirect(code)) {
       if (code < 0) {
         char ram[32];
         ramNote(ram, sizeof ram);
-        snprintf(s_verchk_why, sizeof s_verchk_why, "%s: %s (%d)%s%s, %s", host,
-                 HTTPClient::errorToString(code).c_str(), code, note[0] ? ", " : "", note, ram);
+        snprintf(s_verchk_why, sizeof s_verchk_why, "%s: can't connect%s%s, %s", host, note[0] ? ": " : "", note, ram);
       } else {
         snprintf(s_verchk_why, sizeof s_verchk_why, "%s: HTTP %d", host, code);
       }
       return -1;
     }
-    const int rel = forkupd::releaseCode(loc.c_str());
+    const int rel = forkupd::releaseCode(g.loc);
     if (rel >= 0) return rel;
-    if (loc.length() == 0) {   // -1 too when there are no releases yet
+    if (!g.loc[0]) {   // -1 too when there are no releases yet
       snprintf(s_verchk_why, sizeof s_verchk_why, "%s: HTTP %d, no Location header", host, code);
       return -1;
     }
-    if (loc.startsWith("/")) loc = String("https://github.com") + loc;
-    url = loc;
+    if (g.loc[0] == '/') {
+      char next[1024];
+      snprintf(next, sizeof next, "https://github.com%s", g.loc);
+      snprintf(url, sizeof url, "%s", next);
+    } else {
+      snprintf(url, sizeof url, "%s", g.loc);
+    }
   }
   snprintf(s_verchk_why, sizeof s_verchk_why, "too many redirects");
   return -1;
@@ -159,63 +287,30 @@ static void assetUrl(char* out, size_t cap, const char* tag, const char* file) {
   snprintf(out, cap, "https://github.com/" WADA_FORK_REPO "/releases/download/%s/%s", tag, file);
 }
 
-// One HTTPS GET that may be redirected (a release file on github.com is a 302
-// to release-assets.githubusercontent.com, with a long signed URL). Each hop
-// gets a fresh TLS client of its own (and the old one's memory back first).
-// Up to 5 hops, and two retries of a hop that couldn't connect.
-struct Get {
-  WiFiClientSecure* c = nullptr;
-  HTTPClient* h = nullptr;
-  int code = 0;
-  void close() {
-    if (h) { h->end(); delete h; h = nullptr; }
-    if (c) { c->stop(); delete c; c = nullptr; }
-  }
-  ~Get() { close(); }
-};
-
-static void hostOf(const String& url, char* out, size_t cap) {
-  int a = url.indexOf("://");
-  a = a < 0 ? 0 : a + 3;
-  int b = url.indexOf('/', a);
-  if (b < 0) b = url.length();
-  snprintf(out, cap, "%s", url.substring(a, b).c_str());
-}
-
-// True with g.code 200 and the body ready to read; else a message in j.
+// One GET that may be redirected (a release file on github.com is a 302 to
+// release-assets.githubusercontent.com, with a long signed URL). Each hop gets
+// a fresh client of its own. Up to 5 hops, and two retries of a hop that
+// couldn't connect. True with g.code 200 and the body ready to read; else a
+// message in j.
 static bool getFollowing(Job& j, const char* first, Get& g, const char* what) {
-  String url = first;
+  static char url[1024];
+  snprintf(url, sizeof url, "%s", first);
   for (int hop = 0; hop < 5; hop++) {
-    for (int attempt = 0; attempt < 3; attempt++) {
-      g.close();
-      g.c = new (std::nothrow) WiFiClientSecure();
-      g.h = new (std::nothrow) HTTPClient();
-      if (!g.c || !g.h) { say(j, "out of memory"); return false; }
-      g.c->setInsecure();
-      setup(*g.h, false);
-      const char* keys[] = {"Location"};
-      g.h->collectHeaders(keys, 1);
-      if (!g.h->begin(*g.c, url)) { g.code = -1; break; }
-      g.code = g.h->GET();
-      if (g.code > 0) break;
-      vTaskDelay(pdMS_TO_TICKS(1500 * (attempt + 1)));   // could not connect: try again
-    }
+    char note[96];
+    openRetrying(g, url, note, sizeof note);
     if (g.code == 200) return true;
-    if (g.code == 301 || g.code == 302 || g.code == 303 || g.code == 307 || g.code == 308) {
-      const String next = g.h->header("Location");
-      if (next.length() < 8) break;
-      url = next;
+    if (isRedirect(g.code)) {
+      if (strlen(g.loc) < 8) break;
+      snprintf(url, sizeof url, "%s", g.loc);
       continue;
     }
     char host[64], m[200];
     hostOf(url, host, sizeof host);
     if (g.code == 404) snprintf(m, sizeof m, "%s not in the release", what);
     else if (g.code < 0) {
-      char ram[32], note[96] = "";
+      char ram[32];
       ramNote(ram, sizeof ram);
-      if (g.c) connectNote(*g.c, host, note, sizeof note);
-      snprintf(m, sizeof m, "%s: can't connect to %s (%d%s%s, %s)", what, host, g.code,
-               note[0] ? ", " : "", note, ram);
+      snprintf(m, sizeof m, "%s: can't connect to %s (%s%s%s)", what, host, note, note[0] ? ", " : "", ram);
     }
     else snprintf(m, sizeof m, "%s: HTTP %d from %s", what, g.code, host);
     say(j, m);
@@ -227,25 +322,41 @@ static bool getFollowing(Job& j, const char* first, Get& g, const char* what) {
   return false;
 }
 
+// Reads exactly `want` body bytes into `out` (or as they come, to `sink`),
+// giving up after `idle_ms` without data. Returns how many it got.
+template <typename Sink>
+static size_t readBody(Get& g, size_t want, uint32_t idle_ms, Sink sink) {
+  uint8_t buf[1024];   // on this task's internal stack: flash and SD want DMA-capable memory
+  size_t done = 0;
+  uint32_t last = millis();
+  while (done < want) {
+    const size_t n = want - done < sizeof buf ? want - done : sizeof buf;
+    const int r = g.read(buf, n);
+    if (r < 0) break;
+    if (r == 0) {
+      if (millis() - last > idle_ms) break;
+      vTaskDelay(pdMS_TO_TICKS(2));
+      continue;
+    }
+    last = millis();
+    if (!sink(buf, (size_t)r)) break;
+    done += (size_t)r;
+  }
+  return done;
+}
+
 static bool fetchSig(Job& j, const char* tag, const char* file, uint8_t sig[forkupd::kSigBytes]) {
   char name[64], url[192];
   snprintf(name, sizeof name, "%s.sig", file);
   assetUrl(url, sizeof url, tag, name);
   Get g;
   if (!getFollowing(j, url, g, "signature")) return false;
-  auto* st = g.h->getStreamPtr();
   size_t got = 0;
-  const uint32_t t0 = millis();
-  while (st && got < forkupd::kSigBytes && millis() - t0 < 15000) {
-    const int a = st->available();
-    if (a <= 0) {
-      if (!st->connected()) break;
-      vTaskDelay(pdMS_TO_TICKS(5));
-      continue;
-    }
-    const int r = st->read(sig + got, forkupd::kSigBytes - got);
-    if (r > 0) got += (size_t)r;
-  }
+  readBody(g, forkupd::kSigBytes, 15000, [&](const uint8_t* b, size_t n) -> bool {
+    memcpy(sig + got, b, n);
+    got += n;
+    return true;
+  });
   g.close();
   if (got != forkupd::kSigBytes) { say(j, "bad signature file"); return false; }
   return true;
@@ -263,8 +374,7 @@ static bool fetchImage(Job& j) {
   assetUrl(url, sizeof url, tag, file);
   Get g;
   if (!getFollowing(j, url, g, "firmware")) return false;
-  HTTPClient& h = *g.h;
-  const int len = h.getSize();
+  const long len = g.len;
   if (len <= 0) { say(j, "bad length"); return false; }
 
 #if CAP_SD
@@ -282,22 +392,19 @@ static bool fetchImage(Job& j) {
       else
         snprintf(m, sizeof m, "won't fit: %s", Update.errorString());
       say(j, m);
-      h.end();
       return false;
     }
 #else
     say(j, "no update slot");
-    h.end();
     return false;
 #endif
   } else {
 #if CAP_SD
     SD.remove(j.path);
     f = SD.open(j.path, FILE_WRITE);
-    if (!f) { say(j, "SD open failed"); h.end(); return false; }
+    if (!f) { say(j, "SD open failed"); return false; }
 #else
     say(j, "no SD card");
-    h.end();
     return false;
 #endif
   }
@@ -307,41 +414,30 @@ static bool fetchImage(Job& j) {
   const mbedtls_md_info_t* info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
   bool ok = info && mbedtls_md_setup(&md, info, 0) == 0 && mbedtls_md_starts(&md) == 0;
 
-  // On this task's (internal) stack: flash and SD both want DMA-capable memory.
-  uint8_t buf[1024];
-  auto* st = h.getStreamPtr();   // NetworkClient* on arduino 3.x
-  size_t done = 0;
-  uint32_t last_data = millis();
-  while (ok && st && done < (size_t)len) {
-    const int a = st->available();
-    if (a <= 0) {
-      if (!st->connected() || millis() - last_data > 20000) break;
-      vTaskDelay(pdMS_TO_TICKS(2));
-      continue;
-    }
-    const size_t want = (size_t)len - done < sizeof buf ? (size_t)len - done : sizeof buf;
-    const int r = st->read(buf, want < (size_t)a ? want : (size_t)a);
-    if (r <= 0) continue;
-    last_data = millis();
-    if (mbedtls_md_update(&md, buf, (size_t)r) != 0) { ok = false; break; }
-    size_t w = 0;
+  size_t done = 0, seen = 0;
+  if (ok) {
+    done = readBody(g, (size_t)len, 20000, [&](const uint8_t* b, size_t n) -> bool {
+      if (mbedtls_md_update(&md, b, n) != 0) { ok = false; return false; }
+      size_t w = 0;
 #if CAP_OTA
-    if (j.kind == Kind::Slot) w = Update.write(buf, (size_t)r);
+      if (j.kind == Kind::Slot) w = Update.write(const_cast<uint8_t*>(b), n);
 #endif
 #if CAP_SD
-    if (j.kind == Kind::Sd) w = f.write(buf, (size_t)r);
+      if (j.kind == Kind::Sd) w = f.write(b, n);
 #endif
-    if (w != (size_t)r) { say(j, j.kind == Kind::Sd ? "SD write failed" : "flash write failed"); ok = false; break; }
-    done += (size_t)r;
-    if (j.pct) *j.pct = (int)((uint64_t)done * 100 / (uint64_t)len);
+      if (w != n) { say(j, j.kind == Kind::Sd ? "SD write failed" : "flash write failed"); ok = false; return false; }
+      seen += n;
+      if (j.pct) *j.pct = (int)((uint64_t)seen * 100 / (uint64_t)len);
+      return true;
+    });
   }
-  h.end();
+  g.close();
   uint8_t digest[32];
   if (ok && mbedtls_md_finish(&md, digest) != 0) ok = false;
   mbedtls_md_free(&md);
   if (ok && done != (size_t)len) {
     char m[40];
-    snprintf(m, sizeof m, "short read %u/%d", (unsigned)done, len);
+    snprintf(m, sizeof m, "short read %u/%ld", (unsigned)done, len);
     say(j, m);
     ok = false;
   }
@@ -374,30 +470,23 @@ static bool fetchImage(Job& j) {
 static bool fetchToBuf(Job& j) {
   Get g;
   if (!getFollowing(j, j.url, g, "file")) return false;
-  const int len = g.h->getSize();
+  const long len = g.len;
   if (len <= 0 || (size_t)len > j.cap) {
     char m[48];
-    snprintf(m, sizeof m, "unexpected size %d", len);
+    snprintf(m, sizeof m, "unexpected size %ld", len);
     say(j, m);
     return false;
   }
-  auto* st = g.h->getStreamPtr();
   j.got = 0;
-  uint32_t last = millis();
-  while (st && j.got < (size_t)len) {
-    const int a = st->available();
-    if (a <= 0) {
-      if (!st->connected() || millis() - last > 20000) break;
-      vTaskDelay(pdMS_TO_TICKS(5));
-      continue;
-    }
-    const int r = st->read(j.buf + j.got, (size_t)len - j.got);
-    if (r > 0) { j.got += (size_t)r; last = millis(); }
-  }
+  readBody(g, (size_t)len, 20000, [&](const uint8_t* b, size_t n) -> bool {
+    memcpy(j.buf + j.got, b, n);
+    j.got += n;
+    return true;
+  });
   g.close();
   if (j.got != (size_t)len) {
     char m[48];
-    snprintf(m, sizeof m, "short read %u/%d", (unsigned)j.got, len);
+    snprintf(m, sizeof m, "short read %u/%ld", (unsigned)j.got, len);
     say(j, m);
     return false;
   }
