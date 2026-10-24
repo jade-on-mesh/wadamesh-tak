@@ -340,7 +340,7 @@ jobs:
           { grep -E "error:|undefined reference|FAILED|Error" build.log || true; } | head -30 | while IFS= read -r l; do echo "::error::${l}"; done
           echo "::error title=build log tail::$(tail -40 build.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
       - name: Size
-        run: echo "::notice title=tdisplay-p4 size::application.bin $(stat -c %s dist/wadamesh-tdisplay-p4.bin) bytes (4 MB slot)"
+        run: echo "::notice title=tdisplay-p4 size::application.bin $(stat -c %s dist/wadamesh-tdisplay-p4.bin) bytes (5.5 MB slot)"
       # Flash, internal RAM and PSRAM by section, symbol, library and object
       # (scripts/build/mem-report.py), on a branch: annotations are too small.
       - name: Memory report
