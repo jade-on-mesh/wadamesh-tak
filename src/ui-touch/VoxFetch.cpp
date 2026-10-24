@@ -247,7 +247,13 @@ void VoxFetch::probeFirst(uint32_t sid, uint32_t delay_ms) {
 void VoxFetch::probe(Session& s) {
   // Downloading after all, done, the packet came, or asked enough: nothing
   // to ask. The bubble offers the download either way.
-  if (s.st != kRemote || (s.storage && s.asm_.total() && s.asm_.have(0))) return;
+  if (s.st != kRemote) return;
+  // The thumbnail's packets not here yet (of the first kThumbPackets).
+  uint8_t want[VoxWire::kThumbPackets];
+  int n_want = 0;
+  for (int i = 0; i < VoxWire::kThumbPackets && i < s.total; i++)
+    if (!(s.storage && s.asm_.total() && s.asm_.have((uint8_t)i))) want[n_want++] = (uint8_t)i;
+  if (!n_want) return;
   if (s.probe_tries >= kThumbProbeTries) return;
   s.probe_tries++;
   // Not here by the next check: ask again (each answer may be lost too).
@@ -255,10 +261,9 @@ void VoxFetch::probe(Session& s) {
   s.probe_at = io_.nowMs() + kThumbProbeRetryMs + io_.random32() % kThumbProbeSpreadMs;
   uint8_t key6[6];
   io_.selfKey6(key6);
-  const uint8_t first = 0;
   if (s.channel >= 0) {
-    uint8_t req[VoxWire::kFetchMinLen + 2];
-    const int n = VoxWire::encodeFetch(s.sid, key6, &first, 1, req, sizeof req, true);
+    uint8_t req[VoxWire::kFetchMinLen + VoxWire::kThumbPackets];
+    const int n = VoxWire::encodeFetch(s.sid, key6, want, n_want, req, sizeof req, true);
     if (n > 0) io_.sendChannelData(s.channel, VoxWire::kChannelDataType, req, (size_t)n);
     return;
   }
@@ -267,8 +272,8 @@ void VoxFetch::probe(Session& s) {
   if (!s.has_pub || !io_.contactRoute(s.pub, path, &packed) || (packed >> 6) != 0) return;
   const int path_bytes = packed & 0x3F;
   const bool with_path = path_bytes <= VoxWire::kMaxReplyPathBytes;
-  uint8_t req[VoxWire::kFetchMinLen + 2 + 1 + VoxWire::kMaxReplyPathBytes];
-  const int n = VoxWire::encodeFetch(s.sid, key6, &first, 1, req, sizeof req, true,
+  uint8_t req[VoxWire::kFetchMinLen + VoxWire::kThumbPackets + 1 + VoxWire::kMaxReplyPathBytes];
+  const int n = VoxWire::encodeFetch(s.sid, key6, want, n_want, req, sizeof req, true,
                                      with_path ? path : nullptr, with_path ? path_bytes : 0);
   if (n > 0) io_.sendRaw(path, packed, req, (size_t)n);
 }
@@ -472,11 +477,14 @@ int VoxFetch::attempts(uint32_t sid) const {
   return s ? s->attempts : 0;
 }
 
-bool VoxFetch::firstPacket(uint32_t sid, const uint8_t** data, size_t* len) const {
+bool VoxFetch::firstPackets(uint32_t sid, const uint8_t** data, size_t* len) const {
   const Session* s = find(sid);
   if (!s || s->st == kComplete || !s->storage || !s->asm_.total() || !s->asm_.have(0)) return false;
+  int k = 0;
+  while (k < VoxWire::kThumbPackets && k < s->asm_.total() && s->asm_.have((uint8_t)k)) k++;
   *data = s->storage;
-  *len = s->asm_.total() == 1 ? s->asm_.payloadLen() : (size_t)s->packet_bytes;
+  // All of it (the last packet is short): complete, so the store has it.
+  *len = (size_t)k * (size_t)s->packet_bytes;
   return true;
 }
 

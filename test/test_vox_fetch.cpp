@@ -508,13 +508,15 @@ int main() {
     const uint8_t* first = nullptr;
     size_t n = 0;
     f.onEnvelope(envFor(sim), sim.sender_pub, nullptr, -1, true);
-    assert(!f.firstPacket(kSid, &first, &n));
+    assert(!f.firstPackets(kSid, &first, &n));
     int got = 0;
     while (got < 1 && sim.now < 60000) { sim.run(50); f.status(kSid, &got); }
     assert(got >= 1 && f.status(kSid) == VoxFetch::kReceiving);
-    assert(f.firstPacket(kSid, &first, &n) && n == (size_t)sim.pb && !memcmp(first, sim.payload.data(), n));
+    assert(f.firstPackets(kSid, &first, &n) && n >= (size_t)sim.pb && !memcmp(first, sim.payload.data(), n));
+    while (got < 2 && sim.now < 60000) { sim.run(50); f.status(kSid, &got); }
+    assert(f.firstPackets(kSid, &first, &n) && n == 2u * (size_t)sim.pb && !memcmp(first, sim.payload.data(), n));
     sim.run(60000);
-    assert(gotIt(sim, f) && !f.firstPacket(kSid, &first, &n));   // complete: the store has it
+    assert(gotIt(sim, f) && !f.firstPackets(kSid, &first, &n));   // complete: the store has it
   }
 
   // 15e. A channel photo nobody pushed: the thumbnail probe asks the channel
@@ -527,22 +529,22 @@ int main() {
     sim.run(3900);
     assert(sim.channel_requests == 0);
     sim.run(4000);
-    assert(sim.channel_requests == 1 && sim.served_packets == 1);
+    assert(sim.channel_requests == 1 && sim.served_packets == 2);   // the thumbnail's two
     sim.run(20000);
     assert(sim.channel_requests == 1);   // it came: no second ask
     const uint8_t* first = nullptr;
     size_t n = 0;
-    assert(f.status(kSid) == VoxFetch::kRemote && f.firstPacket(kSid, &first, &n));
+    assert(f.status(kSid) == VoxFetch::kRemote && f.firstPackets(kSid, &first, &n));
     sim.run(60000);
-    assert(sim.channel_requests == 1 && sim.raw_requests == 0);   // just the one packet
+    assert(sim.channel_requests == 1 && sim.raw_requests == 0);   // just those two
   }
   // 15f. Its first packet already came (the push): no probe goes out.
   {
     Sim sim; setup(sim, 2750);
     VoxFetch f(sim); sim.fetch = &f;
     f.onEnvelope(envFor(sim), nullptr, "Jade", 2, false);
-    f.probeFirst(kSid, 4000);
-    sim.serve({0}, true, sim.now + 500, true);   // the sender's push, cut short
+    f.probeFirst(kSid, 8000);
+    sim.serve({0, 1}, true, sim.now + 500, true);   // the sender's push, cut short (in by ~5.6 s)
     sim.run(30000);
     assert(sim.channel_requests == 0);
   }
@@ -561,6 +563,18 @@ int main() {
     assert(f.request(kSid));   // the tap
     sim.run(120000);
     assert(gotIt(sim, f));
+  }
+
+  // 15h. A Super Sharp photo (247 packets) is taken, not dropped.
+  {
+    Sim sim; setup(sim, 247 * 156);
+    VoxFetch f(sim); sim.fetch = &f;
+    assert(envFor(sim).total == 247);
+    f.onEnvelope(envFor(sim), sim.sender_pub, nullptr, -1, true);
+    assert(f.status(kSid) == VoxFetch::kRequesting);
+    sim.run(900000);
+    assert(gotIt(sim, f));
+    printf("super sharp: %d requests, %d packets served for 247\n", sim.raw_requests, sim.served_packets);
   }
 
   // 16. The shared timing (lib/vox/vox_timing.dart).
