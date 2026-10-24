@@ -13,6 +13,7 @@
 
 #include "../MyMesh.h"
 #include "ChannelSenderSplit.h"
+#include "VoxAv1Core.h"
 #include "VoxServe.h"
 #include "VoxVoice.h"
 #include "device_caps.h"
