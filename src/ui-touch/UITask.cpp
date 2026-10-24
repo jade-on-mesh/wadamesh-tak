@@ -17255,7 +17255,7 @@ static void buildMediaMeshCard() {
                  "not straight to the processor, so it can't hop between two frequencies quickly enough. "
                  "The Terminal still takes tempradio.");
     else
-      setNote(c, "This radio can't run a second frequency. It needs an SX1262 board such as the T-Deck or Heltec V4. "
+      setNote(c, "This radio can't run a second frequency. It needs an SX1262, LR1110, LR1121 or LR2021 radio. "
                  "The Terminal still takes tempradio.");
     mmcovBuildRows(c);   // the repeaters' MediaMesh can still be mapped
     return;

@@ -15,6 +15,8 @@
 
 class CustomLR1121 : public LR1121 {
   bool _rx_boosted = false;
+  uint32_t _preambleMillis = 66;
+  uint32_t _maxPayloadMillis = 3934;
 
   public:
     CustomLR1121(Module *mod) : LR1121(mod) { }
@@ -46,6 +48,13 @@ class CustomLR1121 : public LR1121 {
       bool detected = ((irq & RADIOLIB_LR11X0_IRQ_SYNC_WORD_HEADER_VALID) || (irq & RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED));
       return detected;
     }
+
+    // As CustomLR1110: the longest a preamble or a packet may take on the
+    // profile tuned now (MediaMesh retunes keep them current).
+    void setPreambleMillis(uint32_t preambleMillis) { _preambleMillis = preambleMillis; }
+    void setMaxPayloadMillis(uint32_t payloadMillis) { _maxPayloadMillis = payloadMillis; }
+    uint32_t preambleMillis() const { return _preambleMillis; }
+    uint32_t maxPayloadMillis() const { return _maxPayloadMillis; }
 
     uint8_t getSpreadingFactor() const { return spreadingFactor; }
 };

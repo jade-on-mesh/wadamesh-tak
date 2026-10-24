@@ -18,7 +18,8 @@ namespace mesh { class Packet; }
 
 namespace mediamesh {
 
-/** True when this build's radio can run a second profile (SX126x on ESP32). */
+/** True when this build's radio can run a second profile (SX126x, LR1110,
+ * LR1121 or LR2021 on an ESP32). */
 bool supported();
 /** Why not, when !supported(), for the settings: "needs an SX1262", or for an
  * SX1262 whose DIO1 is polled (behind an I/O expander, as on the T-Display P4)

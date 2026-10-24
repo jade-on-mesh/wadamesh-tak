@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// MediaMesh radio: the board's SX126x wrapper, extended to time-share the one
+// MediaMesh radio: the board's SX126x/LR11x0/LR2021 wrapper, extended to time-share the one
 // transceiver between the primary profile and a second (`radio2`) profile.
 // Variants declare `RADIO_DRIVER_CLASS radio_driver`, which is this class on
 // supported boards and the plain wrapper everywhere else.
@@ -24,8 +24,12 @@
 //    radio2 is active: its drain task lifts a packet out of the radio within
 //    ~1 ms, so the scan can move on.
 //
-// Requires an ESP32 with an SX126x; elsewhere MEDIAMESH_RADIO stays undefined
-// and the board keeps its stock wrapper. A board whose DIO1 reaches no GPIO
+// Requires an ESP32 with an SX126x, an LR1110/LR1121 (LR11x0: ThinkNode M9,
+// T-LoRa Pager LR1121) or an LR2021 (T-Display P4 LR2021 build); elsewhere
+// MEDIAMESH_RADIO stays undefined and the board keeps its stock wrapper. The
+// LR chips retune through RadioLib's setters and arm the stock way (no lean
+// arm); the scan measures their retunes and sizes its visits to them, as it
+// does on the SX1262. A board whose DIO1 reaches no GPIO
 // (MESH_RADIO_DIO1_POLLED: the T-Display P4, where it sits on an I2C expander)
 // works too: the scan reads the chip's IRQ register over SPI anyway, so it
 // stands in for the interrupt itself. A finished packet it finds wakes the
@@ -36,14 +40,67 @@
 
 #include "MediaMeshCore.h"
 
-#if defined(ESP32) && (defined(USE_SX1262) || defined(USE_SX1268)) && !defined(MEDIAMESH_DISABLE)
+#if defined(ESP32) && !defined(MEDIAMESH_DISABLE) && (defined(USE_SX1262) || defined(USE_SX1268))
+#define MEDIAMESH_CHIP_SX126X 1
+#elif defined(ESP32) && !defined(MEDIAMESH_DISABLE) && defined(USE_LR2021)
+#define MEDIAMESH_CHIP_LR2021 1
+#elif defined(ESP32) && !defined(MEDIAMESH_DISABLE) && (defined(USE_LR1110) || defined(USE_LR1121) || defined(MEDIAMESH_CHIP_LR11X0))
+#undef MEDIAMESH_CHIP_LR11X0
+#define MEDIAMESH_CHIP_LR11X0 1
+#endif
+
+#if defined(MEDIAMESH_CHIP_SX126X) || defined(MEDIAMESH_CHIP_LR11X0) || defined(MEDIAMESH_CHIP_LR2021)
 
 #define MEDIAMESH_RADIO 1
 
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#if defined(MEDIAMESH_CHIP_SX126X)
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
+#endif
+
+namespace mediamesh {
+// The chip's own IRQ bits, standby modes and endless-receive timeout.
+#if defined(MEDIAMESH_CHIP_SX126X)
+using ScanChip = CustomSX1262;
+static constexpr uint32_t kIrqRxDone = RADIOLIB_SX126X_IRQ_RX_DONE;
+static constexpr uint32_t kIrqTxDone = RADIOLIB_SX126X_IRQ_TX_DONE;
+static constexpr uint32_t kIrqHeader = RADIOLIB_SX126X_IRQ_HEADER_VALID;
+static constexpr uint32_t kIrqPreamble = RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED;
+#elif defined(MEDIAMESH_CHIP_LR2021)
+using ScanChip = RADIO_CLASS;
+static constexpr uint32_t kIrqRxDone = RADIOLIB_LR2021_IRQ_RX_DONE;
+static constexpr uint32_t kIrqTxDone = RADIOLIB_LR2021_IRQ_TX_DONE;
+static constexpr uint32_t kIrqHeader = RADIOLIB_LR2021_IRQ_LORA_HEADER_VALID;
+static constexpr uint32_t kIrqPreamble = RADIOLIB_LR2021_IRQ_PREAMBLE_DETECTED;
+static constexpr uint8_t kStandbyRc = RADIOLIB_LR2021_STANDBY_RC;
+static constexpr uint8_t kStandbyXosc = RADIOLIB_LR2021_STANDBY_XOSC;
+static constexpr uint32_t kRxForever = RADIOLIB_LR2021_RX_TIMEOUT_INF;
+#else   // LR11x0
+using ScanChip = RADIO_CLASS;
+static constexpr uint32_t kIrqRxDone = RADIOLIB_LR11X0_IRQ_RX_DONE;
+static constexpr uint32_t kIrqTxDone = RADIOLIB_LR11X0_IRQ_TX_DONE;
+static constexpr uint32_t kIrqHeader = RADIOLIB_LR11X0_IRQ_SYNC_WORD_HEADER_VALID;
+static constexpr uint32_t kIrqPreamble = RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED;
+static constexpr uint8_t kStandbyRc = 0x00;
+// SetStandby's StbyConfig: 1 keeps the crystal/TCXO running (LR1110 user
+// manual). RadioLib's RADIOLIB_LR11X0_STANDBY_XOSC reads 0, the RC value.
+static constexpr uint8_t kStandbyXosc = 0x01;
+static constexpr uint32_t kRxForever = RADIOLIB_LR11X0_RX_TIMEOUT_INF;
+#endif
+#if !defined(MEDIAMESH_CHIP_SX126X)
+// RadioLib's LR classes keep their LoRa settings protected (RADIOLIB_GODMODE
+// doesn't open LRxxxx). A derived class may name them, and the pointers to
+// member it forms work on any LR chip object.
+struct LrFields : ScanChip {
+  static uint8_t& sf(ScanChip* c) { return c->*(&LrFields::spreadingFactor); }
+  static uint8_t& cr(ScanChip* c) { return c->*(&LrFields::codingRate); }
+  static float& bwKhz(ScanChip* c) { return c->*(&LrFields::bandwidthKhz); }
+  static uint16_t& preamble(ScanChip* c) { return c->*(&LrFields::preambleLengthLoRa); }
+};
+#endif
+}  // namespace mediamesh
 
 // The profiles a packet about to be sent goes out on (bit 0 primary, bit 1 radio2).
 using MediaMeshClassifier = uint8_t (*)(const uint8_t* raw, int len);
@@ -103,7 +160,10 @@ class MediaMeshRadio : public Base {
   uint8_t _org_w = 0, _org_r = 0;
   uint32_t _org_seen = 0;
 
-  CustomSX1262* chip() { return static_cast<CustomSX1262*>(this->_radio); }
+  mediamesh::ScanChip* chip() { return static_cast<mediamesh::ScanChip*>(this->_radio); }
+#if !defined(MEDIAMESH_CHIP_SX126X)
+  bool _warm = false;               // standby on the crystal while scanning
+#endif
 
   uint16_t stockPreamble(uint8_t sf) const { return RadioLibWrapper::preambleLengthForSF(sf); }
   uint16_t mainPreamble() const { return _main.preamble ? _main.preamble : stockPreamble(_main.sf); }
@@ -121,6 +181,7 @@ class MediaMeshRadio : public Base {
     _timing = mediamesh::calcTiming(_main, mainPreamble(), _cfg.p, switchBudgetUs());
   }
 
+#if defined(MEDIAMESH_CHIP_SX126X)
   static uint8_t bwCode(float bw) {
     static const float bws[] = {7.8f, 10.4f, 15.6f, 20.8f, 31.25f, 41.7f, 62.5f, 125.0f, 250.0f, 500.0f};
     static const uint8_t codes[] = {RADIOLIB_SX126X_LORA_BW_7_8,   RADIOLIB_SX126X_LORA_BW_10_4,
@@ -131,6 +192,7 @@ class MediaMeshRadio : public Base {
     for (size_t i = 0; i < sizeof(bws) / sizeof(bws[0]); ++i) if (fabsf(bw - bws[i]) < 0.01f) return codes[i];
     return 0xFF;
   }
+#endif
 
   // ---- receive origins (caller holds the radio mutex) ------------------------
 
@@ -146,13 +208,24 @@ class MediaMeshRadio : public Base {
   }
   // A packet completed in the radio but not yet lifted out by the drain task:
   // the chip's own RX-done flag, which the re-arm after the drain clears.
-  bool rxWaiting() { return (chip()->getIrqFlags() & RADIOLIB_SX126X_IRQ_RX_DONE) != 0; }
+  bool rxWaiting() { return (chip()->getIrqFlags() & mediamesh::kIrqRxDone) != 0; }
+
+  // Standby without the wake-up NOP (the chip is awake: it was receiving), on
+  // the crystal while scanning so the next receive starts at once.
+  void standbyQuick() {
+#if defined(MEDIAMESH_CHIP_SX126X)
+    chip()->standby(chip()->standbyXOSC ? RADIOLIB_SX126X_STANDBY_XOSC : RADIOLIB_SX126X_STANDBY_RC, false);
+#else
+    chip()->standby(_warm ? mediamesh::kStandbyXosc : mediamesh::kStandbyRc, false);
+#endif
+  }
 
   // ---- retuning (caller holds the radio mutex) -------------------------------
 
   // Puts the chip (already in standby: warm while scanning) on `p`: frequency,
   // then SF/BW/CR in one command. The preamble is written by the next
   // startReceive/startTransmit.
+#if defined(MEDIAMESH_CHIP_SX126X)
   bool tune(const Params& p, uint16_t preamble) {
     CustomSX1262* r = chip();
     const uint8_t bwc = bwCode(p.bw);
@@ -173,6 +246,28 @@ class MediaMeshRadio : public Base {
     r->setMaxPayloadMillis(pm.payloadMillis);
     return rc == RADIOLIB_ERR_NONE;
   }
+#else
+  // LR11x0/LR2021: the frequency (an image calibration only for a jump of
+  // many MHz, not between two channels of one band), then SF/BW/CR through
+  // RadioLib's setters when they differ. The preamble goes out with the
+  // packet parameters the receive/transmit start writes.
+  bool tune(const Params& p, uint16_t preamble) {
+    mediamesh::ScanChip* r = chip();
+    int16_t rc = r->setFrequency(p.freq);
+    if (rc == RADIOLIB_ERR_NONE
+        && (mediamesh::LrFields::sf(r) != p.sf || fabsf(mediamesh::LrFields::bwKhz(r) - p.bw) > 0.01f
+            || mediamesh::LrFields::cr(r) != (uint8_t)(p.cr - 4))) {
+      rc = r->setBandwidth(p.bw);
+      if (rc == RADIOLIB_ERR_NONE) rc = r->setSpreadingFactor(p.sf);
+      if (rc == RADIOLIB_ERR_NONE) rc = r->setCodingRate(p.cr);
+    }
+    mediamesh::LrFields::preamble(r) = preamble;
+    PacketMillis pm = this->calcMaxPacketMillis(p.sf, p.bw, p.cr, preamble > 255 ? 255 : (uint8_t)preamble);
+    r->setPreambleMillis(pm.preambleMillis);
+    r->setMaxPayloadMillis(pm.payloadMillis);
+    return rc == RADIOLIB_ERR_NONE;
+  }
+#endif
 
   // `scanning`: a retune between two receive visits. The chip goes to standby
   // without the wrapper's idle(), so its state stays "receiving" and the next
@@ -186,7 +281,7 @@ class MediaMeshRadio : public Base {
     bool fast = false;
     if (scanning && this->isInRecvMode()) {
       // From receive the chip is awake: no wake-up NOP before the standby.
-      chip()->standby(chip()->standbyXOSC ? RADIOLIB_SX126X_STANDBY_XOSC : RADIOLIB_SX126X_STANDBY_RC, false);
+      standbyQuick();
       fast = !rxWaiting();   // in standby nothing new can land
       if (!fast) this->idle();
     } else {
@@ -253,9 +348,13 @@ class MediaMeshRadio : public Base {
   // After a full arm: the lean one may follow if the chip is in LoRa with
   // standard IQ (one packet-type query, on this path only).
   void confirmLean() {
+#if defined(MEDIAMESH_CHIP_SX126X)
     CustomSX1262* r = chip();
     _lean_ok = r->invertIQEnabled == RADIOLIB_SX126X_LORA_IQ_STANDARD
             && r->getPacketType() == RADIOLIB_SX126X_PACKET_TYPE_LORA;
+#else
+    _lean_ok = false;   // the LR chips always take the full arm
+#endif
   }
 
   // RadioLib's receive arm, less what a scan retune can't have changed. From
@@ -272,6 +371,9 @@ class MediaMeshRadio : public Base {
   // preamble differs between the profiles), RX. Eight SPI commands a retune
   // in all, where RadioLib's path made about fifteen.
   int16_t armScanLean() {
+#if !defined(MEDIAMESH_CHIP_SX126X)
+    return RADIOLIB_ERR_UNKNOWN;   // not used: confirmLean() never allows it here
+#else
     CustomSX1262* r = chip();
     const uint16_t irqs = RADIOLIB_SX126X_IRQ_RX_DONE | RADIOLIB_SX126X_IRQ_TIMEOUT | RADIOLIB_SX126X_IRQ_CRC_ERR
                         | RADIOLIB_SX126X_IRQ_HEADER_VALID | RADIOLIB_SX126X_IRQ_HEADER_ERR
@@ -290,11 +392,20 @@ class MediaMeshRadio : public Base {
       rc = r->setRx(RADIOLIB_SX126X_RX_TIMEOUT_INF);
     }
     return rc;
+#endif
   }
   int16_t armScan() {
+#if defined(MEDIAMESH_CHIP_SX126X)
     return chip()->startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF,
                                 RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_IRQ_PREAMBLE_DETECTED),
                                 RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
+#else
+    // Through PhysicalLayer: the Custom classes' startReceive() hides the
+    // four-argument form.
+    return static_cast<PhysicalLayer*>(chip())->startReceive(
+        mediamesh::kRxForever, RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_IRQ_PREAMBLE_DETECTED),
+        RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
+#endif
   }
 
   // How long a preamble with no header yet may keep the receiver on a profile:
@@ -353,9 +464,9 @@ class MediaMeshRadio : public Base {
         // the drain task (~1 ms), so every packet is read out on the profile it
         // came in on and credited to it.
         const uint32_t irq = chip()->getIrqFlags();
-        const bool header = (irq & RADIOLIB_SX126X_IRQ_HEADER_VALID) != 0;
-        const bool preamble = (irq & RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED) != 0;
-        const bool waiting = (irq & RADIOLIB_SX126X_IRQ_RX_DONE) != 0;
+        const bool header = (irq & mediamesh::kIrqHeader) != 0;
+        const bool preamble = (irq & mediamesh::kIrqPreamble) != 0;
+        const bool waiting = (irq & mediamesh::kIrqRxDone) != 0;
 #if defined(MESH_RADIO_DIO1_POLLED)
         // No DIO1 interrupt on this board: this read is it. Hand the packet to
         // the drain task now (it lifts it out within ~1 ms), instead of
@@ -398,7 +509,7 @@ class MediaMeshRadio : public Base {
 #if defined(MESH_RADIO_DIO1_POLLED)
     if (!_tx) return false;
     this->radioAcquire();
-    const bool done = (chip()->getIrqFlags() & RADIOLIB_SX126X_IRQ_TX_DONE) != 0;
+    const bool done = (chip()->getIrqFlags() & mediamesh::kIrqTxDone) != 0;
     this->radioRelease();
     return done;
 #else
@@ -419,7 +530,22 @@ class MediaMeshRadio : public Base {
     return ok;
   }
 
+#if defined(MEDIAMESH_CHIP_SX126X)
   void setWarmStandby(bool on) { chip()->standbyXOSC = on; }
+  void restorePreamble() {}
+#else
+  // The LR wrappers' onSendFinished() put the preamble back to the stock one
+  // for the SF tuned now. On radio2 that is shorter than the scan's: the next
+  // radio2 send would go out with a preamble a scanning receiver can miss.
+  void restorePreamble() {
+    if (!_main_known) return;
+    this->radioAcquire();
+    mediamesh::LrFields::preamble(chip()) = _cur ? (_timing.valid ? _timing.preamble[1] : mediamesh::kMaxAutoPreamble)
+                                      : mainPreamble();
+    this->radioRelease();
+  }
+  void setWarmStandby(bool on) { _warm = on; }
+#endif
 
  public:
   using Base::Base;
@@ -579,6 +705,7 @@ class MediaMeshRadio : public Base {
       const uint8_t p = _copy_profile;
       _copy_profile = 0xFF;
       Base::onSendFinished();
+      restorePreamble();
       _first_finished = true;
       if (sendOn(p, _copy_buf, _copy_len)) {
         _first_finished = false;
@@ -591,7 +718,10 @@ class MediaMeshRadio : public Base {
   }
 
   void onSendFinished() override {
-    if (!_first_finished) Base::onSendFinished();
+    if (!_first_finished) {
+      Base::onSendFinished();
+      restorePreamble();
+    }
     _first_finished = false;
     _copy_profile = 0xFF;
     _tx = false;
