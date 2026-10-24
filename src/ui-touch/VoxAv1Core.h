@@ -8,7 +8,7 @@
 //
 // Synchronous and platform-neutral; the device runs it on its own task (see
 // VoxAv1Job.h). Built on the vendored dav1d (lib/dav1d). Builds without dav1d
-// (Tanmatsu, P4 for now) compile a stub that reports kVoxAv1Unsupported.
+// (Tanmatsu) compile a stub that reports kVoxAv1Unsupported.
 
 #include <stddef.h>
 #include <stdint.h>

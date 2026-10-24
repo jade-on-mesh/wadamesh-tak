@@ -32,6 +32,7 @@ idf_component_register(
            soc esp_hw_support app_update driver esp_timer esp_partition spi_flash esp_adc esp_pm espcoredump
            c6_at   # C6WifiShim facade (WiFi.* -> AT-over-SDIO; UITask + WifiRuntimeStore include it)
            esp_http_client esp-tls mbedtls   # fork updates over HTTPS (ForkUpdate.inc: Arduino's TLS client doesn't link here)
+           dav1d   # photo messages (VoxAv1Core: <dav1d/dav1d.h>)
   # See the Tanmatsu note: whole-archive so the strong ssl_client stub defs are always present.
   WHOLE_ARCHIVE
 )

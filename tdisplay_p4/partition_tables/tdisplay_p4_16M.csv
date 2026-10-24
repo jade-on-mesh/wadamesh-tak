@@ -1,12 +1,32 @@
 # LilyGo T-Display P4 (AMOLED) — standalone 16 MB partition table.
 # NOT an AppFS/launcher app (that's the Tanmatsu) — this flashes bootloader+app directly.
-# Dual OTA app slots (4 MB each; the P4 wadamesh image is ~2.5-3 MB) + a big FAT for
-# identity/prefs/contacts/chat history + map tiles.
+#
+# Dual OTA app slots of 5.5 MB each (grown from 4 MB for the AV1 photo decoder:
+# the image had reached 4.06 MB of 4 MB), then the LittleFS 'storage' partition
+# (identity, prefs files, contacts, chat history, map tiles), now 4.8 MB.
+#   * This table only reaches a P4 with a USB install of the full (merged)
+#     image, e.g. the web flasher. An app-only OTA can't change it, and the old
+#     4 MB slots refuse the bigger image cleanly ("too big for this radio's
+#     slots: install once over USB").
+#   * 'storage' moves, so its old contents are gone: it is formatted on first
+#     mount. Export a backup first (Settings > Backups; it holds the identity
+#     key, contacts and channels) and import it after. NVS (the touch prefs,
+#     MediaMesh settings) keeps its place and survives.
+#
+# Layout (16 MB total):
+#   0x000000-0x009000  bootloader + partition table
+#   0x009000-0x00F000  nvs        (24 KB)
+#   0x00F000-0x011000  otadata    (8 KB)
+#   0x011000-0x012000  phy_init   (4 KB)
+#   0x020000-0x5A0000  ota_0      (5.5 MB)
+#   0x5A0000-0xB20000  ota_1      (5.5 MB)
+#   0xB20000-0xFF0000  storage    (4.8 MB, LittleFS)
+#   0xFF0000-0x1000000 coredump   (64 KB)
 # Name,     Type, SubType,  Offset,   Size,   Flags
 nvs,        data, nvs,      0x9000,   24K,
 otadata,    data, ota,      0xF000,   8K,
 phy_init,   data, phy,      0x11000,  4K,
-ota_0,      app,  ota_0,    0x20000,  4M,
-ota_1,      app,  ota_1,    0x420000, 4M,
-storage,    data, fat,      0x820000, 8000K,
+ota_0,      app,  ota_0,    0x20000,  0x580000,
+ota_1,      app,  ota_1,    0x5A0000, 0x580000,
+storage,    data, fat,      0xB20000, 0x4D0000,
 coredump,   data, coredump, 0xFF0000, 64K,

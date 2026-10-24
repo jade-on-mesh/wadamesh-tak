@@ -192,3 +192,27 @@ AMOLED/SX1262 build is never reused. **Select the LCD at build time:** `WADA_P4_
   as on the T-Deck. Voice goes out on MediaMesh only (radio2 rx+tx).
 - To verify: the boot log says `[P4AUDIO] ES8311 up (16 kHz, MCLK 256x, mic)`; a recording logs
   `[VOX] mic stream 32000 B/s: mono`. If clips are quiet or distorted, tune `P4A_MIC_DIGITAL_GAIN`.
+
+## Photo messages: dav1d and the 5.5 MB app slots (needs on-device verify)
+
+The P4 now builds the vendored AV1 decoder (`tdisplay_p4/components/dav1d`,
+the same sources and flags as `lib/dav1d/library.json` and `fast_paths.py`), so
+`VOX_AV1_AVAILABLE` is 1: photo messages open, thumbnails show, and the photo
+widgets appear, as on the T-Deck. Before this the viewer said photos weren't
+supported on this device yet.
+
+The decoder didn't fit the old 4 MB app slot (the image was 4.06 MB), so the
+slots grew to 5.5 MB each and `storage` (LittleFS) moved to 0xB20000 and shrank
+to 4.8 MB (`partition_tables/tdisplay_p4_16M.csv`).
+
+- **One USB flash** (the merged image, e.g. the web flasher) installs the new
+  table. An over-the-air update from a P4 still on the old table stops with
+  "too big for this radio's slots: install once over USB".
+- **Internal storage is formatted** on the first boot after that flash: the
+  identity key, contacts, channels, chat history and map tiles on LittleFS are
+  gone. Before flashing, export a backup (Settings > Backups > Export: it holds
+  the private key, contacts and channels; it goes to the SD card, or downloads
+  in the browser), then import it after. With an SD card that still has an
+  older `/meshcomod` copy of the store, the #167 v4 migration copies that back
+  in on its own at boot; import the backup over it for current contacts.
+- NVS (touch prefs, MediaMesh settings) keeps its place and survives.
