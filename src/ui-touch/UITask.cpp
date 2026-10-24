@@ -62723,6 +62723,8 @@ enum HwKind : uint8_t {   // saved in the layout blob: append only, never renumb
   // MeshCore Open TAK's (HOME_TEAM.md): numbered far above upstream's so the two
   // never collide in a saved layout.
   HWK_TEAMMATE = 200, HWK_TEAMALERT = 201, HWK_MESHHEALTH = 202,
+  HWK_PHOTO = 203, HWK_VOICE = 204, HWK_MEDIAMESH = 205, HWK_FLOCK = 206, HWK_DRONES = 207,
+  HWK_ROUTE = 208, HWK_OTP = 209,
   HWK_COUNT
 };
 enum : uint8_t { HWS_S = 0, HWS_M = 1, HWS_L = 2 };   // one cell, two across, two by two
@@ -65755,6 +65757,393 @@ static void hwMeshHealthTap(int, lv_event_t*) { openSignalInfoPopup(); }
 static void hwMeshHealthSample(uint32_t) {}
 #endif  // CAP_TAK_EXTRAS
 
+// ---- MeshCore Open TAK's other widgets (HOME_TEAM.md, "More widgets") ----------------------
+// Latest photo, Voice & talk, MediaMesh, Flock camera, Drones, Route, OTP pad.
+
+#if VOX_AV1_AVAILABLE || CAP_LUA_AUDIO
+// The newest photo or voice message: open it (or play it) when it's here, else
+// download it and open it when it lands, as a tap on its bubble does.
+static void hwMediaOpen(const VoxPhotos::Latest& l) {
+  if (!g_lv.task) return;
+  const bool voice = l.env.kind != VoxWire::kImage;
+  char who[40];
+  if (l.name[0]) snprintf(who, sizeof who, "%s", l.name);
+  else if (l.has_pub) hwNodeName(l.pub, 4, who, sizeof who);
+  else snprintf(who, sizeof who, "%s", voice ? "voice" : "photo");
+  char title[48];
+  snprintf(title, sizeof title, "%s.vi1", who);
+  if (VoxPhotos::status(l.env.sid) == VoxFetch::kComplete) {
+    if (!voice) { voxShowStoredPhoto(l.env.sid, title); return; }
+    if (s_vox_voice_sid == l.env.sid) { voxVoiceStop(); return; }
+    voxVoiceStop();
+    const char* err = nullptr;
+    if (!voxVoicePlay(l.env.sid, &err)) g_lv.task->showAlert(TR(err), 2200);
+    return;
+  }
+  if (voice && !VoxPhotos::canPlay(l.env)) { g_lv.task->showAlert(TR("This radio can't play voice clips"), 2000); return; }
+  VoxPhotos::request(l.env, l.has_pub ? l.pub : nullptr, l.channel >= 0 ? l.name : nullptr, l.channel);
+  s_vox_pending_sid = l.env.sid;
+  s_vox_pending_voice = voice;
+  snprintf(s_vox_pending_title, sizeof s_vox_pending_title, "%s", title);
+  char st[72];
+  g_lv.task->showAlert(VoxPhotos::statusText(l.env.sid, st, sizeof st), 1500);
+}
+static void hwMediaWho(const VoxPhotos::Latest& l, char* out, size_t cap) {
+  if (l.name[0]) snprintf(out, cap, "%s", l.name);
+  else if (l.has_pub) hwNodeName(l.pub, 4, out, cap);
+  else snprintf(out, cap, "?");
+}
+#endif
+
+#if VOX_AV1_AVAILABLE
+// Latest photo: its thumbnail (the early one while it downloads), who sent it,
+// when, and how far along it is.
+struct HwPhotoImg {
+  uint32_t sid = 0;
+  bool fin = false;
+  int w = 0, h = 0;
+  uint16_t* px = nullptr;
+  uint16_t* old = nullptr;      // the one before: a widget may still point at it this frame
+  lv_img_dsc_t dsc = {};
+  uint32_t gen = 0;
+};
+static HwPhotoImg s_hw_photo;
+// The thumbnail for `sid`, loaded again when it changed (the early one replaced).
+static bool hwPhotoImg(uint32_t sid) {
+  int w = 0, h = 0;
+  if (!VoxPhotos::thumbSize(sid, &w, &h)) return false;
+  const bool fin = VoxPhotos::thumbFinal(sid);
+  HwPhotoImg& p = s_hw_photo;
+  if (p.px && p.sid == sid && p.fin == fin && p.w == w && p.h == h) return true;
+  uint16_t* px = nullptr;
+  if (!VoxPhotos::loadThumb(sid, &w, &h, &px)) return false;
+  free(p.old);
+  p.old = p.px;
+  p.px = px;
+  p.sid = sid; p.fin = fin; p.w = w; p.h = h;
+  p.dsc = lv_img_dsc_t{};
+  p.dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+  p.dsc.header.w = (uint32_t)w;
+  p.dsc.header.h = (uint32_t)h;
+  p.dsc.data_size = (uint32_t)w * (uint32_t)h * 2u;
+  p.dsc.data = (const uint8_t*)px;
+  p.gen++;
+  return true;
+}
+static void hwPhotoBuild(int i) {
+  HwInst& w = hwI(i);
+  // l[0] picture, l[1] title, l[2] tag, l[3] detail; small: the picture only.
+  w.l[0] = lv_img_create(w.box);
+  lv_obj_clear_flag(w.l[0], LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(w.l[0], LV_OBJ_FLAG_HIDDEN);
+  if (w.size == HWS_S) {
+    w.l[1] = hwLabel(w.box, &g_font_12, COLOR_SUB);   // "photo" with none yet
+    return;
+  }
+  const int tx = w.size == HWS_M ? w.ph + SC(6) : 0;
+  const int tw = w.pw - tx;
+  w.l[1] = hwLine(w.box, &g_font_semi_14, COLOR_TEXT, tw);
+  w.l[2] = hwLine(w.box, &g_font_12, COLOR_SUB, tw);
+  w.l[3] = hwLine(w.box, &g_font_12, COLOR_SUB, tw);
+  const int th = hwLh(&g_font_semi_14), dh = hwLh(&g_font_12);
+  if (w.size == HWS_M) {
+    lv_obj_set_pos(w.l[1], tx, 0);
+    lv_obj_set_pos(w.l[2], tx, th);
+    lv_obj_set_pos(w.l[3], tx, th + dh);
+  } else {   // the picture above, one line of who and when under it
+    lv_obj_set_pos(w.l[1], 0, w.ph - th);
+    lv_obj_add_flag(w.l[2], LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(w.l[3], LV_OBJ_FLAG_HIDDEN);
+  }
+}
+// The picture's room inside the widget: x, y, width, height.
+static void hwPhotoArea(const HwInst& w, int* x, int* y, int* aw, int* ah) {
+  *x = 0; *y = 0;
+  if (w.size == HWS_S) { *aw = w.pw; *ah = w.ph; return; }
+  if (w.size == HWS_M) { *aw = w.ph; *ah = w.ph; return; }
+  *aw = w.pw; *ah = w.ph - hwLh(&g_font_semi_14) - SC(2);
+}
+static void hwPhotoUpdate(int i) {
+  HwInst& w = hwI(i);
+  VoxPhotos::Latest l;
+  const bool have = VoxPhotos::latest(false, &l);
+  const bool pic = have && hwPhotoImg(l.env.sid);
+  char who[40] = "", ago[24] = "", st[104] = "";
+  if (have) {
+    hwMediaWho(l, who, sizeof who);
+    hwFmtAgo(ago, sizeof ago, (millis() - l.at_ms) / 1000u);
+    voxBubbleText(l.env, false, st, sizeof st);
+    if (char* nl = strchr(st, '\n')) *nl = 0;
+  }
+  uint32_t h = hwHashStr(hwHashStr(hwHashStr(hwHash(2166136261u, pic ? s_hw_photo.gen : 0), who), ago), st);
+  if (h == w.memo) return;
+  w.memo = h;
+  if (pic) {
+    int x, y, aw, ah;
+    hwPhotoArea(w, &x, &y, &aw, &ah);
+    lv_img_set_src(w.l[0], &s_hw_photo.dsc);
+    // Cover the room: scaled so the shorter side fills it, cut at the edges.
+    const int iw = s_hw_photo.w, ih = s_hw_photo.h;
+    const int zoom = LV_MAX((aw * 256 + iw - 1) / iw, (ah * 256 + ih - 1) / ih);
+    lv_img_set_zoom(w.l[0], (uint16_t)LV_CLAMP(64, zoom, 2048));
+    lv_img_set_antialias(w.l[0], true);
+    lv_obj_set_size(w.l[0], aw, ah);
+    lv_img_set_size_mode(w.l[0], LV_IMG_SIZE_MODE_REAL);
+    lv_img_set_pivot(w.l[0], iw / 2, ih / 2);
+    lv_img_set_offset_x(w.l[0], (aw - iw) / 2);
+    lv_img_set_offset_y(w.l[0], (ah - ih) / 2);
+    lv_obj_set_pos(w.l[0], x, y);
+    lv_obj_set_style_radius(w.l[0], SC(4), LV_PART_MAIN);
+    lv_obj_set_style_clip_corner(w.l[0], true, LV_PART_MAIN);
+    lv_obj_clear_flag(w.l[0], LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_obj_add_flag(w.l[0], LV_OBJ_FLAG_HIDDEN);
+  }
+  if (w.size == HWS_S) {
+    lv_label_set_text(w.l[1], pic ? "" : TR(have ? "photo..." : "no photo"));
+    lv_obj_center(w.l[1]);
+    return;
+  }
+  if (!have) {
+    lv_label_set_text(w.l[1], TR("Latest photo"));
+    lv_label_set_text(w.l[2], TR("No photo yet"));
+    lv_label_set_text(w.l[3], "");
+    if (w.size == HWS_L) lv_label_set_text(w.l[1], TR("No photo yet"));
+    return;
+  }
+  if (w.size == HWS_L) {
+    char line[96];
+    snprintf(line, sizeof line, "%s \xC2\xB7 %s", who, ago);
+    lv_label_set_text(w.l[1], line);
+    return;
+  }
+  lv_label_set_text(w.l[1], who);
+  lv_label_set_text(w.l[2], ago);
+  lv_label_set_text(w.l[3], st);
+}
+static void hwPhotoTap(int, lv_event_t*) {
+  VoxPhotos::Latest l;
+  if (VoxPhotos::latest(false, &l)) hwMediaOpen(l);
+  else if (g_lv.task) g_lv.task->showAlert(TR("No photo yet"), 1500);
+}
+#endif  // VOX_AV1_AVAILABLE
+
+#if CAP_LUA_AUDIO
+// Voice & talk: the newest voice message or push-to-talk; a tap plays it (or
+// downloads it first), another stops it.
+static void hwVoiceBuild(int i) {
+  if (hwI(i).size == HWS_S) hwStatBuild(i, UI_ICON_MIC, COLOR_HUE[HUE_MSG]);
+  else hwCardBuild(i, UI_ICON_MIC, COLOR_HUE[HUE_MSG], 0xFF);
+}
+static void hwVoiceUpdate(int i) {
+  VoxPhotos::Latest l;
+  if (!VoxPhotos::latest(true, &l)) {
+    if (hwI(i).size == HWS_S) hwStatSet(i, "--", TR("voice"), COLOR_SUB);
+    else hwCardSet(i, TR("Voice & talk"), nullptr, TR("No voice message yet"), COLOR_SUB);
+    return;
+  }
+  char who[40], ago[24], st[104], len[16];
+  hwMediaWho(l, who, sizeof who);
+  hwFmtAgo(ago, sizeof ago, (millis() - l.at_ms) / 1000u);
+  voxBubbleText(l.env, false, st, sizeof st);
+  if (char* nl = strchr(st, '\n')) *nl = 0;
+  snprintf(len, sizeof len, "%us", (unsigned)l.env.seconds());
+  const bool playing = s_vox_voice_sid == l.env.sid;
+  const uint32_t col = playing ? COLOR_HUE[HUE_DEVICE] : COLOR_TEXT;
+  if (hwI(i).size == HWS_S) { hwStatSet(i, len, l.talk ? TR("talk") : TR("voice"), col, playing); return; }
+  char title[64];
+  snprintf(title, sizeof title, "%s: %s", l.talk ? TR("Talk") : TR("Voice"), who);
+  hwCardSet(i, title, ago, st, col);
+}
+static void hwVoiceTap(int, lv_event_t*) {
+  VoxPhotos::Latest l;
+  if (VoxPhotos::latest(true, &l)) hwMediaOpen(l);
+  else if (g_lv.task) g_lv.task->showAlert(TR("No voice message yet"), 1500);
+}
+#endif  // CAP_LUA_AUDIO
+
+// MediaMesh: radio2 on or off, whether a MediaMesh is on the air nearby, and
+// its preset. Tap: the radio settings, where MediaMesh is.
+static bool hwMediaMeshAvail(uint8_t) { return mediamesh::supported(); }
+static void hwMediaMeshBuild(int i) {
+  if (hwI(i).size == HWS_S) hwStatBuild(i, UI_ICON_RADIO_TOWER, COLOR_HUE[HUE_RADIO]);
+  else hwCardBuild(i, UI_ICON_RADIO_TOWER, COLOR_HUE[HUE_RADIO], 0xFF);
+}
+static void hwMediaMeshUpdate(int i) {
+  const bool on = mediamesh::radio2Defined();
+  const bool now = mediamesh::radio2HeardWithin(60000u);
+  const bool lately = mediamesh::radio2HeardWithin(600000u);
+  const uint32_t col = !on ? COLOR_SUB : lately ? COLOR_HUE[HUE_DEVICE] : COLOR_HUE[HUE_RADIO];
+  const char* heard = !on ? TR("radio2 is off") : now ? TR("heard just now") : lately ? TR("heard lately")
+                                                                                  : TR("none heard lately");
+  if (hwI(i).size == HWS_S) { hwStatSet(i, on ? TR("On") : TR("Off"), TR("MediaMesh"), col); return; }
+  char det[96];
+  const mediamesh::Profile2 a = mediamesh::runtime().active2();
+  if (on) snprintf(det, sizeof det, "%s \xC2\xB7 %.3f MHz %.0f kHz", heard, a.p.freq, a.p.bw);
+  else snprintf(det, sizeof det, "%s", heard);
+  hwCardSet(i, TR("MediaMesh"), on ? (mediamesh::mediaActive() ? TR("photos & voice") : TR("listening")) : TR("off"),
+            det, 0xFFFFFFFFu, col);
+}
+static void hwMediaMeshTap(int, lv_event_t*) { openSettingsCategory(CAT_RADIO); }
+
+#if CAP_FLOCK_YOU
+// Flock camera: the nearest known ALPR camera within 5 km (distance and which
+// way), and live detections while scanning. Tap: Flock You.
+static void hwFlockBuild(int i) {
+  if (hwI(i).size == HWS_S) hwStatBuild(i, UI_ICON_EYE, COLOR_HUE[HUE_RADIO]);
+  else hwCardBuild(i, UI_ICON_EYE, COLOR_HUE[HUE_RADIO], 0xFF);
+}
+static void hwFlockUpdate(int i) {
+  double la = 0, lo = 0, dm = 0;
+  const bool fix = flockui::gpsFix(&la, &lo);
+  const int idx = fix && flockui::camsReady() ? flockui::s_cams.nearest(la, lo, 5000.0, &dm) : -1;
+  const int live = flockui::s_tab ? flockui::s_tab->liveCount() : 0;
+  const bool close = idx >= 0 && dm <= flockyou::kRadiusM[flockui::s_cfg.radius % flockyou::kRadiusChoices];
+  const uint32_t col = live || close ? COLOR_STATUS_DANGER_TEXT : COLOR_TEXT;
+  char fig[16], rb[40] = "", det[96];
+  if (idx >= 0) {
+    const flockyou::Cam& c = flockui::s_cams.at(idx);
+    teamui::rangeTo(c.lat_e6 / 1e6, c.lon_e6 / 1e6, rb, sizeof rb);
+    teamroute::distanceText(dm, fig, sizeof fig);
+  } else {
+    snprintf(fig, sizeof fig, "--");
+  }
+  if (hwI(i).size == HWS_S) { hwStatSet(i, live ? "!" : fig, live ? TR("Flock seen") : TR("camera"), col); return; }
+  const char* state = flockui::s_cfg.armed ? TR("scanning") : TR("not scanning");
+  if (idx >= 0) snprintf(det, sizeof det, "%s \xC2\xB7 %s", rb, state);
+  else snprintf(det, sizeof det, "%s \xC2\xB7 %s", !fix ? TR("no GPS fix") : !flockui::camsReady() ? TR("no cameras loaded")
+                                                                                     : TR("none within 5 km"), state);
+  char tag[24] = "";
+  if (live) snprintf(tag, sizeof tag, "%d %s", live, TR("seen"));
+  hwCardSet(i, TR("Nearest camera"), tag[0] ? tag : nullptr, det, col, COLOR_STATUS_DANGER_TEXT);
+}
+static void hwFlockTap(int, lv_event_t*) { flockui::pageOpen(); }
+
+// Drones: how many are in the air around (Remote ID) and the nearest. Tap: Drones.
+static void hwDroneBuild(int i) {
+  if (hwI(i).size == HWS_S) hwStatBuild(i, UI_ICON_CROSSHAIR, COLOR_HUE[HUE_RADIO]);
+  else hwCardBuild(i, UI_ICON_CROSSHAIR, COLOR_HUE[HUE_RADIO], 0xFF);
+}
+static void hwDroneUpdate(int i) {
+  const uint32_t now = millis();
+  const int n = droneui::s_cfg.armed ? rid_activeTrackCount(now) : 0;
+  double la = 0, lo = 0, best = 1e18;
+  const bool fix = teamui::myFix(&la, &lo);
+  const RemoteIdTrack* near = nullptr;
+  for (int k = 0; k < RID_MAX_TRACKS && fix; k++) {
+    const RemoteIdTrack* t = rid_getTrack(k);
+    if (!t || !t->valid || !t->hasPosition) continue;
+    const double d = rid_haversineM(la, lo, t->lat, t->lon);
+    if (d < best) { best = d; near = t; }
+  }
+  const uint32_t col = n ? COLOR_STATUS_DANGER_TEXT : COLOR_TEXT;
+  char fig[16], det[96], rb[40] = "";
+  snprintf(fig, sizeof fig, "%d", n);
+  if (hwI(i).size == HWS_S) { hwStatSet(i, fig, n == 1 ? TR("drone") : TR("drones"), droneui::s_cfg.armed ? col : COLOR_SUB); return; }
+  if (!droneui::s_cfg.armed) {
+    hwCardSet(i, TR("Drones"), TR("off"), TR("Not listening: tap to start"), COLOR_SUB);
+    return;
+  }
+  if (near) {
+    teamui::rangeTo(near->lat, near->lon, rb, sizeof rb);
+    snprintf(det, sizeof det, "%s %s \xC2\xB7 %dm %s", TR("Nearest"), rb, (int)near->heightAglM, TR("up"));
+  } else {
+    snprintf(det, sizeof det, "%s", n ? TR("No positions yet") : TR("None in the air around"));
+  }
+  char title[32];
+  snprintf(title, sizeof title, "%s %d", TR("Drones"), n);
+  hwCardSet(i, title, TR("listening"), det, col);
+}
+static void hwDroneTap(int, lv_event_t*) { droneui::pageOpen(); }
+#endif  // CAP_FLOCK_YOU
+
+#if CAP_TAK_EXTRAS
+// Route: what Bloodhound is following (a team route, your track back, a
+// teammate or a point), with the next turn or how far and which way. Tap: the map.
+static void hwRouteBuild(int i) {
+  if (hwI(i).size == HWS_S) hwStatBuild(i, UI_ICON_ROUTE, COLOR_HUE[HUE_PLACE]);
+  else hwCardBuild(i, UI_ICON_ROUTE, COLOR_HUE[HUE_PLACE], 0xFF);
+}
+static void hwRouteUpdate(int i) {
+  team::Core* c = teamui::s_core;
+  double la = 0, lo = 0, ml = 0, mo = 0;
+  char label[33] = "";
+  if (!c || !c->hound(&la, &lo, label, sizeof label)) {
+    if (hwI(i).size == HWS_S) hwStatSet(i, "--", TR("route"), COLOR_SUB);
+    else hwCardSet(i, TR("Route"), nullptr, TR("Not following: Map > options"), COLOR_SUB);
+    return;
+  }
+  const bool fix = teamui::myFix(&ml, &mo);
+  char fig[16] = "--", det[96];
+  if (fix) teamroute::distanceText(TeamWire::distanceM(ml, mo, la, lo), fig, sizeof fig);
+  if (hwI(i).size == HWS_S) { hwStatSet(i, fig, label, COLOR_HUE[HUE_PLACE]); return; }
+  if (!fix) snprintf(det, sizeof det, "%s", TR("No own position"));
+  else if (c->following()) { c->updateFollow(); teamroute::cueText(c->cue(), det, sizeof det); }
+  else teamui::rangeTo(la, lo, det, sizeof det);
+  hwCardSet(i, label, c->following() ? TR("route") : TR("Bloodhound"), det, 0xFFFFFFFFu, COLOR_HUE[HUE_PLACE]);
+}
+static void hwRouteTap(int, lv_event_t*) { goToTab(MAP_TAB_INDEX); }
+#endif  // CAP_TAK_EXTRAS
+
+// OTP pad: the pad with the least left (it's the one to refill) and unread OTP
+// messages. Pads load lazily, so this looks every 15 s. Tap: OTP Messenger.
+static int s_hw_otp_left = -1, s_hw_otp_pads = 0, s_hw_otp_unread = 0;
+static char s_hw_otp_name[33] = "";
+static bool s_hw_otp_locked = false;
+static void hwOtpScan() {
+  static uint32_t next = 0;
+  const uint32_t now = millis();
+  if (next && (int32_t)(now - next) < 0) return;
+  next = now + 15000u;
+  s_hw_otp_left = -1;
+  s_hw_otp_pads = 0;
+  s_hw_otp_name[0] = 0;
+  if (!OtpMessenger::ready()) return;
+  otp::Core& c = OtpMessenger::core();
+  s_hw_otp_locked = c.locked();
+  s_hw_otp_unread = c.unreadTotal();
+  if (s_hw_otp_locked) return;
+  for (int k = 0; k < c.targetCount(); k++) {
+    otp::Target* t = c.targetAt(k);
+    if (!t || !c.hasPad(*t)) continue;
+    const int left = c.available(*t);
+    s_hw_otp_pads++;
+    if (s_hw_otp_left < 0 || left < s_hw_otp_left) {
+      s_hw_otp_left = left;
+      snprintf(s_hw_otp_name, sizeof s_hw_otp_name, "%s", t->name);
+    }
+  }
+}
+static void hwOtpBuild(int i) {
+  if (hwI(i).size == HWS_S) hwStatBuild(i, UI_ICON_LOCK, COLOR_HUE[HUE_MSG]);
+  else hwCardBuild(i, UI_ICON_LOCK, COLOR_HUE[HUE_MSG], 0xFF);
+}
+static void hwOtpUpdate(int i) {
+  hwOtpScan();
+  char fig[16], det[96], tag[24] = "";
+  if (s_hw_otp_unread) snprintf(tag, sizeof tag, "%d %s", s_hw_otp_unread, TR("unread"));
+  if (s_hw_otp_locked) {
+    if (hwI(i).size == HWS_S) hwStatSet(i, TR("Locked"), TR("OTP"), COLOR_SUB);
+    else hwCardSet(i, TR("OTP pads"), tag[0] ? tag : nullptr, TR("Locked: tap to unlock"), COLOR_SUB);
+    return;
+  }
+  if (s_hw_otp_left < 0) {
+    if (hwI(i).size == HWS_S) hwStatSet(i, "--", TR("OTP pad"), COLOR_SUB);
+    else hwCardSet(i, TR("OTP pads"), tag[0] ? tag : nullptr, TR("No pads yet"), COLOR_SUB);
+    return;
+  }
+  const int left = s_hw_otp_left;
+  const uint32_t col = left < 200 ? COLOR_STATUS_DANGER_TEXT : left < 1000 ? COLOR_HUE[HUE_RADIO] : COLOR_TEXT;
+  if (left >= 10000) snprintf(fig, sizeof fig, "%dK", left / 1000);
+  else if (left >= 1000) snprintf(fig, sizeof fig, "%d.%dK", left / 1000, (left % 1000) / 100);
+  else snprintf(fig, sizeof fig, "%d", left);
+  if (hwI(i).size == HWS_S) { hwStatSet(i, fig, TR("pad left"), col); return; }
+  snprintf(det, sizeof det, "%s: %s %s%s", s_hw_otp_name, fig, TR("bytes left"),
+           s_hw_otp_pads > 1 ? TR(" (the lowest)") : "");
+  hwCardSet(i, TR("OTP pads"), tag[0] ? tag : nullptr, det, col, COLOR_HUE[HUE_MSG]);
+}
+static void hwOtpTap(int, lv_event_t*) { otpui::open(); }
+
 // ---- Remote sensor ----------------------------------------------------------------------
 // The latest telemetry from one node you choose, asked for on a schedule. The
 // readings live in RAM; after a restart the next ask brings them back.
@@ -66481,6 +66870,13 @@ static const HwKindDef k_hw_kinds[] = {
   { HWK_UNREAD,   HWG_MSG,   HWSML, HWS_S, "Unread",        UI_ICON_MAIL,        nullptr,        hwUnreadBuild,   hwUnreadUpdate,   hwUnreadTap,   nullptr },
   { HWK_CHAT,     HWG_MSG,   HWSML, HWS_M, "Chat",          UI_ICON_MESSAGE_SQUARE_TEXT, nullptr, hwChatBuild,   hwChatUpdate,     hwChatTap,     hwChatOptions },
   { HWK_MENTIONS, HWG_MSG,   HWSML, HWS_S, "Mentions",      UI_ICON_AT_SIGN,     nullptr,        hwMentionsBuild, hwMentionsUpdate, hwMentionsTap, nullptr },
+#if VOX_AV1_AVAILABLE
+  { HWK_PHOTO,    HWG_MSG,   HWSML, HWS_M, "Latest photo",  UI_ICON_IMAGE,       nullptr,        hwPhotoBuild,    hwPhotoUpdate,    hwPhotoTap,    nullptr },
+#endif
+#if CAP_LUA_AUDIO
+  { HWK_VOICE,    HWG_MSG,   HWSM,  HWS_M, "Voice & talk",  UI_ICON_MIC,         nullptr,        hwVoiceBuild,    hwVoiceUpdate,    hwVoiceTap,    nullptr },
+#endif
+  { HWK_OTP,      HWG_MSG,   HWSM,  HWS_M, "OTP pads",      UI_ICON_LOCK,        nullptr,        hwOtpBuild,      hwOtpUpdate,      hwOtpTap,      nullptr },
   { HWK_HEARD,    HWG_MESH,  HWSM,  HWS_M, "Heard",         UI_ICON_USERS,       nullptr,        hwHeardBuild,    hwHeardUpdate,    hwHeardTap,    nullptr },
   { HWK_NEAREST,  HWG_MESH,  HWSM,  HWS_M, "Nearest",       UI_ICON_RADIO_TOWER, nullptr,        hwNearestBuild,  hwNearestUpdate,  hwNearestTap,  nullptr },
   { HWK_REMOTE,   HWG_MESH,  HWSM,  HWS_M, "Remote sensor", UI_ICON_THERMOMETER, nullptr,        hwRemoteBuild,   hwRemoteUpdate,   hwRemoteTap,   hwRemoteOptions },
@@ -66489,9 +66885,17 @@ static const HwKindDef k_hw_kinds[] = {
   { HWK_TEAMALERT,  HWG_MESH, HWSM, HWS_M, "Latest alert",     UI_ICON_CIRCLE_ALERT, nullptr,     hwAlertBuild,      hwAlertUpdate,      hwAlertTap,      nullptr },
   { HWK_MESHHEALTH, HWG_MESH, HWSM, HWS_M, "Mesh health",      UI_ICON_ACTIVITY,    nullptr,      hwMeshHealthBuild, hwMeshHealthUpdate, hwMeshHealthTap, nullptr },
 #endif
+#if CAP_TAK_EXTRAS
+  { HWK_ROUTE,      HWG_MESH, HWSM, HWS_M, "Route",            UI_ICON_ROUTE,       nullptr,      hwRouteBuild,      hwRouteUpdate,      hwRouteTap,      nullptr },
+#endif
+#if CAP_FLOCK_YOU
+  { HWK_FLOCK,      HWG_MESH, HWSM, HWS_M, "Nearest camera",   UI_ICON_EYE,         nullptr,      hwFlockBuild,      hwFlockUpdate,      hwFlockTap,      nullptr },
+  { HWK_DRONES,     HWG_MESH, HWSM, HWS_M, "Drones",           UI_ICON_CROSSHAIR,   nullptr,      hwDroneBuild,      hwDroneUpdate,      hwDroneTap,      nullptr },
+#endif
 #if defined(HW_HAVE_RADAR)
   { HWK_RADAR,    HWG_MESH,  HWSZ(HWS_M) | HWSZ(HWS_L), HWS_L, "Mesh radar", UI_ICON_RADAR,    nullptr,        hwRadarBuild,    hwRadarUpdate,    hwRadarTap,    nullptr },
 #endif
+  { HWK_MEDIAMESH, HWG_RADIO, HWSM, HWS_M, "MediaMesh",     UI_ICON_RADIO_TOWER, hwMediaMeshAvail, hwMediaMeshBuild, hwMediaMeshUpdate, hwMediaMeshTap, nullptr },
   { HWK_RADIO,    HWG_RADIO, HWSM,  HWS_M, "Radio",         UI_ICON_ANTENNA,     nullptr,        hwRadioBuild,    hwRadioUpdate,    hwRadioTap,    nullptr },
   { HWK_SIGNAL,   HWG_RADIO, HWSM,  HWS_M, "Signal",        UI_ICON_SIGNAL,      nullptr,        hwSignalBuild,   hwSignalUpdate,   hwSignalTap,   nullptr },
   { HWK_AIRTIME,  HWG_RADIO, HWSM,  HWS_S, "Airtime",       UI_ICON_ACTIVITY,    nullptr,        hwAirtimeBuild,  hwAirtimeUpdate,  hwAirtimeTap,  nullptr },
