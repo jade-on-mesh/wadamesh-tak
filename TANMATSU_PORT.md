@@ -233,3 +233,11 @@ build_flags =
 - LoRa component: https://github.com/Nicolai-Electronics/esp32-component-tanmatsu-lora (`include/lora.h`, v0.3.0)
 - Precedent board: pioarduino `m5stack-tab5-p4` (P4 + MIPI + C6)
 - `mesh::Radio` base: monorepo `src/Dispatcher.h`; example backend `src/helpers/esp32/ESPNOWRadio.h`
+
+## Photo messages (dav1d)
+
+The Tanmatsu build links the vendored AV1 decoder through
+`tanmatsu/components/dav1d`, a link to the T-Display P4's component (same
+sources and flags as `lib/dav1d`), so photo messages open, thumbnails show and
+the photo widgets appear. It runs from AppFS, so no partition change: the image
+is about 270 KB larger. Not built in CI: check `./build.sh` after pulling.

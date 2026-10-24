@@ -16,6 +16,7 @@ idf_component_register(
            esp_driver_i2c esp_driver_gpio esp_driver_ledc esp_hosted h2zero__esp-nimble-cpp bt
            soc esp_hw_support app_update driver esp_timer esp_partition spi_flash esp_adc esp_pm espcoredump
            espressif__esp_lcd_ek79007 esp_mm   # esp_mm: esp_cache_msync (framebuffer clear)
+           dav1d   # photo messages (VoxAv1Core: <dav1d/dav1d.h>; components/dav1d -> the T-Display P4's)
   WHOLE_ARCHIVE
 )
 target_compile_options(${COMPONENT_LIB} PRIVATE -w
