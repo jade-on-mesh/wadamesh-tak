@@ -3569,10 +3569,10 @@ static lv_obj_t* s_kb_rot_right_btn  = nullptr;
 static lv_obj_t* s_kb_lang_btn       = nullptr;   // on-screen language-cycle key (boards w/o a physical keyboard)
 static lv_obj_t* s_kb_lang_lbl       = nullptr;   // its label — the active layout's 2-letter code
 static lv_obj_t* s_kb_alt_btn        = nullptr;   // on-screen "Alt" key: cycles the last letter's accent (issue #22)
-// Accent-popup picker on/off (default on). Loaded from NVS at boot; gates
+// Accent-popup picker on/off (default off). Loaded from NVS at boot; gates
 // accentBoxMaybeShow() so the tap-to-pick accent box can be turned off in
 // the keyboard settings (applies to the on-screen + physical keyboards).
-static bool      s_accent_popups     = true;
+static bool      s_accent_popups     = false;
 
 // ---- Global UI orientation (persistent) ----
 // The base orientation of the whole UI, loaded from NVS ("uirot") and applied
@@ -18905,7 +18905,7 @@ static void showSensorsTabToggleCb(lv_event_t* e) {
 #endif
 
 // Accent-popup picker on/off. Persisted + live: gates accentBoxMaybeShow() so
-// the tap-to-pick accent box stops appearing as you type. Default ON.
+// the tap-to-pick accent box stops appearing as you type. Default OFF.
 // (Not compiled on the M9 — the pickers are suppressed there and its settings
 // row is hidden, see accentBoxMaybeShow.)
 static void accentPopupsToggleCb(lv_event_t* e) {

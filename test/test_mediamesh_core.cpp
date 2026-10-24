@@ -772,6 +772,17 @@ static void testLbt() {
   assert(!lbtHold(true, 10, 200, kLbtMaxWaitMs));   // waited enough: goes anyway
 }
 
+// A radio never set up starts with radio2 on only in the US band, where the
+// default radio2 frequency (911.150 MHz) is allowed.
+static void testDefaultOn() {
+  assert(defaultOnFor(910.525f));
+  assert(defaultOnFor(906.875f));
+  assert(!defaultOnFor(869.618f));
+  assert(!defaultOnFor(433.875f));
+  assert(!defaultOnFor(0.0f));   // main radio not known yet
+  assert(defaultOnFor(kDefaultFreq));
+}
+
 int main() {
   testFind();
   testDiscoverRadio2();
@@ -791,6 +802,7 @@ int main() {
   testRoutes();
   testAlias();
   testLbt();
+  testDefaultOn();
   printf("mediamesh core: ok\n");
   return 0;
 }

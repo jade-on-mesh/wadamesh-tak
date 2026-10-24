@@ -57,6 +57,8 @@ uint32_t s_lbt_quiet = 0;
 uint8_t s_next_mask = 1;
 bool s_next_valid = false;
 
+bool s_never_saved = false;   // no MediaMesh settings stored yet: begin() picks the default
+
 void ensureLoaded() {
   if (s_loaded) return;
   s_loaded = true;
@@ -65,6 +67,7 @@ void ensureLoaded() {
   size_t n = touchPrefsGetBlob(kPrefsKey, blob, sizeof blob);
   Config c;
   if (n && decode(blob, n, c)) s_rt.saved = c;
+  else s_never_saved = true;
   static auto& rblob = psramStatic<uint8_t[Routes::kBlobMax]>();
   n = touchPrefsGetBlob(kRoutesKey, rblob, sizeof rblob);
   if (n) s_routes.decode(rblob, n);
@@ -234,6 +237,10 @@ const Runtime& runtime() {
 void begin(SavedPrimaryFn saved_primary) {
   s_saved_primary = saved_primary;
   ensureLoaded();
+  // Never set up: radio2 on where its default frequency is legal (decided at
+  // each boot until something is saved, so a radio moved to another band
+  // doesn't keep transmitting on 911 MHz).
+  if (s_never_saved && s_rt.saved.mode == MODE_OFF && defaultOnFor(savedPrimary().freq)) s_rt.saved.mode = MODE_RXTX;
   if (!supported()) s_rt.saved.mode = MODE_OFF;
   applySecondary();
 }
