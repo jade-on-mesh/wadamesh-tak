@@ -67,6 +67,14 @@ reduced still-picture header and no AVIF container, 2,750 B ("Standard") or
     decodes the thumbnail and the bubble shows it, scaled up to the bubble's
     size, while the rest downloads.
   - When the photo completes, its own thumbnail replaces that one.
+  - A channel photo whose first packet doesn't come by itself (the sender's
+    push didn't reach here) is asked for: 4 to 8 s after the announcement,
+    the radio asks the channel for packet 0 alone. That's one small request
+    and one 156-byte packet. The answer goes to the whole channel, so a
+    listener that has heard packet 0 by then doesn't ask too.
+  - If the answer doesn't come, it asks again, up to three times, 8 to 12 s
+    apart, then stops. Nothing waits on it: the bubble offers the download
+    the whole time, and a tap downloads the photo as before.
   - Version 1 payloads (`[1][photo OBUs]`) still open. Versions before this
     one can't read version 2.
 - Finished photos are stored as `/vox_<sid>.vi1` on internal storage, so they

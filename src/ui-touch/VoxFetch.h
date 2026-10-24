@@ -77,6 +77,22 @@ class VoxFetch {
   // Start, or retry after a failure (a tap on the bubble). False if unknown.
   bool request(uint32_t sid);
 
+  // A photo not being downloaded: in `delay_ms`, unless its first packet has
+  // come by then (a channel's push, or another listener's ask answered on the
+  // channel), ask for that packet alone. It carries the thumbnail (payload
+  // version 2), so the bubble shows the picture before anyone taps. On the
+  // channel for a channel post; straight to the sender over a known route for
+  // a DM; never a flooded DM for this. Timing as lib/vox/vox_timing.dart.
+  // Asked up to kThumbProbeTries times, kThumbProbeRetryMs (plus a spread)
+  // apart; after that the bubble just offers the download, as it does all
+  // along (a probe never holds up a tap).
+  void probeFirst(uint32_t sid, uint32_t delay_ms);
+  static constexpr int kThumbProbeTries = 3;
+  static constexpr uint32_t kThumbProbeRetryMs = 8000;
+  static constexpr uint32_t kThumbProbeChannelWaitMs = 4000;
+  static constexpr uint32_t kThumbProbeSpreadMs = 4000;
+  static constexpr uint32_t kThumbProbeDirectWaitMs = 1500;
+
   // Which radio profile a payload arrived on (MediaMesh), when known.
   static constexpr uint8_t kViaMain = 0;
   static constexpr uint8_t kViaRadio2 = 1;
@@ -167,6 +183,9 @@ class VoxFetch {
     uint32_t rx_last_ms = 0;   // when the last new packet came in this burst
     uint32_t rx_gap_ms = 0;    // the bursts' gap between packets (smoothed)
     uint8_t rx_gaps = 0;       // how many gaps that is from
+    bool probe_on = false;     // probeFirst(): ask for packet 0 at probe_at
+    uint32_t probe_at = 0;
+    uint8_t probe_tries = 0;   // asks made
   };
 
   struct Orphan {
@@ -204,6 +223,7 @@ class VoxFetch {
   uint32_t packetGap(bool flood, int hops) { return packetGap(flood, hops, io_.packetAirMs()); }
   uint32_t waitFor(Session& s);
   void arm(Session& s, uint32_t ms);
+  void probe(Session& s);
 
   VoxFetchIo& io_;
   Session sessions_[kMaxSessions];
