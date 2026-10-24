@@ -597,11 +597,36 @@ void setStore(fs::FS* fs, const char* root) {
   snprintf(g_root, sizeof g_root, "%s", root ? root : "");
 }
 
+static VoxPhotos::Latest g_latest[2];   // [0] photo, [1] voice
+static void noteLatest(const char* text, const VoxWire::Envelope& env, const uint8_t* pub, const char* name,
+                       int channel) {
+  if (env.kind != VoxWire::kImage && env.kind != VoxWire::kCodec2) return;
+  VoxPhotos::Latest& l = g_latest[env.kind == VoxWire::kImage ? 0 : 1];
+  l = VoxPhotos::Latest{};
+  l.env = env;
+  size_t cl = 0;
+  const char* c = VoxWire::envelopeCaption(text, &cl);
+  l.talk = env.kind == VoxWire::kCodec2 && c && cl == 3 && !strncmp(c, "PTT", 3);
+  l.at_ms = millis();
+  if (name) snprintf(l.name, sizeof l.name, "%s", name);
+  if (pub) { memcpy(l.pub, pub, 32); l.has_pub = true; }
+  l.channel = channel;
+  bumpState();
+}
+
+bool latest(bool voice, Latest* out) {
+  const Latest& l = g_latest[voice ? 1 : 0];
+  if (!l.env.sid || !out) return false;
+  *out = l;
+  return true;
+}
+
 bool onDirectText(const char* text, const uint8_t sender_pub[32]) {
   if (g_serve.onDirectText(text)) return true;   // VR3: someone wants a clip of ours
   VoxWire::Envelope env;
   if (!VoxWire::parseEnvelope(text, &env) || !canFetch(env)) return false;
   remember(env);
+  noteLatest(text, env, sender_pub, nullptr, -1);
   // A photo or voice message sent to us is fetched as it arrives, as the app
   // does (its auto-play setting, on by default): the photo's thumbnail then
   // shows in the chat by itself, and a tap opens or plays it at once. Only
@@ -617,6 +642,8 @@ void onChannelText(const char* text, int channel_idx) {
   VoxWire::Envelope env;
   if (!parseChannelPost(text, name, sizeof name, &env) || !canFetch(env)) return;
   remember(env);
+  const char* body = strstr(text, ": ");
+  noteLatest(body ? body + 2 : text, env, nullptr, name, channel_idx);
   g_fetch.onEnvelope(env, nullptr, name, channel_idx, false);
   // Its thumbnail before anyone taps: from the sender's push, or, when that
   // doesn't reach here, by asking the channel for the first packet alone.

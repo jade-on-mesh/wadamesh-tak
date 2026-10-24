@@ -58,6 +58,19 @@ bool loadVoice(uint32_t sid, int* mode, uint8_t** frames, size_t* len);
 bool loadFile(uint32_t sid, bool voice, uint8_t** data, size_t* len);
 // Bumped whenever any photo's status changes; the chat redraws on a change.
 uint32_t version();
+
+// The newest photo, and the newest voice message or talk, announced to this
+// radio since it started (Home's Latest photo and Voice widgets). RAM only.
+struct Latest {
+  VoxWire::Envelope env;
+  bool talk = false;           // a push-to-talk (caption "PTT")
+  uint32_t at_ms = 0;          // when it was announced (millis)
+  char name[32] = {0};         // a channel post's author
+  uint8_t pub[32] = {0};       // a DM's sender
+  bool has_pub = false;
+  int channel = -1;            // the channel it was posted on, or -1 for a DM
+};
+bool latest(bool voice, Latest* out);
 // Filesystem lookups made for photo/voice state since boot (About's chat-open timing).
 uint32_t fsChecks();
 // While on, "is it stored" questions never wait on the filesystem: before the
