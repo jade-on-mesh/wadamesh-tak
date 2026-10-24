@@ -1,25 +1,25 @@
 # Wadamesh-tak: the T-LoRa Pager with bigger app slots.
 #
 # The Pager carries larger UI fonts than the T-Deck, and with the fork's photos,
-# voice, OTP Messenger, Team and its extras the image passed 4.1875 MB. This
-# table gives each app slot 4.375 MB, the T-Deck's layout
-# (variants/lilygo_tdeck/partitions_tdeck_touch_big_app.csv), taking 1 MB in
-# all from the map tile cache. spiffs (prefs, contacts, channels, chat history)
-# keeps its offset and size, so moving to this table by USB keeps user data;
-# the tile cache moves, is reformatted (formatOnFail) and refills. A Pager on an
-# older table can't take a bigger image over Wi-Fi: the updater says "install
-# once over USB".
+# voice, OTP Messenger, Team and its extras the image passed 4.1875 MB, then
+# 4.3 MB of 4.375 MB with the photo decoder. Each app slot is now 4.875 MB,
+# taken from the map tile cache (3.75 -> 2.75 MB; it was 4.75 MB on the
+# original table). spiffs (prefs, contacts, channels, chat history) keeps its
+# offset and size, so moving to this table by USB keeps user data; the tile
+# cache moves, is reformatted (formatOnFail) and refills. A Pager on an older
+# table can't take a bigger image over Wi-Fi: the updater says "install once
+# over USB".
 #
-#   0x010000-0x470000  app0    4.375 MB (ota_0)
-#   0x470000-0x8D0000  app1    4.375 MB (ota_1)
-#   0x8D0000-0xC90000  tiles   3.75 MB  (LittleFS, 0x83)
+#   0x010000-0x4F0000  app0    4.875 MB (ota_0)
+#   0x4F0000-0x9D0000  app1    4.875 MB (ota_1)
+#   0x9D0000-0xC90000  tiles   2.75 MB  (LittleFS, 0x83)
 #   0xC90000-0xFF0000  spiffs  3.375 MB  [unchanged]
 
 # Name,   Type, SubType,  Offset,   Size,     Flags
 nvs,      data, nvs,      0x9000,   0x5000,
 otadata,  data, ota,      0xe000,   0x2000,
-app0,     app,  ota_0,    0x10000,  0x460000,
-app1,     app,  ota_1,    0x470000, 0x460000,
-tiles,    data, 0x83,     0x8D0000, 0x3C0000,
+app0,     app,  ota_0,    0x10000,  0x4E0000,
+app1,     app,  ota_1,    0x4F0000, 0x4E0000,
+tiles,    data, 0x83,     0x9D0000, 0x2C0000,
 spiffs,   data, spiffs,   0xC90000, 0x360000,
 coredump, data, coredump, 0xFF0000, 0x10000,
