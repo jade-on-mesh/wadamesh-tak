@@ -62,8 +62,32 @@ class VoxFetch {
   enum Method : uint8_t { kNone = 0, kDirect, kDm, kChannel };
 
   static constexpr int kMaxSessions = 6;
+  // Attempt and stall budgets for small transfers; larger and nearly
+  // finished ones get more (attemptBudget, stallBudget).
   static constexpr int kMaxAttempts = 15;
   static constexpr int kMaxStalls = 3;
+
+  // Requests one transfer may make: a photo of hundreds of packets over many
+  // hops loses some on most passes, so its budget grows with its size.
+  static int attemptBudget(int total) {
+    const int b = 10 + total / 6;
+    return b > kMaxAttempts ? b : kMaxAttempts;
+  }
+  // Requests in a row that may bring nothing before giving up. Far fewer
+  // than all the packets missing means the sender is there and the link
+  // works: keep at it rather than stop a packet or two short.
+  static int stallBudget(int received, int total) {
+    if (received <= 0 || total <= 0) return kMaxStalls;
+    if (received * 10 >= total * 9 || total - received <= 4) return 8;
+    if (received * 2 >= total) return 5;
+    return kMaxStalls;
+  }
+  // Each request in a row that brought nothing waits longer for the next
+  // answer (up to 3x): a long or busy route is slow, not gone.
+  static uint32_t stallBackoff(uint32_t wait, int stalls) {
+    const int k = stalls < 4 ? stalls : 4;
+    return wait + wait * (uint32_t)k / 2;
+  }
 
   explicit VoxFetch(VoxFetchIo& io) : io_(io) {}
   ~VoxFetch();
