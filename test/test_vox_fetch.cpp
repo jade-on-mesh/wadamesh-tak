@@ -517,6 +517,34 @@ int main() {
     assert(gotIt(sim, f) && !f.firstPacket(kSid, &first, &n));   // complete: the store has it
   }
 
+  // 15e. A channel photo nobody pushed: the thumbnail probe asks the channel
+  //      for packet 0 alone, and nothing more is fetched until a tap.
+  {
+    Sim sim; setup(sim, 2750);
+    VoxFetch f(sim); sim.fetch = &f;
+    f.onEnvelope(envFor(sim), nullptr, "Jade", 2, false);
+    f.probeFirst(kSid, 4000);
+    sim.run(3900);
+    assert(sim.channel_requests == 0);
+    sim.run(20000);
+    assert(sim.channel_requests == 1 && sim.served_packets == 1);
+    const uint8_t* first = nullptr;
+    size_t n = 0;
+    assert(f.status(kSid) == VoxFetch::kRemote && f.firstPacket(kSid, &first, &n));
+    sim.run(60000);
+    assert(sim.channel_requests == 1 && sim.raw_requests == 0);   // just the one packet
+  }
+  // 15f. Its first packet already came (the push): no probe goes out.
+  {
+    Sim sim; setup(sim, 2750);
+    VoxFetch f(sim); sim.fetch = &f;
+    f.onEnvelope(envFor(sim), nullptr, "Jade", 2, false);
+    f.probeFirst(kSid, 4000);
+    sim.serve({0}, true, sim.now + 500, true);   // the sender's push, cut short
+    sim.run(30000);
+    assert(sim.channel_requests == 0);
+  }
+
   // 16. The shared timing (lib/vox/vox_timing.dart).
   assert(VoxFetch::gapRequestDelay(false, 800, 210) == 610);
   assert(VoxFetch::gapRequestDelay(true, 800, 210) == 1800);

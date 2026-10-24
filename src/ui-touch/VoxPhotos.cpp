@@ -618,6 +618,10 @@ void onChannelText(const char* text, int channel_idx) {
   if (!parseChannelPost(text, name, sizeof name, &env) || !canFetch(env)) return;
   remember(env);
   g_fetch.onEnvelope(env, nullptr, name, channel_idx, false);
+  // Its thumbnail before anyone taps: from the sender's push, or, when that
+  // doesn't reach here, by asking the channel for the first packet alone.
+  if (env.kind == VoxWire::kImage && VOX_AV1_AVAILABLE)
+    g_fetch.probeFirst(env.sid, VoxFetch::kThumbProbeChannelWaitMs + esp_random() % VoxFetch::kThumbProbeSpreadMs);
 }
 
 void onPayload(const uint8_t* data, size_t len, int channel_idx, uint8_t via, int hops, const uint8_t* last_hop,

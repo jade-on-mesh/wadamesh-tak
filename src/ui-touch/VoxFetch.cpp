@@ -229,7 +229,41 @@ void VoxFetch::tick() {
       s.timer_on = false;
       onTimeout(s);
     }
+    if (s.used && s.probe_on && due(now, s.probe_at)) {
+      s.probe_on = false;
+      probe(s);
+    }
   }
+}
+
+void VoxFetch::probeFirst(uint32_t sid, uint32_t delay_ms) {
+  Session* s = find(sid);
+  if (!s || s->kind != VoxWire::kImage || s->st != kRemote) return;
+  s->probe_on = true;
+  s->probe_at = io_.nowMs() + delay_ms;
+}
+
+void VoxFetch::probe(Session& s) {
+  // Downloading after all, done, or the packet came: nothing to ask.
+  if (s.st != kRemote || (s.storage && s.asm_.total() && s.asm_.have(0))) return;
+  uint8_t key6[6];
+  io_.selfKey6(key6);
+  const uint8_t first = 0;
+  if (s.channel >= 0) {
+    uint8_t req[VoxWire::kFetchMinLen + 2];
+    const int n = VoxWire::encodeFetch(s.sid, key6, &first, 1, req, sizeof req, true);
+    if (n > 0) io_.sendChannelData(s.channel, VoxWire::kChannelDataType, req, (size_t)n);
+    return;
+  }
+  if (!s.has_pub && s.name[0] && io_.contactByName(s.name, s.pub)) s.has_pub = true;
+  uint8_t path[64], packed = 0;
+  if (!s.has_pub || !io_.contactRoute(s.pub, path, &packed) || (packed >> 6) != 0) return;
+  const int path_bytes = packed & 0x3F;
+  const bool with_path = path_bytes <= VoxWire::kMaxReplyPathBytes;
+  uint8_t req[VoxWire::kFetchMinLen + 2 + 1 + VoxWire::kMaxReplyPathBytes];
+  const int n = VoxWire::encodeFetch(s.sid, key6, &first, 1, req, sizeof req, true,
+                                     with_path ? path : nullptr, with_path ? path_bytes : 0);
+  if (n > 0) io_.sendRaw(path, packed, req, (size_t)n);
 }
 
 // --------------------------------------------------------------- requests
