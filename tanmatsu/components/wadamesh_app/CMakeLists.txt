@@ -19,6 +19,7 @@ idf_component_register(
   REQUIRES espressif__arduino-esp32 meshcore lvgl ardlibs nvs_flash badge-bsp esp_lcd fatfs
            tanmatsu-lora tanmatsu-wifi h2zero__esp-nimble-cpp bt
            soc esp_hw_support app_update driver esp_timer esp_partition spi_flash esp_adc esp_pm espcoredump
+           dav1d   # photo messages (VoxAv1Core: <dav1d/dav1d.h>; components/dav1d -> the P4's)
   # IDF links component archives in one groupless ordered pass (with a repeat trick), NOT a
   # --start-group. arduino's NetworkClientSecure references our ssl_client stubs, but arduino is
   # re-scanned (pulling NetworkClientSecure.cpp.obj, which makes start_ssl_client undefined) only

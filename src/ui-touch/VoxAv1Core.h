@@ -7,8 +7,9 @@
 // vox_av1.c does, so the radio shows the same pixels the sender previewed.
 //
 // Synchronous and platform-neutral; the device runs it on its own task (see
-// VoxAv1Job.h). Built on the vendored dav1d (lib/dav1d). Builds without dav1d
-// (Tanmatsu) compile a stub that reports kVoxAv1Unsupported.
+// VoxAv1Job.h). Built on the vendored dav1d (lib/dav1d; the P4 builds take it
+// as tdisplay_p4/components/dav1d). Builds without dav1d compile a stub that
+// reports kVoxAv1Unsupported.
 
 #include <stddef.h>
 #include <stdint.h>
