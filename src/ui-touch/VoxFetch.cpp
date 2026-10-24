@@ -241,11 +241,18 @@ void VoxFetch::probeFirst(uint32_t sid, uint32_t delay_ms) {
   if (!s || s->kind != VoxWire::kImage || s->st != kRemote) return;
   s->probe_on = true;
   s->probe_at = io_.nowMs() + delay_ms;
+  s->probe_tries = 0;
 }
 
 void VoxFetch::probe(Session& s) {
-  // Downloading after all, done, or the packet came: nothing to ask.
+  // Downloading after all, done, the packet came, or asked enough: nothing
+  // to ask. The bubble offers the download either way.
   if (s.st != kRemote || (s.storage && s.asm_.total() && s.asm_.have(0))) return;
+  if (s.probe_tries >= kThumbProbeTries) return;
+  s.probe_tries++;
+  // Not here by the next check: ask again (each answer may be lost too).
+  s.probe_on = true;
+  s.probe_at = io_.nowMs() + kThumbProbeRetryMs + io_.random32() % kThumbProbeSpreadMs;
   uint8_t key6[6];
   io_.selfKey6(key6);
   const uint8_t first = 0;

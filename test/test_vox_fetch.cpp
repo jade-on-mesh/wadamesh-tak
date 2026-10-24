@@ -526,8 +526,10 @@ int main() {
     f.probeFirst(kSid, 4000);
     sim.run(3900);
     assert(sim.channel_requests == 0);
-    sim.run(20000);
+    sim.run(4000);
     assert(sim.channel_requests == 1 && sim.served_packets == 1);
+    sim.run(20000);
+    assert(sim.channel_requests == 1);   // it came: no second ask
     const uint8_t* first = nullptr;
     size_t n = 0;
     assert(f.status(kSid) == VoxFetch::kRemote && f.firstPacket(kSid, &first, &n));
@@ -543,6 +545,22 @@ int main() {
     sim.serve({0}, true, sim.now + 500, true);   // the sender's push, cut short
     sim.run(30000);
     assert(sim.channel_requests == 0);
+  }
+
+  // 15g. The thumbnail's answers keep getting lost: asked three times, then
+  //      left (the bubble offers the download, which still works).
+  {
+    Sim sim; setup(sim, 2750); sim.flood_works = false;
+    VoxFetch f(sim); sim.fetch = &f;
+    f.onEnvelope(envFor(sim), nullptr, "Jade", 2, false);
+    f.probeFirst(kSid, 4000);
+    sim.run(120000);
+    assert(sim.channel_requests == VoxFetch::kThumbProbeTries);
+    assert(f.status(kSid) == VoxFetch::kRemote);
+    sim.flood_works = true;
+    assert(f.request(kSid));   // the tap
+    sim.run(120000);
+    assert(gotIt(sim, f));
   }
 
   // 16. The shared timing (lib/vox/vox_timing.dart).

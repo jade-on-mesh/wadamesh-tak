@@ -83,7 +83,12 @@ class VoxFetch {
   // version 2), so the bubble shows the picture before anyone taps. On the
   // channel for a channel post; straight to the sender over a known route for
   // a DM; never a flooded DM for this. Timing as lib/vox/vox_timing.dart.
+  // Asked up to kThumbProbeTries times, kThumbProbeRetryMs (plus a spread)
+  // apart; after that the bubble just offers the download, as it does all
+  // along (a probe never holds up a tap).
   void probeFirst(uint32_t sid, uint32_t delay_ms);
+  static constexpr int kThumbProbeTries = 3;
+  static constexpr uint32_t kThumbProbeRetryMs = 8000;
   static constexpr uint32_t kThumbProbeChannelWaitMs = 4000;
   static constexpr uint32_t kThumbProbeSpreadMs = 4000;
   static constexpr uint32_t kThumbProbeDirectWaitMs = 1500;
@@ -180,6 +185,7 @@ class VoxFetch {
     uint8_t rx_gaps = 0;       // how many gaps that is from
     bool probe_on = false;     // probeFirst(): ask for packet 0 at probe_at
     uint32_t probe_at = 0;
+    uint8_t probe_tries = 0;   // asks made
   };
 
   struct Orphan {
