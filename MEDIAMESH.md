@@ -416,6 +416,20 @@ mikecarper/MeshCore's, recomputed for the actual settings:
   each packet out within ~1 ms so the scan can move on), and goes back to your
   setting when radio2 is off.
 
+## Listen before talk
+
+A time-shared radio can't sense radio2 while it listens on the main channel,
+so "busy" means a radio2 packet was heard lately. A packet bound for radio2
+alone (a photo or voice packet, or a request for one) waits in the queue
+while radio2 is busy:
+- **Until:** radio2 has been quiet for one full packet's airtime plus a
+  random part of another, so two radios that both waited don't then collide.
+- **Meanwhile:** main-mesh packets go out as usual.
+- **At most:** 20 s in all; after that it goes anyway.
+
+`radio2.status` counts the waits as `lbt=`. MeshCore Open TAK waits the same
+way before each photo or voice packet it sends (`vox_timing.dart`).
+
 ## Supported radios
 
 SX1262/SX1268 boards: T-Deck, T-Deck Pro/Max, Heltec V4, T-LoRa Pager (SX1262),

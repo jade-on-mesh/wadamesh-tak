@@ -757,6 +757,21 @@ static void testDiscoverRadio2() {
   assert(profilePick(listen, 3, got, count, snr) && got.bw_hz == 125000 && count == 2);
 }
 
+// Listen before talk on radio2: hold while it was heard within the quiet
+// time, never for more than kLbtMaxWaitMs, and not at all when it's quiet.
+static void testLbt() {
+  for (uint32_t r = 0; r < 200; r++) {
+    const uint32_t q = lbtQuietMs(120, r * 7919u);
+    assert(q >= 170 && q <= 230);
+  }
+  assert(lbtQuietMs(0, 0) >= 150);
+  assert(!lbtHold(false, 0, 200, 0));          // radio2 never heard
+  assert(lbtHold(true, 50, 200, 0));           // heard 50 ms ago: busy
+  assert(!lbtHold(true, 200, 200, 0));         // quiet long enough
+  assert(lbtHold(true, 10, 200, kLbtMaxWaitMs - 1));
+  assert(!lbtHold(true, 10, 200, kLbtMaxWaitMs));   // waited enough: goes anyway
+}
+
 int main() {
   testFind();
   testDiscoverRadio2();
@@ -775,6 +790,7 @@ int main() {
   testMarks();
   testRoutes();
   testAlias();
+  testLbt();
   printf("mediamesh core: ok\n");
   return 0;
 }

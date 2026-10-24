@@ -47,6 +47,11 @@ bool s_applied1_temp = false;
 // Queued packets dropped before sending: their profile changed, or radio2
 // couldn't transmit (radio2.status drop=, About's MediaMesh lines).
 uint32_t s_queue_dropped = 0;
+// Listen before talk on radio2 (MediaMeshCore.h lbtHold): packets held back,
+// and when the current wait began (0: none).
+uint32_t s_lbt_waits = 0;
+uint32_t s_lbt_since = 0;
+uint32_t s_lbt_quiet = 0;
 
 // The packet the dispatcher is about to send (getNextOutbound -> startSendRaw).
 uint8_t s_next_mask = 1;
@@ -186,6 +191,7 @@ Env makeEnv() {
   if (s_r2_heard) e.stats.heard_s = (uint32_t)(millis() - s_r2_heard_ms) / 1000;
   e.stats.samples = radio_driver.mediaMeshSwitchSamples();
   e.stats.dropped = radio_driver.mediaMeshRefused() + s_queue_dropped;
+  e.stats.waits = s_lbt_waits;
 #else
   e.main_saved = savedPrimary();
   e.main = s_rt.temp1 ? s_rt.temp1_p : e.main_saved;
@@ -412,6 +418,22 @@ mesh::Packet* MarkingPacketManager::getNextOutbound(uint32_t now) {
       free(p);
       continue;
     }
+#if defined(MEDIAMESH_RADIO)
+    // radio2 alone, and radio2 busy (a packet heard on it lately): back in the
+    // queue until it has been quiet a while. Main-mesh packets go meanwhile.
+    if (mask == 2) {
+      if (!s_lbt_quiet) s_lbt_quiet = lbtQuietMs(radio2AirMs(MAX_TRANS_UNIT), (uint32_t)random(0x7FFFFFFF));
+      const uint32_t since = (uint32_t)(now - s_r2_heard_ms);
+      const uint32_t waiting = s_lbt_since ? (uint32_t)(now - s_lbt_since) : 0;
+      if (lbtHold(s_r2_heard, since, s_lbt_quiet, waiting)) {
+        if (!s_lbt_since) { s_lbt_since = now ? now : 1; ++s_lbt_waits; }
+        StaticPoolPacketManager::queueOutbound(p, 1, now + (s_lbt_quiet - since));
+        continue;
+      }
+      s_lbt_since = 0;
+      s_lbt_quiet = 0;   // a fresh random part for the next wait
+    }
+#endif
     s_next_mask = mask;
     s_next_valid = true;
     return p;

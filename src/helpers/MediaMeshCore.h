@@ -1049,7 +1049,26 @@ struct Stats {
   uint32_t heard_s = 0xFFFFFFFF;  // seconds since a valid radio2 packet; none since boot: 0xFFFFFFFF
   uint8_t samples = 0;            // retunes measured since the last profile change
   uint32_t dropped = 0;           // radio2 packets never sent: refused (scan off) or dropped from the queue
+  uint32_t waits = 0;             // radio2 packets held back because radio2 was busy (listen before talk)
 };
+
+// Listen before talk on radio2. A time-shared radio can't sense radio2 while
+// it is on the main channel, so "busy" is "a radio2 packet was heard lately":
+// a packet bound for radio2 alone waits until radio2 has been quiet for one
+// packet's airtime plus a random part of another (so two that both waited
+// don't then collide), at most kLbtMaxWaitMs in all, after which it goes
+// anyway rather than never.
+constexpr uint32_t kLbtMaxWaitMs = 20000;
+inline uint32_t lbtQuietMs(uint32_t packet_air_ms, uint32_t rnd) {
+  const uint32_t air = packet_air_ms ? packet_air_ms : 100;
+  return air + 50 + rnd % (air / 2 + 1);
+}
+// Whether to hold a radio2 packet now: radio2 heard `since_heard_ms` ago (or
+// never: `heard` false), a wait under way since `waiting_ms` (0 when none).
+inline bool lbtHold(bool heard, uint32_t since_heard_ms, uint32_t quiet_ms, uint32_t waiting_ms) {
+  if (!heard || since_heard_ms >= quiet_ms) return false;
+  return waiting_ms < kLbtMaxWaitMs;
+}
 
 struct Env {
   Params main;                    // the primary profile running now (tempradio or saved)
@@ -1201,6 +1220,10 @@ inline CliResult handleCli(const char* cmd, Runtime& r, const Env& env, char* re
       if (env.stats.stalls) {
         const size_t used = strlen(reply);
         if (used < cap) snprintf(reply + used, cap - used, " stalls=%lu", (unsigned long)env.stats.stalls);
+      }
+      if (env.stats.waits) {   // radio2 packets that waited for radio2 to go quiet
+        const size_t used = strlen(reply);
+        if (used < cap) snprintf(reply + used, cap - used, " lbt=%lu", (unsigned long)env.stats.waits);
       }
       if (env.stats.dropped) {   // packets meant for radio2 that never went out
         const size_t used = strlen(reply);
