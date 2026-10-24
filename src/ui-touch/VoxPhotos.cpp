@@ -499,16 +499,16 @@ T& inPsram(Io& io) {
 }
 VoxFetch& g_fetch = inPsram<VoxFetch>(g_io);
 
-// A photo's first packet just came in (asked for, or pushed on a channel): if
-// it carries the thumbnail, have that decoded for the bubble now, long before
-// the rest of the photo is in.
+// A photo's packet just came in (asked for, or pushed on a channel): once its
+// first packets carry the whole thumbnail, have that decoded for the bubble,
+// long before the rest of the photo is in.
 void earlyThumbCheck(uint32_t sid) {
   const Seen* e = seen(sid);
   if (!e || e->kind != VoxWire::kImage) return;
   for (uint32_t a : g_early_asked) if (a == sid) return;
   const uint8_t* first = nullptr;
   size_t n = 0, tl = 0;
-  if (!g_fetch.firstPacket(sid, &first, &n) || !VoxWire::imageThumbObus(first, n, &tl)) return;
+  if (!g_fetch.firstPackets(sid, &first, &n) || !VoxWire::imageThumbObus(first, n, &tl)) return;
   g_early_asked[g_early_asked_next++ % 16] = sid;
   if (!thumbSize(sid, nullptr, nullptr)) wantThumb(sid);
 }
@@ -646,7 +646,7 @@ void onChannelText(const char* text, int channel_idx) {
   noteLatest(body ? body + 2 : text, env, nullptr, name, channel_idx);
   g_fetch.onEnvelope(env, nullptr, name, channel_idx, false);
   // Its thumbnail before anyone taps: from the sender's push, or, when that
-  // doesn't reach here, by asking the channel for the first packet alone.
+  // doesn't reach here, by asking the channel for its first packets alone.
   if (env.kind == VoxWire::kImage && VOX_AV1_AVAILABLE)
     g_fetch.probeFirst(env.sid, VoxFetch::kThumbProbeChannelWaitMs + esp_random() % VoxFetch::kThumbProbeSpreadMs);
 }
@@ -936,7 +936,7 @@ bool deletePhoto(uint32_t sid) {
 bool earlyThumbPayload(uint32_t sid, uint8_t* out, size_t cap, size_t* len) {
   const uint8_t* first = nullptr;
   size_t n = 0, tl = 0;
-  if (!out || !g_fetch.firstPacket(sid, &first, &n)) return false;
+  if (!out || !g_fetch.firstPackets(sid, &first, &n)) return false;
   const uint8_t* obus = VoxWire::imageThumbObus(first, n, &tl);
   if (!obus || tl + 1 > cap) return false;
   out[0] = VoxWire::kImagePayloadVersion;

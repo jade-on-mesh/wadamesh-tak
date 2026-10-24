@@ -29528,7 +29528,7 @@ static void voxThumbTick() {
   if (!VoxPhotos::load(sid, &payload, &len)) {
     // Still downloading: the thumbnail it sent first, if it has one.
     if (VoxPhotos::thumbSize(sid, nullptr, nullptr)) return;
-    uint8_t first[VoxWire::kBytesPerPacket];
+    uint8_t first[VoxWire::kThumbPackets * VoxWire::kBytesPerPacket];
     if (!VoxPhotos::earlyThumbPayload(sid, first, sizeof first, &len)) return;
     if (VoxAv1Job::start(first, len, 256)) {
       s_thumb_job_sid = sid;

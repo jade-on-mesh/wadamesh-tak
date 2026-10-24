@@ -129,11 +129,11 @@ bool photoEnvelope(uint32_t sid, char* out, size_t cap);
 bool importPhoto(const uint8_t* data, size_t len, uint32_t* sid_out);
 uint32_t nextThumbWanted();
 
-// The thumbnail a version 2 photo carries in its first packet, as a payload
-// VoxAv1Job decodes ([0x01][its OBUs]), once that packet is here and the photo
+// The thumbnail a version 2 photo carries in its first packets, as a payload
+// VoxAv1Job decodes ([0x01][its OBUs]), once those are here and the photo
 // isn't. False when there's none (yet).
 bool earlyThumbPayload(uint32_t sid, uint8_t* out, size_t cap, size_t* len);
-// Stores that thumbnail (up to 64 px, scaled up to the bubble's size). The
+// Stores that thumbnail (up to 96 px, scaled up to the bubble's size). The
 // photo's own thumbnail replaces it when the photo is in.
 bool saveEarlyThumb(uint32_t sid, const uint16_t* src, int sw, int sh);
 // A thumbnail that's the photo's own: there is one, and it isn't the early one

@@ -119,6 +119,24 @@ int main(int argc, char** argv) {
     voxAv1Free(th.pixels);
     free(v2);
   }
+  // The 96 px thumbnail the app sends now: over the first two packets, not
+  // readable from the first alone.
+  {
+    snprintf(path, sizeof path, "%s/chelsea_2750_v2t96.vi1", dir);
+    size_t len = 0;
+    uint8_t* v2 = readFile(path, &len);
+    assert(v2 && len > 2u * VoxWire::kBytesPerPacket);
+    size_t tl = 0;
+    assert(!VoxWire::imageThumbObus(v2, VoxWire::kBytesPerPacket, &tl));
+    const uint8_t* t = VoxWire::imageThumbObus(v2, VoxWire::kThumbPackets * VoxWire::kBytesPerPacket, &tl);
+    assert(t && tl <= 255);
+    VoxAv1Image th;
+    assert(voxAv1Decode(t, tl, kVoxAv1Rgb565, 256, &th) == kVoxAv1Ok);
+    assert(th.width == 96 && th.height > 0 && th.height <= 96);
+    printf("thumbnail from the first two packets: %dx%d from %zu bytes\n", th.width, th.height, tl);
+    voxAv1Free(th.pixels);
+    free(v2);
+  }
 
   // Damaged input: every truncation, and bit flips throughout. Must fail or
   // succeed cleanly (ASan/UBSan watch the decoder), never crash or leak.

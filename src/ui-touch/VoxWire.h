@@ -55,17 +55,21 @@ constexpr int      kFetchMinLen       = 13;
 constexpr int      kMaxFetchIndices   = 140;    // keeps a request (and a reply path) inside one packet
 // A photo's payload: [1][AV1 OBUs] (version 1), or what the app sends now,
 // [2][thumbnail length][thumbnail OBUs][photo OBUs] (version 2): a thumbnail of
-// up to 64 px small enough to be all in the first packet (length 0: none).
+// up to 96 px, all of it in the first kThumbPackets packets (length 0: none).
+// The app sent 64 px in one packet at first; both read the same way.
 constexpr uint8_t  kImagePayloadVersion = 0x01;
 constexpr uint8_t  kImagePayloadV2      = 0x02;
+constexpr int      kThumbPackets        = 2;
 inline bool isImagePayloadVersion(uint8_t v) { return v == kImagePayloadVersion || v == kImagePayloadV2; }
 
 constexpr int      kMimiModeId        = 32;
 
-// Largest clip Open TAK sends today is a "Sharp" Mesh photo (11 KB: 71 packets)
-// or 20 s of Codec2 3200 (54 packets). Allow some growth without letting a
-// hostile envelope make us reserve 40 KB (96 x 156 B = 15 KB, in PSRAM).
-constexpr int      kMaxClipPackets    = 96;
+// Largest clip Open TAK sends is a "Super Sharp" Mesh photo (38.5 KB: 247
+// packets), so take what the wire can say: 255 x 156 B = 40 KB, in PSRAM, only
+// while it downloads. (This was 96, from when Sharp's 71 was the most: a Super
+// Sharp photo was dropped without a word, its bubble stuck at "tap to
+// download".)
+constexpr int      kMaxClipPackets    = kMaxPackets;
 constexpr int      kMaxImagePackets   = kMaxClipPackets;
 
 enum Kind : uint8_t { kImage = 0, kCodec2, kMimi };

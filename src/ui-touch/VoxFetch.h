@@ -77,9 +77,10 @@ class VoxFetch {
   // Start, or retry after a failure (a tap on the bubble). False if unknown.
   bool request(uint32_t sid);
 
-  // A photo not being downloaded: in `delay_ms`, unless its first packet has
+  // A photo not being downloaded: in `delay_ms`, unless its first packets have
   // come by then (a channel's push, or another listener's ask answered on the
-  // channel), ask for that packet alone. It carries the thumbnail (payload
+  // channel), ask for those alone (VoxWire::kThumbPackets, whichever aren't
+  // here). They carry the thumbnail (payload
   // version 2), so the bubble shows the picture before anyone taps. On the
   // channel for a channel post; straight to the sender over a known route for
   // a DM; never a flooded DM for this. Timing as lib/vox/vox_timing.dart.
@@ -137,9 +138,10 @@ class VoxFetch {
   // How a downloaded clip's packets arrived: bit 0 main mesh, bit 1 radio2
   // (MediaMesh); 0 when not known (radio2 off, or downloaded before a reboot).
   uint8_t via(uint32_t sid) const;
-  // The first packet's bytes of a photo still coming in (where a version 2
-  // payload carries its thumbnail), once it's here. False otherwise.
-  bool firstPacket(uint32_t sid, const uint8_t** data, size_t* len) const;
+  // The start of a photo still coming in, as far as its first packets (up to
+  // VoxWire::kThumbPackets, where a version 2 payload carries its thumbnail)
+  // have come in order. False until packet 0 is here.
+  bool firstPackets(uint32_t sid, const uint8_t** data, size_t* len) const;
   // "Received via MediaMesh", "Received via main mesh", "Received via
   // MediaMesh and main mesh", or nullptr for a via() of 0.
   static const char* viaText(uint8_t via);
@@ -183,7 +185,7 @@ class VoxFetch {
     uint32_t rx_last_ms = 0;   // when the last new packet came in this burst
     uint32_t rx_gap_ms = 0;    // the bursts' gap between packets (smoothed)
     uint8_t rx_gaps = 0;       // how many gaps that is from
-    bool probe_on = false;     // probeFirst(): ask for packet 0 at probe_at
+    bool probe_on = false;     // probeFirst(): ask for the thumbnail's packets at probe_at
     uint32_t probe_at = 0;
     uint8_t probe_tries = 0;   // asks made
   };
