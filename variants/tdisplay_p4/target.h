@@ -26,7 +26,7 @@ extern "C" void set_boot_phase(int phase);
 #endif
 #include "Xl9535.h"
 #include <esp_system.h>
-#include "../../src/helpers/MediaMeshRadio.h"   // RADIO_DRIVER_CLASS (MediaMesh radio2 scan, SX1262 only)
+#include "../../src/helpers/MediaMeshRadio.h"   // RADIO_DRIVER_CLASS (MediaMesh radio2 scan)
 
 #if defined(USE_LR2021)
 class TDisplayP4LR2021Wrapper : public CustomLR2021Wrapper {

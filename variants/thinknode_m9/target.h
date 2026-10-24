@@ -25,6 +25,7 @@
 #include "M9Imu.h"
 #endif
 
+#define MEDIAMESH_CHIP_LR11X0 1   // LR1110 (RADIO_CLASS CustomLR1110)
 #include "../../src/helpers/MediaMeshRadio.h"   // RADIO_DRIVER_CLASS (MediaMesh radio2 scan)
 
 extern ThinkNodeM9Board board;

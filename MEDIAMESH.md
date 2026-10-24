@@ -442,9 +442,19 @@ so it stands in for one: a finished packet it finds is handed to the drain task
 straight away, and TX-done is read from the chip as well. (Without radio2 the P4
 also gains the TX-done read: sends used to end on the dispatcher's timeout.)
 
-LR1110/LR1121/LR2021 boards (ThinkNode M9, T-LoRa Pager LR1121, the T-Display P4
-LR2021 build) and Tanmatsu show "This radio can't run MediaMesh", and answer
-radio2 commands with an error. `tempradio` works on every board.
+LR1110/LR1121/LR2021 boards: ThinkNode M9 (LR1110), T-LoRa Pager LR1121, and
+the T-Display P4 LR2021 build. The scan is the same; the retune goes through
+RadioLib's own setters (frequency, then SF/BW/CR only when they differ) and the
+receiver is armed the stock way, without the SX1262's lean arm. The scan times
+its retunes and sizes its visits to them, so a slower retune costs a little
+radio2 dwell, not packets; `radio2.status` shows the measured switch time. The
+LR wrappers reset the preamble to the stock one after every send, so MediaMesh
+puts radio2's longer preamble back before the next radio2 send. These boards
+are new to MediaMesh: check `radio2.status` (rx/tx counts on both profiles)
+after turning it on.
+
+Tanmatsu shows "This radio can't run MediaMesh" and answers radio2 commands
+with an error. `tempradio` works on every board.
 
 ## Limits
 
