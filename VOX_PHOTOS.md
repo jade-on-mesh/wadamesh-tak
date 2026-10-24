@@ -54,7 +54,11 @@ reduced still-picture header and no AVIF container, 2,750 B ("Standard") or
 
   Timeouts are sized from the radio's airtime and hop count; a re-request asks
   only for missing packets, and comes as soon as the sender's last packet is
-  in. Up to 15 attempts, or 3 in a row that bring nothing.
+  in. Up to 15 attempts (more for big photos: 10 + packets/6, so 49 for a
+  234-packet Super Sharp), or 3 in a row that bring nothing; 5 once half is
+  in, and 8 once 90% is in or 4 or fewer are missing, so a long route doesn't
+  stop a packet short. Each fruitless request waits longer for its answer (up
+  to 3x), every third reopens the channel, and the fourth floods a fresh DM.
 - Channel posts carry only a name; the author is matched to a contact by name
   (case-insensitive, emoji variation selectors ignored). If none matches, only
   the channel fallback is possible.

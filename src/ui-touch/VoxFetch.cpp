@@ -344,13 +344,13 @@ void VoxFetch::attempt(Session& s) {
 
   if (!sent) {
     if (m != kChannel) s.direct_failures++;
-    if (s.attempts < kMaxAttempts) attempt(s);
+    if (s.attempts < attemptBudget(s.total)) attempt(s);
     else fail(s, "couldn't send the request. Tap to retry.");
     return;
   }
   if (s.st != kReceiving) s.st = kRequesting;
   s.note = nullptr;
-  arm(s, waitFor(s));
+  arm(s, stallBackoff(waitFor(s), s.stalls));
   io_.changed(s.sid);
 }
 
@@ -363,15 +363,20 @@ void VoxFetch::onTimeout(Session& s) {
   }
   if (s.st != kRequesting && s.st != kReceiving) return;
   const int got = s.storage ? s.asm_.received() : 0;
+  const int stall_budget = stallBudget(got, s.total);
   if (got > s.at_last_attempt) {
     s.stalls = 0;
   } else {
     s.stalls++;
     if (s.last != kChannel) s.direct_failures++;
     if (s.last == kDirect) s.reply_along_path = !s.reply_along_path;   // try the other way back
+    // Stuck for a while: let the channel (anyone holding it can answer) and,
+    // once, a fresh flooded route have another go.
+    if (s.stalls < stall_budget && s.stalls % 3 == 0) s.tried_channel = false;
+    if (s.stalls == 4) s.sent_dm = false;
   }
   const bool channel_left = s.channel >= 0 && !s.tried_channel;
-  if ((s.stalls < kMaxStalls || channel_left) && s.attempts < kMaxAttempts) {
+  if ((s.stalls < stall_budget || channel_left) && s.attempts < attemptBudget(s.total)) {
     attempt(s);
     return;
   }

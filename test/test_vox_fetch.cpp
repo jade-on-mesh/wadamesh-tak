@@ -31,6 +31,7 @@ struct Sim : VoxFetchIo {
   uint32_t air = 600;                 // ms per photo packet
   uint32_t rng = 1;
   double loss = 0.0;                  // per data packet
+  double req_loss = 0.0;              // per raw request (a long route)
   bool we_have_route = true;          // our out_path to the sender
   bool our_route_works = true;        // requests along it arrive
   bool sender_route_works = true;     // the sender's own stored route back to us
@@ -125,6 +126,7 @@ struct Sim : VoxFetchIo {
       assert((int)len == at + 1 + data[at] && data[at] == packed);
     }
     if (!our_route_works) return true;   // vanishes on the way
+    if (req_loss > 0 && rnd() < req_loss) return true;
     const bool back = has_path ? reverse_path_works : (sender_has_route_to_us && sender_route_works);
     serve(missingOf(data, len), false, now + 2 * air, back);
     return true;
@@ -448,6 +450,34 @@ int main() {
     sim.run(120000);
     assert(gotIt(sim, f) && sim.served_packets == pushed + 2);
     printf("push with loss: finished with %d extra packets\n", sim.served_packets - pushed);
+  }
+
+  // 16. A Super Sharp photo (234 packets) over 7 hops where half the requests
+  //     and a fifth of the packets are lost: it keeps asking for the last
+  //     few instead of stopping at "Got 233/234".
+  {
+    Sim sim; setup(sim, (size_t)234 * VoxWire::kBytesPerPacket);
+    sim.hops_to_sender = 7; sim.loss = 0.2; sim.req_loss = 0.5; sim.rng = 9;
+    VoxFetch f(sim); sim.fetch = &f;
+    f.onEnvelope(envFor(sim), sim.sender_pub, nullptr, -1, true);
+    sim.run(3 * 3600000u);
+    assert(gotIt(sim, f));
+    assert(sim.raw_requests <= VoxFetch::attemptBudget(234));
+    printf("234 over 7 hops: %d requests, %d DMs\n", sim.raw_requests, sim.dm_requests);
+  }
+  // 16b. Budgets: small transfers keep the old limits; nearly complete ones
+  //      and big ones get more; each fruitless request waits longer.
+  {
+    assert(VoxFetch::attemptBudget(17) == VoxFetch::kMaxAttempts);
+    assert(VoxFetch::attemptBudget(234) == 49);
+    assert(VoxFetch::stallBudget(0, 234) == VoxFetch::kMaxStalls);
+    assert(VoxFetch::stallBudget(60, 234) == VoxFetch::kMaxStalls);
+    assert(VoxFetch::stallBudget(120, 234) == 5);
+    assert(VoxFetch::stallBudget(233, 234) == 8);
+    assert(VoxFetch::stallBudget(14, 17) == 8);   // 3 missing
+    assert(VoxFetch::stallBackoff(10000, 0) == 10000);
+    assert(VoxFetch::stallBackoff(10000, 1) == 15000);
+    assert(VoxFetch::stallBackoff(10000, 9) == 30000);
   }
 
   // 15. A requested transfer whose last packet is lost: the stall is noticed
