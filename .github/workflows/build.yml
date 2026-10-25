@@ -105,6 +105,10 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_vox_brighten test/test_vox_brighten.cpp src/ui-touch/VoxBrighten.cpp
           /tmp/test_vox_brighten test/data/vox
+          # ...and with a trained net (a fixture in the voice training kit's format)
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -I test/data/vox/net \
+              -o /tmp/test_vox_brighten_net test/test_vox_brighten.cpp src/ui-touch/VoxBrighten.cpp
+          /tmp/test_vox_brighten_net test/data/vox
       - name: VOX voice recording (encoder bit-exact against the app's build, mic levelling)
         run: test/build_vox_record_test.sh /tmp/vox_record
       - name: Sound link (Wavest messages, share links, ggwave with the radios' settings)

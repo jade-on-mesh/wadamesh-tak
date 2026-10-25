@@ -80,6 +80,18 @@ bool VoxBrighten::begin(uint32_t rate) {
   fill_ = 0;
   e_src_ = e_lo_ = 0;
   for (int k = 0; k < kBands; k++) { e_band_[k] = 0; g_from_[k] = g_to_[k] = 0; }
+#if VOX_BRIGHT_NET
+  // 300, 600, 1000, 1500, 2000, 2500, 3000, 3500, 3900 Hz (kit/dsp.py ANALYSIS).
+  static const double kAnaEdges[kAna + 1] = {300, 600, 1000, 1500, 2000, 2500, 3000, 3500, 3900};
+  for (int k = 0; k < kAna; k++) {
+    const double lo = kAnaEdges[k], hi = kAnaEdges[k + 1], fc = sqrt(lo * hi);
+    set(ana_[k][0], kBand, fc, fc / (hi - lo));
+    set(ana_[k][1], kBand, fc, fc / (hi - lo));
+    e_ana_[k] = 0;
+  }
+  // Before the clip: silence, as the kit pads its first frames (-120 dBFS).
+  for (float& h : hist_) h = (-120.0f + 50.0f) / 20.0f;
+#endif
   return true;
 }
 
@@ -90,13 +102,42 @@ void VoxBrighten::end() {
 }
 
 void VoxBrighten::targets(float m, float l, float* t) const {
+#if VOX_BRIGHT_NET
+  (void)l;
+  float h1[kVoxBrightNetHidden], h2[kVoxBrightNetHidden];
+  for (int i = 0; i < kVoxBrightNetHidden; i++) {
+    float a = kVoxBrightNetB1[i];
+    for (int j = 0; j < kVoxBrightNetIn; j++) a += kVoxBrightNetW1[i][j] * hist_[j];
+    h1[i] = tanhf(a);
+  }
+  for (int i = 0; i < kVoxBrightNetHidden; i++) {
+    float a = kVoxBrightNetB2[i];
+    for (int j = 0; j < kVoxBrightNetHidden; j++) a += kVoxBrightNetW2[i][j] * h1[j];
+    h2[i] = tanhf(a);
+  }
+  for (int k = 0; k < kBands; k++) {
+    float a = kVoxBrightNetB3[k];
+    for (int j = 0; j < kVoxBrightNetHidden; j++) a += kVoxBrightNetW3[k][j] * h2[j];
+    t[k] = m + 10.0f * a + kVoxBrightNetBias[k];
+  }
+#else
   for (int k = 0; k < kBands; k++)
     t[k] = m + kRule[k][0] + kRule[k][1] * (m - l) + kRule[k][2] * (l + 30.0f);
+#endif
 }
 
 void VoxBrighten::endFrame() {
   const float m = levelDb(e_src_, frame_);
   const float l = levelDb(e_lo_, frame_);
+#if VOX_BRIGHT_NET
+  memmove(hist_ + kFeat, hist_, sizeof(float) * (kVoxBrightNetIn - kFeat));
+  hist_[0] = (m + 50.0f) / 20.0f;
+  hist_[1] = (l + 50.0f) / 20.0f;
+  for (int k = 0; k < kAna; k++) {
+    hist_[2 + k] = (levelDb(e_ana_[k], frame_) + 50.0f) / 20.0f;
+    e_ana_[k] = 0;
+  }
+#endif
   float t[kBands];
   targets(m, l, t);
   for (int k = 0; k < kBands; k++) {
@@ -128,6 +169,12 @@ float VoxBrighten::push(float x) {
   e_src_ += (double)s * s;
   e_lo_ += (double)l * l;
   fill[pos_] = x;
+#if VOX_BRIGHT_NET
+  for (int k = 0; k < kAna; k++) {
+    const float a = ana_[k][1].run(ana_[k][0].run(x));
+    e_ana_[k] += (double)a * a;
+  }
+#endif
   for (int k = 0; k < kBands; k++) {
     const float b = band_[k][1].run(band_[k][0].run(e));
     e_band_[k] += (double)b * b;

@@ -5,7 +5,11 @@
 // Codec2 1200 speech as VoxPlayOut plays it at 16 kHz, brighten_out.raw what
 // the reference makes of it (`brighten_ref.py golden`). Plus streaming in odd
 // chunk sizes, silence, and other output rates.
-// Build: g++ -std=c++17 -I src test/test_vox_brighten.cpp src/ui-touch/VoxBrighten.cpp
+// Built a second time with -I test/data/vox/net, it tests the trained-net path
+// instead: test/data/vox/net/VoxBrightNet.h is a fixture in the format
+// MeshCore Open TAK's tools/voice-training writes, brighten_net_out.raw what
+// that kit's `python -m kit.golden` makes of the input with it.
+// Build: g++ -std=c++17 -I src [-I test/data/vox/net] test/test_vox_brighten.cpp src/ui-touch/VoxBrighten.cpp
 // Run:   test_vox_brighten test/data/vox
 
 #include <math.h>
@@ -79,7 +83,8 @@ static double energyAbove6k(const std::vector<int16_t>& x, uint32_t rate = 16000
 int main(int argc, char** argv) {
   const std::string dir = argc > 1 ? argv[1] : "test/data/vox";
   const auto in = readRaw(dir + "/brighten_in.raw");
-  const auto want = readRaw(dir + "/brighten_out.raw");
+  const auto want = readRaw(dir + (VoxBrighten::kUsesNet ? "/brighten_net_out.raw" : "/brighten_out.raw"));
+  printf("levels from the %s\n", VoxBrighten::kUsesNet ? "trained net (VoxBrightNet.h)" : "rule");
   CHECK(!in.empty() && in.size() == want.size(), "golden files missing (%zu, %zu)", in.size(), want.size());
 
   // Against the reference: float here, double there, so close, not exact.

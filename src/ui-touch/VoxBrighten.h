@@ -13,8 +13,13 @@
 //   target_k = m + a_k + b_k (m - l) + c_k (l + 30)   [dBFS]
 // m = the 2-3.9 kHz band, l = 300-1000 Hz. The rule's 12 numbers were fitted on
 // wideband speech through Codec2 1200 (scripts/voice/brighten_ref.py, the
-// reference this is tested against). A tiny neural net may later replace
-// targets(); it would see the same levels and give the same four targets.
+// reference this is tested against).
+//
+// With VoxBrightNet.h next to this file (made by MeshCore Open TAK's
+// tools/voice-training), a tiny net sets the targets instead: from m, l and
+// eight bands of 300-3900 Hz over the last 40 ms (40 numbers), a 40-32-32-4
+// MLP, once per 10 ms. Its input is the same arithmetic as the kit's
+// kit/dsp.py, so it hears here what it learnt from.
 //
 // Cheap: about 20 biquads per output sample, an abs() and four gains per
 // 10 ms, so a few percent of one ESP32-S3 core at 16 kHz. Works at any output
@@ -26,10 +31,21 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#if defined(__has_include)
+#if __has_include("VoxBrightNet.h")
+#include "VoxBrightNet.h"
+#endif
+#endif
+#ifndef VOX_BRIGHT_NET
+#define VOX_BRIGHT_NET 0
+#endif
+
 class VoxBrighten {
  public:
   static constexpr int kBands = 4;
   static constexpr uint32_t kMinRate = 16000;
+  // Whether the trained net sets the levels (else the rule).
+  static constexpr bool kUsesNet = VOX_BRIGHT_NET != 0;
 
   VoxBrighten() {}
   ~VoxBrighten() { end(); }
@@ -74,6 +90,13 @@ class VoxBrighten {
   float* buf_ = nullptr; // 2 frames x (1 + kBands) planes
   Biquad src_[4], lo_[2], dc_, hb_[2], band_[kBands][2];
   double e_src_ = 0, e_lo_ = 0, e_band_[kBands] = {};
+#if VOX_BRIGHT_NET
+  static constexpr int kAna = 8, kFeat = 2 + kAna;
+  static_assert(kVoxBrightNetIn == kFeat * kVoxBrightNetContext, "VoxBrightNet.h doesn't match");
+  Biquad ana_[kAna][2];
+  double e_ana_[kAna] = {};
+  float hist_[kVoxBrightNetIn];   // features, this frame first
+#endif
   // The frame being played ramps from the gains of the frame before it to its own.
   float g_from_[kBands] = {}, g_to_[kBands] = {};
 };

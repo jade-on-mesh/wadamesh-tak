@@ -131,6 +131,11 @@ reduced still-picture header and no AVIF container, 2,750 B ("Standard") or
   - **Reference:** `scripts/voice/brighten_ref.py` fits the rule and is the
     reference `test/test_vox_brighten.cpp` checks against (within 1 LSB).
     `scripts/voice/c2round.c` is the Codec2 round trip it uses.
+  - **A trained net instead of the rule:** MeshCore Open TAK's voice training
+    kit (`tools/voice-training`, option 1) writes `VoxBrightNet.h`. Put it in
+    `src/ui-touch/` and VoxBrighten uses it: a 40-32-32-4 MLP over 10 bands of
+    the last 40 ms, about 2,500 weights (10 KB of flash). The test also runs
+    with a fixture net against the kit's `kit.golden` output.
   - **What it changes:** only the sound on this standalone. Below 4 kHz the clip
     plays as decoded, and the stored clip is unchanged.
   - **Off:** clips play at 8 kHz as before.
