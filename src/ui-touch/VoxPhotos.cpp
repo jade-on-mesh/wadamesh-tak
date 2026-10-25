@@ -362,9 +362,12 @@ static bool pruneOldestVox(const char* keep) {
 }
 
 // Writes [lead byte][data] to `path`, making room from the oldest photos and
-// clips when it doesn't fit. False only if it still can't be written.
+// clips when it doesn't fit. False only if it still can't be written: nothing
+// of ours left to remove. It used to give up after 16 removals, and with the
+// store full of small thumbnails (~300 B each) that freed too little for a
+// 30 KB photo: "couldn't store it. Tap to retry." after a full download.
 static bool writeStore(const char* path, const uint8_t* lead, const uint8_t* data, size_t len) {
-  for (int tries = 0; tries < 16; ++tries) {
+  for (int tries = 0; tries < 1024; ++tries) {
     File f = g_fs->open(path, "w");
     bool ok = (bool)f;
     if (ok) {
@@ -374,7 +377,11 @@ static bool writeStore(const char* path, const uint8_t* lead, const uint8_t* dat
     if (ok) { haveSetPath(path, true); return true; }
     g_fs->remove(path);
     haveSetPath(path, false);
-    if (!pruneOldestVox(path)) return false;
+    if (!pruneOldestVox(path)) {
+      Serial.printf("[VOX] can't store %s (%u bytes): no older photos or clips left to remove\n", path,
+                    (unsigned)len + (lead ? 1u : 0u));
+      return false;
+    }
   }
   return false;
 }
