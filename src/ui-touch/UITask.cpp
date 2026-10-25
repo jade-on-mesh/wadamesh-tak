@@ -160,6 +160,7 @@ static void* wadaMp3Scratch() { return s_wada_mp3_scratch; }
 #include "VoxAv1Job.h"       // ...run on its own task, polled from the LVGL loop
 #include "VoxPhotos.h"        // ...and fetched from the sender (VoxFetch over the mesh)
 #include "VoxVoice.h"         // MeshCore Open TAK voice clips: Codec2 decode (lib/codec2)
+#include "VoxBrighten.h"      // ...and "Brighter voice": the 4-8 kHz band Codec2 leaves out
 #include "VoxMic.h"           // ...and recording them on boards with a microphone (T-Deck)
 #if defined(DOC_CAPTURE)
 extern int g_cst_debug;          // Constellation.cpp: profiling knob for capture builds
@@ -19963,10 +19964,11 @@ static void buildSoundPage() {
     lv_label_set_text_fmt(s_vol_val_lbl, "%d%%", (int)touchPrefsGetSoundVolume());
 #endif
   }
-#if (defined(HAS_TDECK_GT911) || defined(HAS_TDISPLAY_P4)) && CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
+#if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
   {
-    // The Codec2 mode the mic records in (VoxMic), as in MeshCore Open TAK.
     lv_obj_t* c = setCard("Voice messages");
+#if defined(HAS_TDECK_GT911) || defined(HAS_TDISPLAY_P4)
+    // The Codec2 mode the mic records in (VoxMic), as in MeshCore Open TAK.
     static const uint8_t kModes[3] = { 1, 5, 6 };
     const char* opts[3] = { TR("1200 (default)"), TR("1600"), TR("3200") };
     const uint8_t cur = touchPrefsGetVoiceRecordMode();
@@ -19979,6 +19981,14 @@ static void buildSoundPage() {
       if (i < 0 || i > 2) return;
       touchPrefsSetVoiceRecordMode(kModes[i]);
       setChoicePick(lv_obj_get_parent(lv_event_get_current_target(e)), i);
+    });
+#endif
+    setSwitchRow(c, "Brighter voice",
+                 "Fills in the treble Codec2 leaves out, so voices sound less muffled. Made on the "
+                 "radio from the voice itself; turn off to hear clips as decoded.",
+                 touchPrefsGetVoiceBrighter(), [](lv_event_t* e) {
+      if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+      touchPrefsSetVoiceBrighter(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
     });
   }
 #endif
@@ -75256,14 +75266,45 @@ static constexpr bool s_notify_playing = false;
 static volatile bool     s_vox_voice_stop = false;
 
 #if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
+// "Brighter voice" (Settings > Sound): Codec2 played at 16 kHz with the 4-8
+// kHz band filled in by VoxBrighten, else at Codec2's own 8 kHz as before.
+static uint32_t voxSourceRate() {
+  return touchPrefsGetVoiceBrighter() ? VoxBrighten::kMinRate : (uint32_t)kVoxVoiceSampleRate;
+}
+// Starts `b` when the setting is on and the speaker runs fast enough.
+static void voxBrightBegin(VoxBrighten* b, uint32_t output_rate) {
+  b->end();
+  if (touchPrefsGetVoiceBrighter() && output_rate >= VoxBrighten::kMinRate && !b->begin(output_rate))
+    Serial.println("[VOX] brighter voice: no memory, playing as decoded");
+}
+// `n` samples (VoxPlayOut's output) through `b`, when on, to the speaker.
+static bool voxSinkWrite(LuaAudioSinkSession* sink, VoxBrighten* b, int16_t* buf, size_t n) {
+  if (b->active()) b->process(buf, buf, n);
+  return luaAudioSinkWrite(sink, buf, n);
+}
+// The last 10 ms `b` still holds, then frees it.
+static void voxSinkFlush(LuaAudioSinkSession* sink, VoxBrighten* b) {
+  if (b->active()) {
+    int16_t z[160];
+    for (size_t left = b->frameSamples(); left;) {
+      const size_t n = left > 160 ? 160 : left;
+      memset(z, 0, sizeof z);
+      if (!voxSinkWrite(sink, b, z, n)) break;
+      left -= n;
+    }
+  }
+  b->end();
+}
+
 struct VoxVoicePlayback { uint8_t* frames; size_t len; int mode; };
+static VoxBrighten s_vox_bright;   // one clip plays at a time
 
 static void voxVoiceJob(void* arg) {
   VoxVoicePlayback* pb = static_cast<VoxVoicePlayback*>(arg);
   VoxCodec2Stream codec;
   LuaAudioSinkSession sink;
   const char* err = nullptr;
-  if (codec.begin(pb->mode) && luaAudioSinkBegin(kVoxVoiceSampleRate, &sink, &err)) {
+  if (codec.begin(pb->mode) && luaAudioSinkBegin(voxSourceRate(), &sink, &err)) {
     const size_t bpf = (size_t)codec.bytesPerFrame();
     const int spf = codec.samplesPerFrame();
     int16_t pcm[320];
@@ -75276,6 +75317,7 @@ static void voxVoiceJob(void* arg) {
     const float norm = voxPlayNormGain(voxCodec2Peak(pb->mode, pb->frames, pb->len, 3 * kVoxVoiceSampleRate));
     VoxPlayOut po;
     po.begin(sink.output_rate, sink.gain * norm);
+    voxBrightBegin(&s_vox_bright, sink.output_rate);
     s_vox_voice_len = (uint32_t)pb->len;
     for (size_t i = 0; i + bpf <= pb->len && !s_vox_voice_stop && !failed; i += bpf) {
       s_vox_voice_done = (uint32_t)i;
@@ -75283,12 +75325,14 @@ static void voxVoiceJob(void* arg) {
       for (int k = 0; k < spf && !failed; k++) {
         po.push(pcm[k], out, sizeof out / sizeof out[0], &n_out);
         if (n_out >= 256) {
-          failed = !luaAudioSinkWrite(&sink, out, n_out);
+          failed = !voxSinkWrite(&sink, &s_vox_bright, out, n_out);
           n_out = 0;
         }
       }
     }
-    if (n_out && !failed && !s_vox_voice_stop) luaAudioSinkWrite(&sink, out, n_out);
+    if (n_out && !failed && !s_vox_voice_stop) voxSinkWrite(&sink, &s_vox_bright, out, n_out);
+    if (!failed && !s_vox_voice_stop) voxSinkFlush(&sink, &s_vox_bright);
+    s_vox_bright.end();
     luaAudioSinkEnd(&sink);
   } else {
     Serial.printf("[VOX] voice playback couldn't start: %s\n", err ? err : "codec");

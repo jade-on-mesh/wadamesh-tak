@@ -117,6 +117,23 @@ reduced still-picture header and no AVIF container, 2,750 B ("Standard") or
   own task with a 32 KB internal-RAM stack (Codec2 needs ~22 KB), so it works
   on boards with a speaker: the T-Deck and the T-LoRa Pager. Notification
   chimes wait while it plays. Others show the bubble and say there's no speaker.
+- **Brighter voice** (Settings > Sound > Voice messages, on by default) plays
+  clips and walkie-talkie talk at 16 kHz with the 4-8 kHz band filled in.
+  Codec2 stops at 4 kHz, which is why it sounds muffled. `VoxBrighten` makes
+  the band from the voice itself:
+  - **How:** the 2-3.9 kHz band, full-wave rectified (energy at the sums of its
+    frequencies), high-passed at 4 kHz and split into four sub-bands.
+  - **Level:** every 10 ms each sub-band is set where a 12-number rule fitted
+    on wideband speech through Codec2 says it would be, from the 2-3.9 kHz and
+    300-1000 Hz levels.
+  - **Cost:** about 20 biquads a sample, a few percent of one ESP32-S3 core,
+    and 10 ms of delay.
+  - **Reference:** `scripts/voice/brighten_ref.py` fits the rule and is the
+    reference `test/test_vox_brighten.cpp` checks against (within 1 LSB).
+    `scripts/voice/c2round.c` is the Codec2 round trip it uses.
+  - **What it changes:** only the sound on this standalone. Below 4 kHz the clip
+    plays as decoded, and the stored clip is unchanged.
+  - **Off:** clips play at 8 kHz as before.
 - Clips are stored as `/vox_<sid>.ve3`: one byte of wire mode, then the frames.
 - **Mimi** (`VM1:`), the app's default once its model is downloaded, needs a
   223 MB neural model and can never play on a radio; those bubbles say so. To

@@ -198,7 +198,7 @@ static void playJob(void*) {
   VoxCodec2Stream codec;
   LuaAudioSinkSession sink;
   const char* err = nullptr;
-  if (codec.begin(WalkieWire::kMode) && luaAudioSinkBegin(kVoxVoiceSampleRate, &sink, &err)) {
+  if (codec.begin(WalkieWire::kMode) && luaAudioSinkBegin(voxSourceRate(), &sink, &err)) {
     const int spf = codec.samplesPerFrame();
     const size_t bpf = (size_t)codec.bytesPerFrame();
     int16_t pcm[320];
@@ -208,6 +208,8 @@ static void playJob(void*) {
     uint32_t idle_ms = 0;
     VoxPlayOut po;   // interpolated + low-passed to the speaker's rate (VoxVoice.h)
     po.begin(sink.output_rate, sink.gain);
+    static VoxBrighten bright;   // "Brighter voice", when on (UITask.cpp voxBrightBegin)
+    voxBrightBegin(&bright, sink.output_rate);
     static Chunk c;
     while (!s_job_stop && !failed) {
       if (xQueueReceive(s_q, &c, pdMS_TO_TICKS(40)) != pdTRUE) {
@@ -215,11 +217,12 @@ static void playJob(void*) {
         // last buffer. A talk that went quiet for good ends from the loop task.
         idle_ms += 40;
         if (idle_ms > 8000) break;
-        static int16_t quiet[256] = {0};
+        static int16_t quiet[256];
         size_t left = sink.output_rate * 40 / 1000;
         while (left && !failed) {
           const size_t n = left > 256 ? 256 : left;
-          failed = !luaAudioSinkWrite(&sink, quiet, n);
+          memset(quiet, 0, sizeof quiet);   // VoxBrighten writes in place
+          failed = !voxSinkWrite(&sink, &bright, quiet, n);
           left -= n;
         }
         continue;
@@ -231,16 +234,18 @@ static void playJob(void*) {
         for (int k = 0; k < spf && !failed; k++) {
           po.push(pcm[k], out, sizeof out / sizeof out[0], &n_out);
           if (n_out >= 256) {
-            failed = !luaAudioSinkWrite(&sink, out, n_out);
+            failed = !voxSinkWrite(&sink, &bright, out, n_out);
             n_out = 0;
           }
         }
       }
       if (n_out && !failed) {
-        failed = !luaAudioSinkWrite(&sink, out, n_out);
+        failed = !voxSinkWrite(&sink, &bright, out, n_out);
         n_out = 0;
       }
     }
+    if (!failed) voxSinkFlush(&sink, &bright);
+    bright.end();
     luaAudioSinkEnd(&sink);
   } else {
     Serial.printf("[WALKIE] playback couldn't start: %s\n", err ? err : "codec");

@@ -2604,6 +2604,8 @@ void touchPrefsSetVoiceRecordMode(uint8_t m) {
   if (!s_begun) touchPrefsBegin();
   prefsPutUChar("vox_rec", m);
 }
+bool touchPrefsGetVoiceBrighter() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("vox_bright", 1) != 0; }
+void touchPrefsSetVoiceBrighter(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("vox_bright", on ? 1 : 0); }
 bool touchPrefsGetDndEnabled() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("dnd_en", 0) != 0; }
 void touchPrefsSetDndEnabled(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("dnd_en", on ? 1 : 0); }
 uint8_t touchPrefsGetDndStartSlot() {
