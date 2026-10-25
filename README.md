@@ -42,6 +42,8 @@ stops with "too big for this radio's slots: install once over USB".
 - Elecrow CrowPanel Advance 3.5: env `crowpanel_35_companion_radio_touch` (beta, hardware validation pending; requires an SX1262 in the expansion slot)
 - Elecrow CrowPanel Advance 5.0: env `crowpanel_50_companion_radio_touch` (beta, hardware validation pending; requires an SX1262 in the wireless slot and the DIP switch set to it)
 
+**Released boards** are listed in [`boards.json`](boards.json). A board entered there is built for every release, named in the release notes and offered by the MediaMesh Flasher; nothing else needs editing. `scripts/build/boards.py check` (run in PR CI) makes sure every option combination the flasher offers is a built image, every env exists, and the flasher's copy of the list is current (`python3 scripts/build/boards.py flasher` rewrites it).
+
 ## Architecture
 
 This repo holds only the **app**: the `companion_radio` glue, the `ui-touch`
