@@ -4351,11 +4351,14 @@ static const MeshRadioPreset k_mesh_radio_presets[k_mesh_radio_preset_count] = {
     {"Slovakia (Narrow)", 869.618f, 62.5f, 8, 8, 22, 10},
     {"Portugal (Narrow)", 869.618f, 62.5f, 7, 6, 22, 10},   // community PT preset (issue #74)
     {"EU 433MHz (Long Range)", 433.65f, 250.f, 11, 5, 22, 10},
-    {"US/Canada", 910.525f, 62.5f, 7, 5, 22, 10},
-    {"USA: SoCal (Community)", 927.875f, 62.5f, 7, 5, 22, 10},
-    {"USA: San Francisco (Community)", 910.525f, 62.5f, 7, 5, 22, 10},
-    {"USA: Sacramento (Community)", 909.875f, 62.5f, 9, 5, 22, 10},
-    {"USA: Pacific NW (Community)", 910.525f, 62.5f, 7, 5, 22, 10},
+    // US/Canada (902-928 MHz): no legal duty-cycle limit, so MeshCore's own default
+    // pacing (50%: the radio leaves the channel free as long as it just sent) rather than
+    // the EU 869 MHz 10% cap, which slowed photo and voice transfers five-fold.
+    {"US/Canada", 910.525f, 62.5f, 7, 5, 22, 50},
+    {"USA: SoCal (Community)", 927.875f, 62.5f, 7, 5, 22, 50},
+    {"USA: San Francisco (Community)", 910.525f, 62.5f, 7, 5, 22, 50},
+    {"USA: Sacramento (Community)", 909.875f, 62.5f, 9, 5, 22, 50},
+    {"CascadiaMesh", 910.525f, 62.5f, 7, 5, 22, 50},   // the Pacific NW community mesh (was "USA: Pacific NW (Community)")
     {"Brazil", 923.125f, 62.5f, 8, 8, 22, 10},   // official MeshCore BR preset — same params as Australia: SA, WA (issue #69)
 };
 
@@ -4371,12 +4374,17 @@ static float meshPresetAirtimeFactor(uint8_t pct) {
   return af > 9.0f ? 9.0f : af;
 }
 
-static bool meshRadioPresetMatches(const MeshRadioPreset& p, const NodePrefs* prefs) {
+// The preset's radio parameters, whatever the duty cycle.
+static bool meshRadioPresetParamsMatch(const MeshRadioPreset& p, const NodePrefs* prefs) {
   if (std::fabs(prefs->freq - p.freq_mhz) > 0.002) return false;
   if (std::fabs(prefs->bw - p.bw_khz) > 0.02) return false;
   if (prefs->sf != p.sf) return false;
   if (prefs->cr != p.cr) return false;
-  if (prefs->tx_power_dbm != p.tx_dbm) return false;
+  return prefs->tx_power_dbm == p.tx_dbm;
+}
+
+static bool meshRadioPresetMatches(const MeshRadioPreset& p, const NodePrefs* prefs) {
+  if (!meshRadioPresetParamsMatch(p, prefs)) return false;
   const double exp_af = (double)meshPresetAirtimeFactor(p.airtime_limit_pct);
   const double old_af = static_cast<double>(p.airtime_limit_pct) / 100.0;   // pre-#161 buggy write
   const double cur    = static_cast<double>(prefs->airtime_factor);
@@ -4392,7 +4400,7 @@ static int findMatchingMeshRadioPreset(const NodePrefs* prefs) {
 
 // The preset the user last picked, by label. Several presets share identical radio
 // parameters (EU/UK, Switzerland and Slovakia Narrow; US/Canada, San Francisco and
-// Pacific NW; Brazil and Australia SA/WA), so the parameters alone cannot say which
+// CascadiaMesh; Brazil and Australia SA/WA), so the parameters alone cannot say which
 // one was chosen, and matching them picked the first in the list: choose Switzerland,
 // leave Radio & mesh, come back, and it said EU/UK. The label is stored (not the
 // index) so reordering or inserting presets never renames someone's choice.
@@ -4421,6 +4429,10 @@ static int displayedMeshRadioPreset(const NodePrefs* prefs) {
     s_radio_preset_loaded = true;
   }
 #endif
+  // Renamed presets: a radio that remembered the old label keeps showing its choice.
+  if (!strcmp(s_radio_preset_label, "USA: Pacific NW (Community)")) {
+    strncpy(s_radio_preset_label, "CascadiaMesh", sizeof(s_radio_preset_label) - 1);
+  }
   if (s_radio_preset_label[0]) {
     for (size_t i = 0; i < k_mesh_radio_preset_count; ++i) {
       const MeshRadioPreset& p = k_mesh_radio_presets[i];
@@ -4448,6 +4460,31 @@ static void healPresetAirtimeFactor() {
     prefs->airtime_factor = good;
     the_mesh.savePrefs();
   }
+}
+
+// One-time move of radios set up from a US/Canada preset while those carried the EU
+// 10% cap (airtime factor 9, or 0.10 from the pre-#161 write) to the presets' 50%. A
+// radio on the preset's frequency, bandwidth, SF, CR and power with that old factor
+// moves once; after that (the "us_duty50" key) a 10% chosen on purpose stays.
+static void migrateUsPresetDuty() {
+#if defined(ESP32)
+  uint8_t done = 0;
+  if (touchPrefsGetBlob("us_duty50", &done, 1) == 1 && done) return;
+  NodePrefs* prefs = the_mesh.getNodePrefs();
+  if (!prefs) return;
+  for (size_t i = 0; i < k_mesh_radio_preset_count; ++i) {
+    const MeshRadioPreset& p = k_mesh_radio_presets[i];
+    if (p.airtime_limit_pct != 50 || !meshRadioPresetParamsMatch(p, prefs)) continue;
+    const float af = prefs->airtime_factor;
+    if (std::fabs(af - 9.0f) <= 0.05f || std::fabs(af - 0.10f) <= 0.05f) {
+      prefs->airtime_factor = meshPresetAirtimeFactor(p.airtime_limit_pct);
+      the_mesh.savePrefs();
+    }
+    break;
+  }
+  done = 1;
+  touchPrefsSetBlob("us_duty50", &done, 1);
+#endif
 }
 
 static void applyMeshRadioPresetFields(unsigned preset_idx) {
@@ -78019,6 +78056,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   // configured ~91% duty). Exact-preset matches with the old value get the correct
   // factor rewritten + persisted; see healPresetAirtimeFactor for the guard.
   healPresetAirtimeFactor();
+  migrateUsPresetDuty();
 
   // #271: seed the region registry with the default and per-channel scopes held
   // in touch prefs. MyMesh::begin() seeds the companion-configured default from
