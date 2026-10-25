@@ -5,11 +5,11 @@
 // Codec2 1200 speech as VoxPlayOut plays it at 16 kHz, brighten_out.raw what
 // the reference makes of it (`brighten_ref.py golden`). Plus streaming in odd
 // chunk sizes, silence, and other output rates.
-// Built a second time with -I test/data/vox/net, it tests the trained-net path
-// instead: test/data/vox/net/VoxBrightNet.h is a fixture in the format
-// MeshCore Open TAK's tools/voice-training writes, brighten_net_out.raw what
-// that kit's `python -m kit.golden` makes of the input with it.
-// Build: g++ -std=c++17 -I src [-I test/data/vox/net] test/test_vox_brighten.cpp src/ui-touch/VoxBrighten.cpp
+// Built as is, it tests the trained net (src/ui-touch/VoxBrightNet.h, from
+// MeshCore Open TAK's tools/voice-training): brighten_net_out.raw is what that
+// kit's `python -m kit.golden` makes of the input with it. Built with
+// -DVOX_BRIGHT_NO_NET, it tests the rule against brighten_out.raw.
+// Build: g++ -std=c++17 -I src [-DVOX_BRIGHT_NO_NET] test/test_vox_brighten.cpp src/ui-touch/VoxBrighten.cpp
 // Run:   test_vox_brighten test/data/vox
 
 #include <math.h>

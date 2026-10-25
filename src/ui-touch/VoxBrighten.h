@@ -31,7 +31,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#if defined(__has_include)
+// VOX_BRIGHT_NO_NET builds the rule even with the net here (the host test does,
+// to check both).
+#if defined(__has_include) && !defined(VOX_BRIGHT_NO_NET)
 #if __has_include("VoxBrightNet.h")
 #include "VoxBrightNet.h"
 #endif

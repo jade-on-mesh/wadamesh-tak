@@ -100,13 +100,13 @@ jobs:
           /tmp/test_vox_serve
       - name: VOX voice decoder (Codec2, sample-exact against the app's build)
         run: test/build_vox_voice_test.sh /tmp/vox_voice
-      - name: Brighter voice (VoxBrighten against scripts/voice/brighten_ref.py)
+      - name: Brighter voice (VoxBrighten's net and rule against the kit and scripts/voice/brighten_ref.py)
         run: |
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_vox_brighten test/test_vox_brighten.cpp src/ui-touch/VoxBrighten.cpp
           /tmp/test_vox_brighten test/data/vox
-          # ...and with a trained net (a fixture in the voice training kit's format)
-          g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -I test/data/vox/net \
+          # ...and the rule it falls back to without src/ui-touch/VoxBrightNet.h
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -DVOX_BRIGHT_NO_NET \
               -o /tmp/test_vox_brighten_net test/test_vox_brighten.cpp src/ui-touch/VoxBrighten.cpp
           /tmp/test_vox_brighten_net test/data/vox
       - name: VOX voice recording (encoder bit-exact against the app's build, mic levelling)
