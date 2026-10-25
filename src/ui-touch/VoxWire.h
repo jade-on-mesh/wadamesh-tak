@@ -53,6 +53,7 @@ constexpr int      kPacketHeaderLen   = 6;
 constexpr int      kMaxPackets        = 255;
 constexpr int      kFetchMinLen       = 13;
 constexpr int      kMaxFetchIndices   = 140;    // keeps a request (and a reply path) inside one packet
+constexpr int      kSaltedFetchIndices = kMaxFetchIndices - 16;   // listed in a salted request
 // A photo's payload: [1][AV1 OBUs] (version 1), or what the app sends now,
 // [2][thumbnail length][thumbnail OBUs][photo OBUs] (version 2): a thumbnail of
 // up to 96 px, all of it in the first kThumbPackets packets (length 0: none).
@@ -225,17 +226,31 @@ inline bool parsePacket(const uint8_t* buf, size_t len, Packet* pkt) {
 // written sorted and de-duplicated, capped at kMaxFetchIndices. `salt_ok` lets
 // the sender salt resends (0x57). `reply_path` (requester -> sender, 1-byte
 // hashes) asks the sender to answer along the reverse of the route the request
-// took; pass nullptr to let it use its own route to us. Returns bytes written,
-// or 0 if `cap` is too small.
+// took; pass nullptr to let it use its own route to us.
+//
+// `salt` >= 0 makes this request differ from an earlier one for the same
+// packets: listed index (salt >> 4) % n is repeated (salt & 15) + 1 times (the
+// app repeats one 1-8 times). Radios drop any packet whose payload they have
+// already seen, so an unsalted retry for the same packets is byte-identical to
+// the last and dies at the first repeater that relayed it (or at our own
+// radio). Parsers read the indices as a set. Consecutive salts give distinct
+// requests for 16 * n tries. With a salt, at most kSaltedFetchIndices are
+// listed. An all-packets request has nothing to repeat and isn't salted.
+// Returns bytes written, or 0 if `cap` is too small.
 inline int encodeFetch(uint32_t sid, const uint8_t key6[6], const uint8_t* missing, int n_missing,
                        uint8_t* out, size_t cap, bool salt_ok = false,
-                       const uint8_t* reply_path = nullptr, int reply_path_len = 0) {
+                       const uint8_t* reply_path = nullptr, int reply_path_len = 0, int salt = -1) {
   uint8_t sorted[kMaxPackets];
   int n = 0;
   if (missing) {
+    const int room = salt >= 0 ? kSaltedFetchIndices : kMaxFetchIndices;
     bool seen[kMaxPackets] = {false};
     for (int i = 0; i < n_missing; i++) if (missing[i] < kMaxPackets) seen[missing[i]] = true;
-    for (int v = 0; v < kMaxPackets && n < kMaxFetchIndices; v++) if (seen[v]) sorted[n++] = (uint8_t)v;
+    for (int v = 0; v < kMaxPackets && n < room; v++) if (seen[v]) sorted[n++] = (uint8_t)v;
+    if (salt >= 0 && n > 0) {
+      const uint8_t again = sorted[((salt & 0xFF) >> 4) % n];
+      for (int i = 0; i <= (salt & 15); i++) sorted[n++] = again;
+    }
   }
   // A non-null path of length 0 is meaningful: the sender is our direct neighbour.
   const bool has_path = reply_path != nullptr && reply_path_len >= 0 &&
