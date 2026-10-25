@@ -56,3 +56,4 @@ src/ui-touch/doc_radio_apps.h
 # radio emulator deps (emu/fetch-deps.sh) and build output
 emu/third_party/
 emu/build/
+__pycache__/
