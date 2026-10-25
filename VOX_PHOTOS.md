@@ -101,6 +101,14 @@ reduced still-picture header and no AVIF container, 2,750 B ("Standard") or
   (MediaMesh) is timed by radio2's airtime. Once a few packets are in, the
   stall wait follows the gaps they actually came at, so a lost tail is asked
   for again in seconds.
+- Every request is salted (`VoxWire::encodeFetch`): one listed packet is
+  repeated 1-16 times, counting up from a random start for each download.
+  Radios drop a packet whose payload they have already seen, so an unsalted
+  retry for the same last packet or two was dropped by the first repeater
+  that relayed the earlier one, and a download several hops away stalled at
+  the end ("Got 213/215"). A retry before any packet came in lists the
+  packets instead of asking for "all", so it can be salted too. The app does
+  the same.
 - Decoding uses the app's own Codec2 tree (`lib/codec2`, speech codec only,
   codebooks in flash) and is sample-exact with it (`test/test_vox_voice.cpp`,
   four modes). Every mode the app can send plays except 700C, compiled out to

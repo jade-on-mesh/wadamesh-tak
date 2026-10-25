@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -46,6 +47,19 @@ struct Sim : VoxFetchIo {
   int pb = VoxWire::kBytesPerPacket;  // codec bytes per packet
   std::vector<Event> inbox;           // to deliver to the engine
   std::vector<int> drop_first;        // indices lost on the first burst only
+  int drop_bursts = 1;                // ... or on this many bursts
+  // Repeaters (and our own radio) drop a packet whose payload they have
+  // already seen: an identical request never reaches the sender twice.
+  bool mesh_dedupe = false;
+  std::set<std::vector<uint8_t>> seen_requests;
+  int duplicate_requests = 0;
+  bool alreadySeen(const uint8_t* d, size_t n) {
+    if (!seen_requests.insert(std::vector<uint8_t>(d, d + n)).second) {
+      duplicate_requests++;
+      return mesh_dedupe;
+    }
+    return false;
+  }
   int bursts = 0;
   int channel_hops = -1;              // hops reported for channel packets
   std::map<uint32_t, std::vector<uint8_t>> store;
@@ -84,7 +98,7 @@ struct Sim : VoxFetchIo {
     const uint32_t a = via == VoxFetch::kViaRadio2 && r2air ? r2air : air;
     const uint32_t gap = on_channel ? 4 * a + 150 : 2 * a + 150;
     uint32_t t = start;
-    const bool first = bursts++ == 0;
+    const bool first = bursts++ < drop_bursts;
     for (int i : idx) {
       t += gap;
       served_packets++;
@@ -107,10 +121,11 @@ struct Sim : VoxFetchIo {
   }
 
   static std::vector<int> missingOf(const uint8_t* req, size_t len) {
-    std::vector<int> m;
+    // As the firmware and app parse it: the indices as a set.
+    std::set<int> u;
     if (req[5] & VoxWire::kFetchFlagMissing)
-      for (int i = 0; i < req[12] && 13 + i < (int)len; i++) m.push_back(req[13 + i]);
-    return m;
+      for (int i = 0; i < req[12] && 13 + i < (int)len; i++) u.insert(req[13 + i]);
+    return std::vector<int>(u.begin(), u.end());
   }
 
   bool sendRaw(const uint8_t* path, uint8_t packed, const uint8_t* data, size_t len) override {
@@ -125,6 +140,7 @@ struct Sim : VoxFetchIo {
       const int at = 13 + data[12];
       assert((int)len == at + 1 + data[at] && data[at] == packed);
     }
+    if (alreadySeen(data, len)) return true;
     if (!our_route_works) return true;   // vanishes on the way
     if (req_loss > 0 && rnd() < req_loss) return true;
     const bool back = has_path ? reverse_path_works : (sender_has_route_to_us && sender_route_works);
@@ -161,6 +177,7 @@ struct Sim : VoxFetchIo {
     assert(channel == 2 && type == VoxWire::kChannelDataType && VoxWire::isFetchRequest(data, len));
     assert(!(data[5] & VoxWire::kFetchFlagHasPath));
     channel_requests++;
+    if (alreadySeen(data, len)) return true;
     if (flood_works) serve(missingOf(data, len), true, now + 3 * air + 300, true);
     return true;
   }
@@ -623,6 +640,35 @@ int main() {
     sim.run(600000);
     assert(gotIt(sim, f));
     printf("sharp: %d requests, %d packets served for 71\n", sim.raw_requests, sim.served_packets);
+  }
+
+  // 18. Three hops, the last two packets lost three bursts running. Each retry
+  //     asks for the same two, and the repeaters drop a request they have
+  //     already relayed: it only gets through because every request is salted.
+  {
+    Sim sim; setup(sim, 215 * 156); sim.hops_to_sender = 3; sim.mesh_dedupe = true;
+    sim.drop_first = {213, 214}; sim.drop_bursts = 6;
+    VoxFetch f(sim); sim.fetch = &f;
+    f.onEnvelope(envFor(sim), sim.sender_pub, nullptr, -1, true);
+    sim.run(1500000);
+    assert(gotIt(sim, f));
+    assert(sim.duplicate_requests == 0);
+    printf("salted retries: %d requests, %d packets served for 215\n", sim.raw_requests + sim.channel_requests,
+           sim.served_packets);
+  }
+
+  // 19. A retry before any packet arrived lists the packets (salted) rather
+  //     than repeating the identical "all" request.
+  {
+    Sim sim; setup(sim, 30 * 156); sim.mesh_dedupe = true; sim.drop_first = {}; sim.drop_bursts = 2;
+    sim.req_loss = 1.0;
+    VoxFetch f(sim); sim.fetch = &f;
+    f.onEnvelope(envFor(sim), sim.sender_pub, nullptr, -1, true);
+    sim.run(20000);
+    sim.req_loss = 0.0;
+    sim.run(900000);
+    assert(gotIt(sim, f));
+    assert(sim.duplicate_requests == 0);
   }
 
   printf("all VoxFetch scenarios pass\n");

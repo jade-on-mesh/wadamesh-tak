@@ -212,6 +212,8 @@ class VoxFetch {
     bool probe_on = false;     // probeFirst(): ask for the thumbnail's packets at probe_at
     uint32_t probe_at = 0;
     uint8_t probe_tries = 0;   // asks made
+    uint8_t salt = 0;          // the next request's salt (VoxWire::encodeFetch), counting up
+    bool salt_seeded = false;
   };
 
   struct Orphan {
@@ -225,6 +227,9 @@ class VoxFetch {
     uint8_t data[kOrphanBytes];
   };
 
+  // Each request's salt: from a random start, then counting up, so no two of a
+  // session's requests for the same packets are alike.
+  int nextSalt(Session& s);
   Session* find(uint32_t sid);
   const Session* find(uint32_t sid) const;
   Session* claim(uint32_t sid);

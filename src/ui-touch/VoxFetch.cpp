@@ -262,8 +262,9 @@ void VoxFetch::probe(Session& s) {
   uint8_t key6[6];
   io_.selfKey6(key6);
   if (s.channel >= 0) {
-    uint8_t req[VoxWire::kFetchMinLen + VoxWire::kThumbPackets];
-    const int n = VoxWire::encodeFetch(s.sid, key6, want, n_want, req, sizeof req, true);
+    uint8_t req[VoxWire::kFetchMinLen + VoxWire::kThumbPackets + 16];
+    const int n = VoxWire::encodeFetch(s.sid, key6, want, n_want, req, sizeof req, true, nullptr, 0,
+                                       nextSalt(s));
     if (n > 0) io_.sendChannelData(s.channel, VoxWire::kChannelDataType, req, (size_t)n);
     return;
   }
@@ -272,13 +273,22 @@ void VoxFetch::probe(Session& s) {
   if (!s.has_pub || !io_.contactRoute(s.pub, path, &packed) || (packed >> 6) != 0) return;
   const int path_bytes = packed & 0x3F;
   const bool with_path = path_bytes <= VoxWire::kMaxReplyPathBytes;
-  uint8_t req[VoxWire::kFetchMinLen + VoxWire::kThumbPackets + 1 + VoxWire::kMaxReplyPathBytes];
+  uint8_t req[VoxWire::kFetchMinLen + VoxWire::kThumbPackets + 16 + 1 + VoxWire::kMaxReplyPathBytes];
   const int n = VoxWire::encodeFetch(s.sid, key6, want, n_want, req, sizeof req, true,
-                                     with_path ? path : nullptr, with_path ? path_bytes : 0);
+                                     with_path ? path : nullptr, with_path ? path_bytes : 0,
+                                     nextSalt(s));
   if (n > 0) io_.sendRaw(path, packed, req, (size_t)n);
 }
 
 // --------------------------------------------------------------- requests
+
+int VoxFetch::nextSalt(Session& s) {
+  if (!s.salt_seeded) {
+    s.salt = (uint8_t)io_.random32();
+    s.salt_seeded = true;
+  }
+  return s.salt++;
+}
 
 VoxFetch::Method VoxFetch::choose(Session& s) {
   uint8_t path[64], packed = 0;
@@ -314,8 +324,19 @@ void VoxFetch::attempt(Session& s) {
   uint8_t missing[VoxWire::kMaxPackets];
   int n_missing = 0;
   if (s.storage) n_missing = s.asm_.missing(missing);
-  const bool any = s.storage && s.asm_.received() > 0;
+  bool any = s.storage && s.asm_.received() > 0;
   s.expected_last = (any && n_missing) ? missing[n_missing - 1] : s.total - 1;
+  // A retry before any packet came in: list the packets rather than ask for
+  // "all", so the request can be salted (an unsalted repeat is dropped as
+  // already seen). It lists the first kSaltedFetchIndices; the next request
+  // asks for the rest.
+  if (!any && s.attempts > 1 && s.total > 0 && s.total <= VoxWire::kMaxPackets) {
+    n_missing = s.total;
+    for (int i = 0; i < n_missing; i++) missing[i] = (uint8_t)i;
+    any = true;
+    s.expected_last = (n_missing < VoxWire::kSaltedFetchIndices ? n_missing : VoxWire::kSaltedFetchIndices) - 1;
+  }
+  const int salt = nextSalt(s);
 
   uint8_t key6[6];
   io_.selfKey6(key6);
@@ -329,7 +350,7 @@ void VoxFetch::attempt(Session& s) {
     const bool with_path = s.reply_along_path && path_bytes <= VoxWire::kMaxReplyPathBytes;
     uint8_t req[VoxWire::kFetchMinLen + VoxWire::kMaxFetchIndices + 1 + VoxWire::kMaxReplyPathBytes];
     const int n = VoxWire::encodeFetch(s.sid, key6, any ? missing : nullptr, n_missing, req, sizeof req,
-                                       true, with_path ? path : nullptr, path_bytes);
+                                       true, with_path ? path : nullptr, path_bytes, salt);
     sent = n > 0 && io_.sendRaw(path, packed, req, (size_t)n);
   } else if (m == kDm) {
     s.sent_dm = true;
@@ -338,7 +359,8 @@ void VoxFetch::attempt(Session& s) {
     sent = n > 0 && io_.sendDmFlood(s.pub, text);
   } else {
     uint8_t req[VoxWire::kFetchMinLen + VoxWire::kMaxFetchIndices];
-    const int n = VoxWire::encodeFetch(s.sid, key6, any ? missing : nullptr, n_missing, req, sizeof req, true);
+    const int n = VoxWire::encodeFetch(s.sid, key6, any ? missing : nullptr, n_missing, req, sizeof req, true,
+                                       nullptr, 0, salt);
     sent = n > 0 && io_.sendChannelData(s.channel, VoxWire::kChannelDataType, req, (size_t)n);
   }
 

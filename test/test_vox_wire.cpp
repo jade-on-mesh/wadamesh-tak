@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <set>
+#include <vector>
+
 #include "ui-touch/VoxWire.h"
 
 using namespace VoxWire;
@@ -104,6 +107,33 @@ int main() {
   assert(n == kFetchMinLen && req[5] == 0x02);
   assert(isControlText("VR3:abc:a:a1b2c3d4e5f6") && !isControlText("VI1:x") && !isControlText(nullptr));
   assert(encodeFetch(1, kKey6, nullptr, 0, req, 12) == 0);
+  // Salted: index (salt >> 4) % n repeated (salt & 15) + 1 times; the parsed set is unchanged.
+  {
+    uint8_t a[200], b[200];
+    const int na = encodeFetch(0x1a2b3c4d, kKey6, miss, 5, a, sizeof a, true, route, 2, 0x00);
+    const int nb = encodeFetch(0x1a2b3c4d, kKey6, miss, 5, b, sizeof b, true, route, 2, 0x13);
+    assert(na == (int)sizeof want2 + 1 && a[12] == 5 && a[17] == 1);   // index 0 of {1,2,3,35}, once
+    assert(nb == (int)sizeof want2 + 4 && b[12] == 8);                  // index 1 (=2), four times
+    assert(b[17] == 2 && b[18] == 2 && b[19] == 2 && b[20] == 2 && b[21] == 2 /* path len */ && b[22] == 0xAB);
+    assert(na != nb || memcmp(a, b, (size_t)na) != 0);
+    FetchRequest ra, rb;
+    assert(parseFetch(a, (size_t)na, &ra) && parseFetch(b, (size_t)nb, &rb));
+    assert(ra.n_missing == 4 && rb.n_missing == 4 && rb.missing[3] == 35 && rb.has_path && rb.path_len == 2);
+    // Room for the salt: at most kSaltedFetchIndices listed, never more than kMaxFetchIndices sent.
+    const int nm = encodeFetch(1, kKey6, many, 200, a, sizeof a, true, nullptr, 0, 0xFF);
+    assert(nm == kFetchMinLen + kMaxFetchIndices && a[12] == kMaxFetchIndices);
+    assert(parseFetch(a, (size_t)nm, &ra) && ra.n_missing == kSaltedFetchIndices);
+    // Consecutive salts: distinct requests for one missing packet, 16 in a row.
+    std::set<std::vector<uint8_t>> distinct;
+    const uint8_t one[] = {214};
+    for (int k = 250; k < 250 + 16; k++) {
+      const int nk = encodeFetch(1, kKey6, one, 1, a, sizeof a, true, nullptr, 0, k & 0xFF);
+      distinct.insert(std::vector<uint8_t>(a, a + nk));
+    }
+    assert(distinct.size() == 16);
+    // Nothing to repeat in an all-packets request.
+    assert(encodeFetch(1, kKey6, nullptr, 0, a, sizeof a, true, nullptr, 0, 0x55) == kFetchMinLen);
+  }
 
   // --- packet parsing
   uint8_t raw[] = {0x56, 0, 0, 0, 7, 3, 9, 8, 7};
