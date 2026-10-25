@@ -24,6 +24,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+      - name: T-Deck battery gauge
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_battery_gauge test/test_battery_gauge.cpp
+          /tmp/test_battery_gauge
       - name: VOX photo wire format
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \

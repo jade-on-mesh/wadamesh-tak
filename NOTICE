@@ -113,5 +113,12 @@ Camillia-MT (CrowPanel Advance 5.0 display, backlight and touch bring-up)
     GT911 reset in variants/crowpanel_50/CrowPanel50Display.cpp are adapted
     from src/hal/crowpanel_50_display.h and src/hal/hw_crowpanel_50.h.
 
+MatterMesh OS (T-Deck battery gauge)
+    Copyright (c) 2026 the MatterMesh OS contributors
+    GNU General Public License v3.0 — https://github.com/mattermeshos/mattermesh-os
+    The load-sag compensation, LiPo curve and stepping rules in
+    src/helpers/BatteryGauge.h are adapted from
+    tdeck-plus/src/services/battery_gauge.h.
+
 This list is not exhaustive and is expanded as dependencies are vendored or
 added.
