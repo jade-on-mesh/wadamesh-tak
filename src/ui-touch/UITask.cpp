@@ -2751,6 +2751,11 @@ static lv_obj_t* settingsSubPageOpen(const char* title, void (*close_fn)()) {
   lv_obj_add_flag(root, LV_OBJ_FLAG_CLICKABLE);   // modal: presses never reach the page below
   updateGlobalStatusBar();
   if (g_statusbar.root) lv_obj_move_foreground(g_statusbar.root);   // keep "‹ title" tappable
+  // Callers size their list from lv_obj_get_height(root), which LVGL only knows
+  // once the layout has run. Elsewhere updateGlobalStatusBar happened to run it;
+  // on the T-Display P4 it didn't, the height read 0, every list came out -12 px
+  // tall and the time zone and backup pickers opened blank.
+  lv_obj_update_layout(root);
   return root;
 }
 
