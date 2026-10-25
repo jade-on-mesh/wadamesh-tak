@@ -4358,7 +4358,7 @@ static const MeshRadioPreset k_mesh_radio_presets[k_mesh_radio_preset_count] = {
     {"USA: SoCal (Community)", 927.875f, 62.5f, 7, 5, 22, 50},
     {"USA: San Francisco (Community)", 910.525f, 62.5f, 7, 5, 22, 50},
     {"USA: Sacramento (Community)", 909.875f, 62.5f, 9, 5, 22, 50},
-    {"CascadiaMesh", 910.525f, 62.5f, 7, 5, 22, 50},   // the Pacific NW community mesh (was "USA: Pacific NW (Community)")
+    {"US/CAN: CascadiaMesh (community)", 910.525f, 62.5f, 7, 5, 22, 50},   // the Pacific NW community mesh (was "USA: Pacific NW (Community)")
     {"Brazil", 923.125f, 62.5f, 8, 8, 22, 10},   // official MeshCore BR preset — same params as Australia: SA, WA (issue #69)
 };
 
@@ -4431,7 +4431,7 @@ static int displayedMeshRadioPreset(const NodePrefs* prefs) {
 #endif
   // Renamed presets: a radio that remembered the old label keeps showing its choice.
   if (!strcmp(s_radio_preset_label, "USA: Pacific NW (Community)")) {
-    strncpy(s_radio_preset_label, "CascadiaMesh", sizeof(s_radio_preset_label) - 1);
+    strncpy(s_radio_preset_label, "US/CAN: CascadiaMesh (community)", sizeof(s_radio_preset_label) - 1);
   }
   if (s_radio_preset_label[0]) {
     for (size_t i = 0; i < k_mesh_radio_preset_count; ++i) {
