@@ -128,7 +128,11 @@ reduced still-picture header and no AVIF container, 2,750 B ("Standard") or
 - Each decode runs on its own task on core 0 at idle priority, with a 24 KB
   stack taken from internal RAM only while it runs (this Arduino build can't
   put task stacks in PSRAM). The host measures ~11 KB of stack at worst,
-  including damaged input. Boards idling at 80 MHz are raised to 240 MHz for
+  including damaged input. When internal RAM has no free 32 KB block (a Pager
+  with Wi-Fi and BLE up can be down to 1 KB), the decode runs on the shared
+  16 KB worker made at boot instead, also at idle priority; "Not enough
+  internal RAM to start the decoder" now only shows if that worker is busy
+  playing a clip as well. Boards idling at 80 MHz are raised to 240 MHz for
   the decode. The first device build used a 64 KB stack, which the T-Deck
   couldn't spare: every photo failed with "Not enough memory".
 - Heap per decode, measured on the host: up to ~0.9 MB including the RGB565
