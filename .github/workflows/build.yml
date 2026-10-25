@@ -26,6 +26,11 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
       - name: Radio emulator (MediaMesh scan on modelled SX1262s)
         run: emu/build.sh
+      - name: T-Deck battery gauge
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_battery_gauge test/test_battery_gauge.cpp
+          /tmp/test_battery_gauge
       - name: VOX photo wire format
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \

@@ -255,6 +255,7 @@ static_assert(ChannelSenderSplit::kMaxWireName >= (size_t)UITask::MAX_SENDER_NAM
     // its include path, so an angle include picks that up and misses accessors we
     // add here (e.g. the signal-probe prefs). Quotes force the local src/ copy.
     #include "../helpers/esp32/TouchPrefsStore.h"
+    #include "../helpers/BatteryGauge.h"   // T-Deck battery percent
     #include "../helpers/MediaMesh.h"   // MediaMesh Settings (radio2)
     #include "../helpers/LoraUpdate.h"  // LoRa Update (repeater admin)
     // A block-list slot narrower than a sender name stores a cut name that the full-width
@@ -25825,6 +25826,9 @@ static uint16_t batteryMvSampled() { return g_lv.task ? g_lv.task->getBattMilliV
 //
 // The threshold against an uncalibrated ADC still wants on-device confirmation,
 // exactly as the V4-R8 note above already says.
+#if defined(HAS_TDECK_GT911)
+static void batteryGaugeFeed(uint16_t mv);   // with batteryPercentFromMv, below
+#endif
 static bool batteryIsCharging(uint16_t mv) {
   const uint16_t full = batteryFullMv();
   return mv != 0 && mv >= (uint16_t)(full + 50);
@@ -25850,6 +25854,9 @@ static uint16_t batteryMvSmoothed() {
     s_pub    = cur;
     s_pub_ms = now;
     s_flip_ms = charge_flip ? (now ? now : 1) : 0;
+#if defined(HAS_TDECK_GT911)
+    batteryGaugeFeed(s_pub);
+#endif
   } else if (s_flip_ms && (unsigned long)(now - s_flip_ms) >= 3000UL) {
     // The first reading after the charger comes or goes can catch the rail
     // mid-step (pulled out of the charger, it dips below the cell for a moment),
@@ -25863,6 +25870,27 @@ static uint16_t batteryMvSmoothed() {
 }
 
 static int batteryPercentFromMv(uint16_t mv);   // fwd decl (icon derives from %)
+
+#if defined(HAS_TDECK_GT911)
+// T-Deck: the percent comes from a gauge (helpers/BatteryGauge.h) fed one
+// reading per publish (20 s): the LiPo curve, the voltage the screen, GPS and
+// Wi-Fi pull the cell down by added back, and a shown percent that only steps.
+// batteryPercentFromMv(mv) answers with it for the published reading, and with
+// the plain curve for any other voltage (logs, the history chart).
+static battgauge::Gauge s_batt_gauge;
+static uint16_t s_batt_gauge_mv = 0;
+static void batteryGaugeFeed(uint16_t mv) {
+  s_batt_gauge_mv = mv;
+  if (batteryIsCharging(mv)) { s_batt_gauge.reset(); return; }   // charger-driven: reseed after
+  battgauge::Load load;
+  load.active = display.isOn();
+  load.wifi = WiFi.getMode() != WIFI_MODE_NULL;
+  load.gps = g_lv.task && g_lv.task->getGPSState();
+  load.cpu_high = getCpuFrequencyMhz() >= 240;
+  s_batt_gauge.update(mv, load, millis(), s_batt_full_mv);
+}
+#endif
+
 static const char* batteryGlyphForMv(uint16_t mv) {
   if (mv == 0)               return LV_SYMBOL_BATTERY_EMPTY;
   if (batteryIsCharging(mv)) return LV_SYMBOL_CHARGE;   // on USB power
@@ -25894,8 +25922,13 @@ static int batteryPercentFromMv(uint16_t mv) {
   if (mv == 0) return -1;
   const uint16_t full = batteryFullMv();
   if (mv >= full)  return 100;
+#if defined(HAS_TDECK_GT911)
+  if (mv == s_batt_gauge_mv && s_batt_gauge.shown >= 0) return s_batt_gauge.shown;
+  return battgauge::curvePercent(battgauge::calibratedMv(mv, s_batt_full_mv));
+#else
   if (mv <= 3300)  return 0;
   return (int)((mv - 3300) * 100 / (full - 3300));
+#endif
 }
 
 // Calibrate-battery action (Device settings). SHORT_CLICKED captures the current

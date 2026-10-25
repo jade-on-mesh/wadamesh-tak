@@ -122,5 +122,12 @@ model and simulated LoRa air)
     recursive mutexes, a thread-safe chip and mid-preamble acquisition). Test
     code only: none of it is in the firmware.
 
+MatterMesh OS (T-Deck battery gauge)
+    Copyright (c) 2026 the MatterMesh OS contributors
+    GNU General Public License v3.0 — https://github.com/mattermeshos/mattermesh-os
+    The load-sag compensation, LiPo curve and stepping rules in
+    src/helpers/BatteryGauge.h are adapted from
+    tdeck-plus/src/services/battery_gauge.h.
+
 This list is not exhaustive and is expanded as dependencies are vendored or
 added.
