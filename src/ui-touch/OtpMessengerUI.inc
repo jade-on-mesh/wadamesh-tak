@@ -117,18 +117,38 @@ static void bgPair(lv_obj_t* o, uint32_t fill, uint32_t pressed) {
   lv_obj_set_style_bg_color(o, lv_color_hex(pressed), LV_PART_MAIN | LV_STATE_PRESSED);
   lv_obj_set_style_bg_grad_dir(o, LV_GRAD_DIR_NONE, LV_PART_MAIN);
 }
-static void themeTree(lv_obj_t* o) {
+// Glass (the fork apps' look, ForkLook.inc) where the theme's background allows
+// it, rimmed in the OTP theme's colour; otherwise the tinted solid kit.
+static bool glassOn() { return s_glass_on && !plainLook(); }
+static void glassAccent(lv_obj_t* o, lv_coord_t radius, uint32_t a, lv_opa_t rim_opa) {
+  forklook::glassBox(o, radius);
+  lv_obj_set_style_border_width(o, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(o, lv_color_hex(a), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(o, rim_opa, LV_PART_MAIN);
+}
+// `glass` false for popups (the prompt): they stay solid.
+static void themeTree(lv_obj_t* o, bool glass = true) {
   if (!o || plainLook()) return;
   const Theme& t = th();
   const uint32_t a = accent();
   if (lv_obj_get_style_bg_opa(o, LV_PART_MAIN) > LV_OPA_50) {
     const lv_color_t bg = lv_obj_get_style_bg_color(o, LV_PART_MAIN);
     if (isColor(bg, COLOR_CONTROL)) {            // buttons, fields
-      bgPair(o, rgbMix(COLOR_CONTROL, a, 72), rgbMix(COLOR_CONTROL_PRESSED, a, 120));
-      lv_obj_set_style_border_color(o, lv_color_hex(rgbMix(COLOR_BORDER, a, 150)), LV_PART_MAIN);
+      if (glass && glassOn()) {
+        glassAccent(o, forklook::kTileR - 2, a, 110);
+        lv_obj_set_style_bg_color(o, lv_color_hex(rgbMix(COLOR_CONTROL_PRESSED, a, 120)), LV_PART_MAIN | LV_STATE_PRESSED);
+        if (lv_obj_check_type(o, &lv_btn_class)) forklook::pressLook(o);
+      } else {
+        bgPair(o, rgbMix(COLOR_CONTROL, a, 72), rgbMix(COLOR_CONTROL_PRESSED, a, 120));
+        lv_obj_set_style_border_color(o, lv_color_hex(rgbMix(COLOR_BORDER, a, 150)), LV_PART_MAIN);
+      }
     } else if (isColor(bg, COLOR_PANEL)) {       // cards
-      lv_obj_set_style_bg_color(o, lv_color_hex(rgbMix(COLOR_PANEL, a, 26)), LV_PART_MAIN);
-      lv_obj_set_style_border_color(o, lv_color_hex(rgbMix(COLOR_BORDER, a, 110)), LV_PART_MAIN);
+      if (glass && glassOn()) {
+        glassAccent(o, forklook::kCardR, a, 70);
+      } else {
+        lv_obj_set_style_bg_color(o, lv_color_hex(rgbMix(COLOR_PANEL, a, 26)), LV_PART_MAIN);
+        lv_obj_set_style_border_color(o, lv_color_hex(rgbMix(COLOR_BORDER, a, 110)), LV_PART_MAIN);
+      }
     } else if (isColor(bg, COLOR_GLOW)) {        // primary buttons
       bgPair(o, a, darken(a, 0.8f));
       lv_obj_set_style_text_color(o, lv_color_hex(contrastOf(a)), LV_PART_MAIN);
@@ -143,7 +163,7 @@ static void themeTree(lv_obj_t* o) {
   if (lv_obj_check_type(o, &lv_switch_class))
     lv_obj_set_style_bg_color(o, lv_color_hex(a), LV_PART_INDICATOR | LV_STATE_CHECKED);
   const uint32_t n = lv_obj_get_child_cnt(o);
-  for (uint32_t i = 0; i < n; i++) themeTree(lv_obj_get_child(o, (int32_t)i));
+  for (uint32_t i = 0; i < n; i++) themeTree(lv_obj_get_child(o, (int32_t)i), glass);
 }
 
 // ---- small widget helpers --------------------------------------------------------------------
@@ -284,7 +304,12 @@ static lv_obj_t* listRow(lv_obj_t* parent, lv_coord_t h, bool tinted, lv_event_c
   lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLL_ON_FOCUS);
   lv_obj_set_style_radius(r, SC(10), LV_PART_MAIN);
-  if (tinted && !s_theme_high_contrast) {
+  if (glassOn()) {
+    // A glass row; one holding something new is rimmed in the theme's colour.
+    if (tinted) glassAccent(r, SC(12), accent(), LV_OPA_COVER);
+    else forklook::glassBox(r, SC(12));
+    forklook::pressLook(r);
+  } else if (tinted && !s_theme_high_contrast) {
     lv_obj_set_style_bg_color(r, lv_color_hex(rgbMix(COLOR_BG, accent(), 22)), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(r, LV_OPA_COVER, LV_PART_MAIN);
   }
@@ -311,9 +336,17 @@ static void emptyState(lv_obj_t* parent, const char* icon, const char* title, co
   lv_obj_set_style_radius(disc, LV_RADIUS_CIRCLE, LV_PART_MAIN);
   lv_obj_set_style_bg_color(disc, lv_color_hex(plainLook() ? COLOR_CONTROL : rgbMix(COLOR_PANEL, accent(), 50)), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(disc, LV_OPA_COVER, LV_PART_MAIN);
+  if (glassOn()) {   // the fork apps' accent bubble, in the theme's colour
+    lv_obj_set_style_bg_color(disc, lv_color_hex(accent()), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(disc, lv_color_hex(darken(accent(), 0.7f)), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_dir(disc, LV_GRAD_DIR_VER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(disc, 2, LV_PART_MAIN);
+    lv_obj_set_style_border_color(disc, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(disc, 70, LV_PART_MAIN);
+  }
   lv_obj_t* il = lv_label_create(disc);
   setIconLabel(il, icon);
-  lv_obj_set_style_text_color(il, lv_color_hex(ink(accent())), LV_PART_MAIN);
+  lv_obj_set_style_text_color(il, lv_color_hex(glassOn() ? contrastOf(accent()) : ink(accent())), LV_PART_MAIN);
   lv_obj_center(il);
   label(col, title, &g_font_semi_14, COLOR_TEXT);
   if (help && *help) {
@@ -428,7 +461,7 @@ static void prompt(const char* title, const char* hint, bool secret, uint32_t ma
                         i ? COLOR_ON_GLOW : COLOR_TEXT);
     lv_obj_center(l);
   }
-  themeTree(s_prompt);
+  themeTree(s_prompt, false);   // a popup: solid
   if (g_lv.keyboard) kbMirrorBind(s_prompt_ta);
   lv_group_t* g = lv_group_get_default();
   if (g) lv_group_focus_obj(s_prompt_ta);

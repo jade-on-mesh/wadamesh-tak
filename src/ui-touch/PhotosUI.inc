@@ -22,93 +22,16 @@ static void pageBuild();
 static void pageClose();
 static void pageBack() { pageClose(); }
 
-// ---- the look ----------------------------------------------------------------
-// Glass over the theme's background (styleGlass: the aurora, a picture or a
-// colour that stands apart), with a light rim, soft rounded tiles and the accent
-// as the one colour. High contrast and the e-paper Pro get solid cards instead.
-static constexpr lv_coord_t kTileR = 14, kThumbR = 10, kGap = 8;
-
-static bool plainLook() {
-#if defined(HAS_TDECK_PRO)
-  return true;
-#else
-  return s_theme_high_contrast;
-#endif
-}
-
-// The lit accent, a little softer for fills.
-static uint32_t accentSoft(uint8_t toward_bg) { return rgbMix(COLOR_GLOW, COLOR_BG, toward_bg); }
-
-// A pressed tile squishes a little and its rim lights up.
-static const lv_style_prop_t kPressProps[] = {LV_STYLE_TRANSFORM_WIDTH, LV_STYLE_TRANSFORM_HEIGHT,
-                                              LV_STYLE_BORDER_COLOR, (lv_style_prop_t)0};
-static lv_style_transition_dsc_t s_press_tr;
-static bool s_press_tr_init = false;
-
-static void styleGlassBox(lv_obj_t* o, lv_coord_t radius) {
-  lv_obj_set_style_radius(o, radius, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(o, 0, LV_PART_MAIN);
-  if (plainLook() || !styleGlass(o)) {
-    lv_obj_set_style_bg_color(o, lv_color_hex(COLOR_PANEL), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(o, s_theme_high_contrast ? 2 : 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(o, lv_color_hex(COLOR_HAIR), LV_PART_MAIN);
-    return;
-  }
-  // The glass's edge: a faint light rim, brighter by day.
-  lv_obj_set_style_border_width(o, 1, LV_PART_MAIN);
-  lv_obj_set_style_border_color(o, lv_color_white(), LV_PART_MAIN);
-  lv_obj_set_style_border_opa(o, s_theme_day ? 200 : 46, LV_PART_MAIN);
-}
-
+// ---- the look: the fork apps' shared glass (ForkLook.inc) ---------------------
+using forklook::accentSoft;
+using forklook::iconBubble;
+using forklook::kGap;
+using forklook::kThumbR;
+using forklook::plainLook;
+static void styleGlassBox(lv_obj_t* o, lv_coord_t radius) { forklook::glassBox(o, radius); }
 static void styleTile(lv_obj_t* c) {
-  styleGlassBox(c, kTileR);
+  forklook::tile(c);
   lv_obj_set_style_pad_all(c, 4, LV_PART_MAIN);
-  if (plainLook()) {
-    lv_obj_set_style_border_color(c, lv_color_hex(COLOR_TEXT), LV_PART_MAIN | LV_STATE_PRESSED);
-    return;
-  }
-  if (!s_press_tr_init) {
-    lv_style_transition_dsc_init(&s_press_tr, kPressProps, lv_anim_path_ease_out, 90, 0, nullptr);
-    s_press_tr_init = true;
-  }
-  lv_obj_set_style_transition(c, &s_press_tr, LV_PART_MAIN);
-  lv_obj_set_style_transition(c, &s_press_tr, LV_PART_MAIN | LV_STATE_PRESSED);
-  lv_obj_set_style_transform_width(c, -3, LV_PART_MAIN | LV_STATE_PRESSED);
-  lv_obj_set_style_transform_height(c, -3, LV_PART_MAIN | LV_STATE_PRESSED);
-  lv_obj_set_style_border_width(c, 2, LV_PART_MAIN | LV_STATE_PRESSED);
-  lv_obj_set_style_border_color(c, lv_color_hex(COLOR_GLOW), LV_PART_MAIN | LV_STATE_PRESSED);
-  lv_obj_set_style_border_opa(c, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_PRESSED);
-  // Keyboard and trackball focus looks the same as a press.
-  lv_obj_set_style_border_width(c, 2, LV_PART_MAIN | LV_STATE_FOCUS_KEY);
-  lv_obj_set_style_border_color(c, lv_color_hex(COLOR_GLOW), LV_PART_MAIN | LV_STATE_FOCUS_KEY);
-  lv_obj_set_style_border_opa(c, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_FOCUS_KEY);
-}
-
-// A round accent bubble with an icon: the header's badge and the empty state's.
-static lv_obj_t* iconBubble(lv_obj_t* parent, lv_coord_t d, const char* icon) {
-  lv_obj_t* b = lv_obj_create(parent);
-  lv_obj_remove_style_all(b);
-  lv_obj_set_size(b, d, d);
-  lv_obj_clear_flag(b, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_set_style_radius(b, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_PART_MAIN);
-  if (plainLook()) {
-    lv_obj_set_style_bg_color(b, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
-  } else {
-    lv_obj_set_style_bg_color(b, lv_color_hex(COLOR_GLOW), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(b, lv_color_hex(COLOR_ACCENT), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_dir(b, LV_GRAD_DIR_VER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(b, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(b, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(b, 70, LV_PART_MAIN);
-  }
-  lv_obj_t* l = lv_label_create(b);
-  lv_label_set_text(l, icon);
-  lv_obj_set_style_text_font(l, &ui_icons_20, LV_PART_MAIN);
-  lv_obj_set_style_text_color(l, lv_color_hex(plainLook() ? COLOR_BG : COLOR_ON_GLOW), LV_PART_MAIN);
-  lv_obj_center(l);
-  return b;
 }
 
 static void thumbDeleteCb(lv_event_t* e) {
