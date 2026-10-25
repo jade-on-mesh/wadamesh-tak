@@ -307,7 +307,8 @@ static void fill(lv_obj_t* o, uint32_t c) {
   lv_obj_set_style_text_color(o, lv_color_hex(textOn(c)), LV_PART_MAIN);
 }
 static void selected(lv_obj_t* o) { fill(o, plain() ? COLOR_CONTROL_PRESSED : COLOR_GLOW); }
-static void tint(lv_obj_t* o) {
+// Popups, sheets and the alarm: solid, tinted with the accent (or a card's own colour).
+static void tintSolid(lv_obj_t* o) {
   if (!o || plain()) return;
   const uint32_t a = COLOR_GLOW;
   if (lv_obj_get_style_bg_opa(o, LV_PART_MAIN) > LV_OPA_50) {
@@ -325,8 +326,10 @@ static void tint(lv_obj_t* o) {
     }
   }
   const uint32_t n = lv_obj_get_child_cnt(o);
-  for (uint32_t i = 0; i < n; i++) tint(lv_obj_get_child(o, (int32_t)i));
+  for (uint32_t i = 0; i < n; i++) tintSolid(lv_obj_get_child(o, (int32_t)i));
 }
+// A page (Team, Flock You, Drones, Sound link): the fork's glass look (ForkLook.inc).
+static void tint(lv_obj_t* o) { forklook::dress(o); }
 
 static bool myFix(double* lat, double* lon) {
   team::Fix f;
@@ -424,7 +427,7 @@ static void alarmShow(team::AlertRec& r) {
   auto mk = [&](const char* txt, lv_event_cb_t cb) {
     lv_obj_t* b = lv_btn_create(row);
     styleButton(b);
-    tint(b);
+    tintSolid(b);
     lv_obj_set_size(b, LV_SIZE_CONTENT, 36);
     lv_obj_set_style_pad_hor(b, 12, LV_PART_MAIN);
     lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, nullptr);
@@ -1001,7 +1004,7 @@ static lv_obj_t* sheetOpen(const char* title, const char* body) {
   lv_obj_set_style_max_height(card, sh - STATUSBAR_H - 12, LV_PART_MAIN);
   lv_obj_align(card, LV_ALIGN_BOTTOM_MID, 0, -6);
   styleCard(card);
-  tint(card);
+  tintSolid(card);
   lv_obj_set_style_pad_all(card, 8, LV_PART_MAIN);
   lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW_WRAP);
   lv_obj_set_style_pad_row(card, 6, LV_PART_MAIN);
@@ -1030,7 +1033,7 @@ static lv_obj_t* sheetBtn(lv_obj_t* card, const char* txt, lv_event_cb_t cb, voi
   lv_obj_set_size(b, LV_SIZE_CONTENT, 32);
   lv_obj_set_style_pad_hor(b, 10, LV_PART_MAIN);
   if (bg) fill(b, bg);
-  else tint(b);
+  else tintSolid(b);
   lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
   lv_obj_t* l = lv_label_create(b);
   lv_label_set_text(l, txt);
