@@ -65,6 +65,27 @@ int main() {
   assert(!strcmp(s.space, "I'm"));
   s = at(d, "repeat");
   assert(s.space[0] == 0 && has(s, "repeater"));
+  // Two or three letters, rarely a word on their own: Space completes them.
+  static const char* const kDone[][2] = {{"th", "the"}, {"ab", "about"}, {"co", "could"}, {"re", "really"},
+                                         {"st", "still"}, {"ye", "yes"}, {"tod", "today"}, {"bec", "because"},
+                                         {"eve", "even"}};
+  for (const auto& k : kDone) {
+    s = at(d, k[0]);
+    if (strcmp(s.space, k[1])) { fprintf(stderr, "%s -> %s, want %s\n", k[0], s.space, k[1]); assert(false); }
+  }
+  // Common short words, chat words and real three-letter words stay.
+  static const char* const kKept[] = {"go", "to", "be", "we", "so", "hi", "ok", "lol", "ha", "tea", "bus",
+                                      "mad", "sum", "bat", "art", "cat", "dog", "yes"};
+  for (const char* k : kKept) {
+    s = at(d, k);
+    if (s.space[0]) { fprintf(stderr, "%s -> %s, want it kept\n", k, s.space); assert(false); }
+  }
+  {   // A short word you send is yours: it stays.
+    Dict mine;
+    for (int i = 0; i < 3; i++) mine.learnText("th");
+    s = at(mine, "th");
+    assert(s.space[0] == 0);
+  }
   assert(keysNear('a', 's') && keysNear('g', 'h') && !keysNear('a', 'p'));
 
   // The next word, before any of it is typed.

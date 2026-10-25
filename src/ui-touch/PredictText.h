@@ -13,7 +13,9 @@
 //  * context: completions that follow the previous word in your messages rank
 //    higher.
 // What Space does (spaceWord): a mistyped word becomes its correction, an
-// unknown one its best completion; a real word is left alone ("in" stays "in").
+// unknown one its best completion; a real word is left alone ("in" stays "in"),
+// except two or three letters that are rarely a word on their own, which
+// complete ("th" -> "the", "tod" -> "today"; see kShortKeepFreq).
 //
 // Pure logic, header-only, host-tested in test/test_predict_text.cpp.
 
@@ -368,6 +370,27 @@ struct Pair {
   uint32_t last;
 };
 
+// Space and short words: a 2-3 letter word below this frequency (zipf x 10) is
+// completed when its best completion scores this much more. Two letters that
+// rare are nearly always a fragment or an abbreviation ("th" 42 vs "the" 77,
+// "co" 52 vs "could" 61, "st" 52 vs "still" 59): 0.7 zipf, five times likelier.
+// Three are usually a real word ("tea" 47 vs "team" 57, "bus" 48 vs "business"
+// 56, "mad" 47 vs "made" 59), so only a far likelier completion wins ("eve" 43
+// vs "even" 60). A common short word ("go" 60, "to" 74) always stays.
+constexpr int kShortKeepFreq = 58;
+constexpr int kShortCompleteMargin2 = 7;
+constexpr int kShortCompleteMargin3 = 15;
+
+// Short words that are whole words in chat, whatever their frequency.
+inline bool chatShort(const char* w, size_t len) {
+  static const char* const k[] = {"hi", "ok", "oh", "ah", "ha", "um", "uh", "eh", "hm", "yo", "ya",
+                                  "lol", "yep", "yup", "nah", "omg", "btw", "idk", "brb", "thx",
+                                  "ty", "np", "hey", "aye", "wtf", "ffs", "imo"};
+  for (const char* x : k)
+    if (strlen(x) == len && eqNoCaseN(x, w, len)) return true;
+  return false;
+}
+
 // What suggest() found for one word, for the strip and for Space.
 struct Suggestions {
   char w[kSuggest][kWordMax];
@@ -637,9 +660,25 @@ class Dict {
       const bool known = dict::find(p, wl, disp) || learned(p, wl) || wl == 1;
       if (known) {
         // A real word stays; only its spelling may change ("i" -> "I").
-        if (dict::find(p, wl, disp) && strncmp(disp, p, wl) && disp[0] >= 'A' && disp[0] <= 'Z' &&
+        const int fw = dict::find(p, wl, disp);
+        if (fw && strncmp(disp, p, wl) && disp[0] >= 'A' && disp[0] <= 'Z' &&
             !(p[0] >= 'A' && p[0] <= 'Z')) {
           memcpy(out.space, disp, wl + 1);
+        }
+        // Two or three letters that are only a word in the dictionary's long tail
+        // ("th", "ab", "ye", "eve", an abbreviation or a fragment) are the start
+        // of a word: Space completes them when the best completion is clearly
+        // likelier ("th" -> "the", "co" -> "could", "eve" -> "even"). A common
+        // short word ("go", "to", "be"), a chat word ("hi", "ok", "lol") and one
+        // you have sent stay as typed.
+        if (!out.space[0] && fw && fw < kShortKeepFreq && wl >= 2 && wl <= 3 && !learned(p, wl) &&
+            !chatShort(p, wl)) {
+          const int sw = score(p, wl, fw);
+          for (int i = 0; i < n; i++) {
+            if (c[i].fix || strlen(c[i].w) <= wl || !startsNoCase(c[i].w, p, wl)) continue;
+            if (c[i].score - sw >= (wl == 2 ? kShortCompleteMargin2 : kShortCompleteMargin3)) space = i;
+            break;   // best first: only the likeliest completion counts
+          }
         }
       } else {
         // Not a word: the best suggestion, completion or correction alike. A
