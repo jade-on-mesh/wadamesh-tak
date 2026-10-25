@@ -23,6 +23,13 @@ alone: "in" stays "in". Of the real words, only the spelling of "i" changes,
 to "I". A short word (three letters or fewer) is only corrected for a likely
 slip, so "thx" stays "thx".
 
+**Two or three letters complete too**, when they are rarely a word on their
+own: "th" + Space gives "the ", "co" gives "could", "tod" gives "today", "eve"
+gives "even". The dictionary lists many such fragments and abbreviations, which
+used to count as real words and stay as typed. Common short words ("go", "to",
+"be"), chat words ("hi", "ok", "lol") and real three-letter words ("tea",
+"bus", "bat") stay; so does any short word you have sent before.
+
 A Backspace straight after puts back what you typed, without the space. A
 space then keeps it as typed, and the word is learned, so it isn't changed
 again.
