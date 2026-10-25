@@ -781,6 +781,16 @@ static void testDefaultOn() {
   assert(!defaultOnFor(433.875f));
   assert(!defaultOnFor(0.0f));   // main radio not known yet
   assert(defaultOnFor(kDefaultFreq));
+  // "Sent on radio2" starts as Photos & voice; a chosen setting is kept.
+  Config c;
+  defaults(c);
+  assert(photoVoiceDefault(c) && c.media == TX_RADIO2 && c.cross == CROSS_OFF);
+  assert(!photoVoiceDefault(c));
+  Config e;
+  defaults(e);
+  e.media = TX_AUTO;
+  e.cross = CROSS_ON;   // Everything
+  assert(!photoVoiceDefault(e) && e.media == TX_AUTO && e.cross == CROSS_ON);
 }
 
 int main() {

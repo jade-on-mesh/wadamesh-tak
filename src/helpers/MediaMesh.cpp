@@ -241,6 +241,19 @@ void begin(SavedPrimaryFn saved_primary) {
   // each boot until something is saved, so a radio moved to another band
   // doesn't keep transmitting on 911 MHz).
   if (s_never_saved && s_rt.saved.mode == MODE_OFF && defaultOnFor(savedPrimary().freq)) s_rt.saved.mode = MODE_RXTX;
+  // "Sent on radio2": Photos & voice by default, and once for a radio still on
+  // the old automatic pair. The key remembers the move, so a later choice of
+  // that pair from the Terminal stays.
+  {
+    static const char kPvKey[] = "mm_pv_def";
+    uint8_t done = 0;
+    if (!touchPrefsGetBlob(kPvKey, &done, 1) || !done) {
+      const bool changed = photoVoiceDefault(s_rt.saved);
+      done = 1;
+      touchPrefsSetBlob(kPvKey, &done, 1);
+      if (changed && !s_never_saved) save();
+    }
+  }
   if (!supported()) s_rt.saved.mode = MODE_OFF;
   applySecondary();
 }

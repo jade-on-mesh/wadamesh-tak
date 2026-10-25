@@ -257,6 +257,17 @@ inline void defaults(Config& c) {
 // band, where the default radio2 frequency belongs; elsewhere it starts off.
 inline bool defaultOnFor(float main_freq) { return main_freq >= 902.0f && main_freq <= 928.0f; }
 
+// What's sent on radio2 starts as the settings page's "Photos & voice": photos
+// and voice go on radio2, nothing else crosses. A radio that never chose (it
+// has the old automatic pair, which the page shows as Custom) moves to it
+// once. True if `c` changed.
+inline bool photoVoiceDefault(Config& c) {
+  if (c.media != TX_AUTO || c.cross != CROSS_AUTO) return false;
+  c.media = TX_RADIO2;
+  c.cross = CROSS_OFF;
+  return true;
+}
+
 inline bool validBw(float bw) {
   static const float bws[] = {7.8f, 10.4f, 15.6f, 20.8f, 31.25f, 41.7f, 62.5f, 125.0f, 250.0f, 500.0f};
   for (float b : bws) if (fabsf(bw - b) < 0.01f) return true;
