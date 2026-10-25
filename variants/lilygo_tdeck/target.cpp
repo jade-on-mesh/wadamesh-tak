@@ -30,7 +30,7 @@ ESP32RTCClock fallback_clock;
 // without the module behaves exactly as before.
 HardwareRtcClock     hw_rtc(fallback_clock);
 ClockFloorRTC        rtc_clock(hw_rtc);
-MicroNMEALocationProvider gps(Serial1, &rtc_clock);
+WadaNmeaLocationProvider gps(Serial1, &rtc_clock);   // u-blox start-up aiding (GPS_UBX_ASSIST)
 EnvironmentSensorManager sensors(gps);
 
 #ifdef DISPLAY_CLASS
