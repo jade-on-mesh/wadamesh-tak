@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "VoxFetch.h"
 
+#include "VoxFec.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,6 +52,9 @@ VoxFetch::Session* VoxFetch::claim(uint32_t sid) {
 void VoxFetch::release(Session& s) {
   free(s.storage);
   s.storage = nullptr;
+  free(s.parity);
+  s.parity = nullptr;
+  s.n_parity = 0;
   s.used = false;
 }
 
@@ -117,6 +122,16 @@ void VoxFetch::keepOrphan(const VoxWire::Packet& p, uint8_t via, bool relayed, c
 
 void VoxFetch::adoptOrphans(Session& s) {
   if (!orphans_ || s.st == kComplete) return;
+  // Its parity packets (VoxFec.h) first: the data packets then rebuild as
+  // they're taken.
+  const uint32_t psid = VoxFec::paritySid(s.sid);
+  for (int i = 0; i < kMaxOrphans; i++) {
+    Orphan& o = orphans_[i];
+    if (!o.len || o.sid != psid) continue;
+    VoxWire::Packet p{o.sid, o.index, o.data, o.len};
+    o.len = 0;
+    if (s.st != kComplete) acceptParity(s, p);
+  }
   for (int i = 0; i < kMaxOrphans; i++) {
     Orphan& o = orphans_[i];
     if (!o.len || o.sid != s.sid) continue;
@@ -213,6 +228,8 @@ uint32_t VoxFetch::waitFor(Session& s) {
   // its tail was lost, not that the request is still on its way.
   if (s.st == kReceiving) return stallWait(burstGap(s));
   const uint32_t hop_ms = io_.packetAirMs() * 2 + 700;
+  // In range: the answer is a packet away (holders wait up to 4.5 s).
+  if (s.last == kZeroHop) return 2 * hop_ms + 6000;
   const uint32_t trips = s.last == kDm ? 5 : s.last == kChannel ? 3 : 2;
   return trips * (uint32_t)(h + 1) * hop_ms + 8000;
 }
@@ -295,6 +312,9 @@ VoxFetch::Method VoxFetch::choose(Session& s) {
   // Raw data reads the path length as a byte count: 1-byte hashes only.
   const bool route = s.has_pub && io_.contactRoute(s.pub, path, &packed) && (packed >> 6) == 0;
   const bool can_channel = s.channel >= 0;
+  // Its packets came 0 hops: whoever sent them is in range, and so may be
+  // others holding it. One zero-hop request reaches them all, no route needed.
+  if (s.min_hops == 0 && !s.tried_zero_hop && s.storage && s.asm_.received() > 0) return kZeroHop;
   // Two requests in a row brought nothing: try the channel (anyone holding the
   // photo can answer) before going round the direct options again.
   if (can_channel && s.stalls >= 2 && !s.tried_channel) return kChannel;
@@ -318,6 +338,7 @@ void VoxFetch::attempt(Session& s) {
   s.attempts++;
   s.last = m;
   if (m == kChannel) s.tried_channel = true;
+  if (m == kZeroHop) s.tried_zero_hop = true;
   s.at_last_attempt = s.asm_.total() ? s.asm_.received() : 0;
   s.rx_last_ms = 0;   // the next packet starts a new burst
 
@@ -352,6 +373,13 @@ void VoxFetch::attempt(Session& s) {
     const int n = VoxWire::encodeFetch(s.sid, key6, any ? missing : nullptr, n_missing, req, sizeof req,
                                        true, with_path ? path : nullptr, path_bytes, salt);
     sent = n > 0 && io_.sendRaw(path, packed, req, (size_t)n);
+  } else if (m == kZeroHop) {
+    // An empty reply path: holders answer zero-hop too.
+    static const uint8_t kNoPath[1] = {0};
+    uint8_t req[VoxWire::kFetchMinLen + VoxWire::kMaxFetchIndices + 1];
+    const int n = VoxWire::encodeFetch(s.sid, key6, any ? missing : nullptr, n_missing, req, sizeof req, true,
+                                       kNoPath, 0, salt);
+    sent = n > 0 && io_.sendRaw(kNoPath, 0, req, (size_t)n);
   } else if (m == kDm) {
     s.sent_dm = true;
     char text[200];
@@ -365,7 +393,7 @@ void VoxFetch::attempt(Session& s) {
   }
 
   if (!sent) {
-    if (m != kChannel) s.direct_failures++;
+    if (m != kChannel && m != kZeroHop) s.direct_failures++;
     if (s.attempts < attemptBudget(s.total)) attempt(s);
     else fail(s, "couldn't send the request. Tap to retry.");
     return;
@@ -390,11 +418,14 @@ void VoxFetch::onTimeout(Session& s) {
     s.stalls = 0;
   } else {
     s.stalls++;
-    if (s.last != kChannel) s.direct_failures++;
+    if (s.last != kChannel && s.last != kZeroHop) s.direct_failures++;
     if (s.last == kDirect) s.reply_along_path = !s.reply_along_path;   // try the other way back
     // Stuck for a while: let the channel (anyone holding it can answer) and,
     // once, a fresh flooded route have another go.
-    if (s.stalls < stall_budget && s.stalls % 3 == 0) s.tried_channel = false;
+    if (s.stalls < stall_budget && s.stalls % 3 == 0) {
+      s.tried_channel = false;
+      s.tried_zero_hop = false;
+    }
     if (s.stalls == 4) s.sent_dm = false;
   }
   const bool channel_left = s.channel >= 0 && !s.tried_channel;
@@ -423,12 +454,56 @@ void VoxFetch::onPayload(const uint8_t* data, size_t len, int channel, uint8_t v
   const bool relayed = channel < 0 || hops != 0;
   Session* s = find(p.sid);
   if (!s) {
+    // A parity packet (VoxFec.h): its session id is its clip's, XORed.
+    Session* ps = find(VoxFec::paritySid(p.sid));
+    if (ps) {
+      if (ps->st != kComplete) acceptParity(*ps, p);
+      return;
+    }
     keepOrphan(p, via, relayed, last_hop, last_hop_len);
     return;
   }
   if (s->st == kComplete) return;
   if (relayed) s->relayed = true;
+  if (channel >= 0 && hops >= 0 && hops < s->min_hops) s->min_hops = (uint8_t)hops;
   accept(*s, p, via, last_hop, last_hop_len);
+}
+
+void VoxFetch::acceptParity(Session& s, const VoxWire::Packet& p) {
+  if (p.len < 2 || p.len > 1 + VoxFec::kMaxP) return;
+  constexpr int kEntry = 2 + 1 + VoxFec::kMaxP;   // [info][len][data]
+  if (!s.parity) {
+    s.parity = (uint8_t*)malloc((size_t)kMaxParity * kEntry);   // PSRAM on the device
+    if (!s.parity) return;
+  }
+  for (int k = 0; k < s.n_parity; k++)
+    if (s.parity[k * kEntry] == p.index) return;   // have it
+  if (s.n_parity >= kMaxParity) return;
+  uint8_t* e = s.parity + (size_t)s.n_parity * kEntry;
+  e[0] = p.index;
+  e[1] = (uint8_t)p.len;
+  memcpy(e + 2, p.data, (size_t)p.len);
+  s.n_parity++;
+  if (!s.storage || s.asm_.received() == 0) return;
+  rebuildFromParity(s);
+  // Complete, or (parity is part of the burst) keep its timers going.
+  afterPacket(s, -1);
+}
+
+bool VoxFetch::rebuildFromParity(Session& s) {
+  if (!s.parity || !s.n_parity || !s.storage || s.asm_.complete()) return false;
+  constexpr int kEntry = 2 + 1 + VoxFec::kMaxP;
+  VoxFec::Parity par[kMaxParity];
+  for (int k = 0; k < s.n_parity; k++) {
+    const uint8_t* e = s.parity + (size_t)k * kEntry;
+    par[k] = VoxFec::Parity{e[0], e[1], e + 2};
+  }
+  const int n = VoxFec::rebuild(
+      s.total, s.packet_bytes, s.asm_.payload(), [&](int i) { return s.asm_.have((uint8_t)i); }, par, s.n_parity,
+      [&](int i, const uint8_t* d, int len) { s.asm_.add(VoxWire::Packet{s.sid, (uint8_t)i, d, len}); });
+  if (n <= 0) return false;
+  s.rebuilt = (uint8_t)(s.rebuilt + n > 255 ? 255 : s.rebuilt + n);
+  return true;
 }
 
 void VoxFetch::accept(Session& s, const VoxWire::Packet& p, uint8_t via, const uint8_t* hop, uint8_t hop_len) {
@@ -441,6 +516,13 @@ void VoxFetch::accept(Session& s, const VoxWire::Packet& p, uint8_t via, const u
     s.r2_hop_len = hop && hop_len <= 3 ? hop_len : 0;
     if (s.r2_hop_len) memcpy(s.r2_hop, hop, s.r2_hop_len);
   }
+  if (s.n_parity) rebuildFromParity(s);
+  afterPacket(s, p.index);
+}
+
+// After a packet (or a rebuild, index -1) went in: complete, or keep the
+// session's timers going.
+void VoxFetch::afterPacket(Session& s, int index) {
   s.last_touch = io_.nowMs();
   if (s.st == kRequesting || s.st == kReceiving) noteGap(s, s.last_touch);
   if (s.asm_.complete()) {
@@ -451,7 +533,7 @@ void VoxFetch::accept(Session& s, const VoxWire::Packet& p, uint8_t via, const u
   // transfer) are kept quietly; they count when we do ask.
   if (s.st == kRequesting || s.st == kReceiving) {
     s.st = kReceiving;
-    if (p.index == s.expected_last) {
+    if (index >= 0 && index == s.expected_last) {
       // The sender's burst is over, so the gaps are final: ask again soon.
       arm(s, gapRequestDelay(s.relayed, burstGap(s), zeroHopGap(airMs(s))));
     } else {
@@ -478,6 +560,9 @@ void VoxFetch::complete(Session& s) {
   }
   free(s.storage);
   s.storage = nullptr;
+  free(s.parity);
+  s.parity = nullptr;
+  s.n_parity = 0;
   s.asm_ = VoxWire::Assembly{};
   io_.changed(s.sid);
 }

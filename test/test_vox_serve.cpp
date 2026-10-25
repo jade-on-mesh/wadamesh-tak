@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "ui-touch/VoxFec.h"
 #include "ui-touch/VoxServe.h"
 
 static int g_fail = 0;
@@ -49,8 +50,14 @@ struct Sim : VoxServeIo {
   std::map<std::string, std::vector<uint8_t>> routes;   // key6 hex -> route
   std::map<std::string, uint32_t> route_from;           // route appears at this time
   std::map<uint32_t, std::pair<uint8_t, std::vector<uint8_t>>> clips;
-  std::vector<Sent> sent;
+  std::vector<Sent> sent;     // data packets
+  std::vector<Sent> parity;   // parity packets (VoxFec.h): another session id
   int fail_sends = 0;
+  // Parity for a clip we hold goes in `parity`, everything else in `sent`.
+  bool isParity(const uint8_t* data, size_t n) const {
+    VoxWire::Packet p;
+    return VoxWire::parsePacket(data, n, &p) && clips.count(VoxFec::paritySid(p.sid));
+  }
   int allocs = 0;
   bool verbose = false;
 
@@ -75,12 +82,17 @@ struct Sim : VoxServeIo {
   }
   bool sendRaw(const uint8_t* path, int len, const uint8_t* data, size_t n) override {
     if (fail_sends > 0) { fail_sends--; return false; }
-    sent.push_back(Sent{now, -1, std::vector<uint8_t>(path, path + len), std::vector<uint8_t>(data, data + n)});
+    (isParity(data, n) ? parity : sent)
+        .push_back(Sent{now, -1, std::vector<uint8_t>(path, path + len), std::vector<uint8_t>(data, data + n)});
     return true;
   }
   int zero_hop_sends = 0;
   bool sendChannelData(int ch, uint16_t type, const uint8_t* data, size_t n, bool zero_hop) override {
     if (type != VoxWire::kChannelDataType) return false;
+    if (isParity(data, n)) {
+      parity.push_back(Sent{now, ch, {}, std::vector<uint8_t>(data, data + n)});
+      return true;
+    }
     if (zero_hop) zero_hop_sends++;
     sent.push_back(Sent{now, ch, {}, std::vector<uint8_t>(data, data + n)});
     return true;
@@ -250,7 +262,9 @@ void testChannelOwnOnly() {
   sim.run(s, 20000);
   CHECK(sim.sent.size() == 2, "sent %zu", sim.sent.size());
   CHECK(!sim.sent.empty() && sim.sent[0].channel == 3, "answer on the request's channel");
-  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 300 && sim.sent[0].at - t0 < 400, "author answers after 300 ms");
+  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 2000 && sim.sent[0].at - t0 < 3100,
+        "author answers after 2-3 s (gathering listeners' requests)");
+  CHECK(sim.parity.empty(), "missing packets only: no parity");
   const uint32_t gap = sim.sent.size() == 2 ? sim.sent[1].at - sim.sent[0].at : 0;
   CHECK(gap >= 2150 && gap <= 2170, "flood gap %u (4 * air + 150)", gap);
   for (auto& p : sim.sent) CHECK(p.data.size() <= 163, "GRP_DATA limit");
@@ -320,7 +334,7 @@ void testChannelMergeAndZeroHop() {
   s.markOwn(kSid);
   const auto ra = dartFetch(kSid, kKeyA, nullptr, true, nullptr);
   s.onPayload(ra.data(), ra.size(), 2, 0);   // heard directly
-  sim.run(s, 300 + 3 * 210 + 50);            // 300 ms, then a few packets
+  sim.run(s, 3000 + 3 * 210 + 50);           // up to 3 s gathering, then a few packets
   const size_t first = sim.sent.size();
   CHECK(first >= 2 && first < 10, "%zu sent before the second listener", first);
   CHECK(sim.zero_hop_sends == (int)first, "in range: zero-hop");
@@ -353,7 +367,7 @@ void testChannelMergeAndZeroHop() {
   sim2.clips[kSid] = {1, clip1200()};
   s2.markOwn(kSid);
   s2.onPayload(ra.data(), ra.size(), 2, 0);
-  sim2.run(s2, 300 + 2 * 210 + 50);
+  sim2.run(s2, 3000 + 2 * 210 + 50);
   const int zh = sim2.zero_hop_sends;
   s2.onPayload(rb.data(), rb.size(), 2, 2);
   sim2.run(s2, 40000);
@@ -361,6 +375,93 @@ void testChannelMergeAndZeroHop() {
   const size_t n = sim2.sent.size();
   CHECK(n >= 2 && sim2.sent[n - 1].at - sim2.sent[n - 2].at >= 790, "flood gap %u",
         n >= 2 ? sim2.sent[n - 1].at - sim2.sent[n - 2].at : 0);
+}
+
+// A request for the whole clip gets its parity after the data (VoxFec.h,
+// byte for byte as the app makes it), and a listener that lost packets
+// rebuilds them from it; a request for some packets gets none.
+void testParityAfterWholeClip() {
+  Sim sim;
+  VoxServe s(sim);
+  sim.clips[kSid] = {1, clip1200()};   // 10 voice packets: 3 parity
+  const std::vector<uint8_t> path = {0x11};
+  const auto req = dartFetch(kSid, kKeyA, nullptr, true, &path);
+  s.onPayload(req.data(), req.size(), -1);
+  sim.run(s, 120000);
+  CHECK(sim.sent.size() == 10 && sim.parity.size() == 3, "%zu data, %zu parity", sim.sent.size(), sim.parity.size());
+  CHECK(!sim.parity.empty() && sim.parity[0].at > sim.sent.back().at, "parity after the data");
+  for (auto& p : sim.parity) CHECK(p.data.size() <= 163 && p.data[0] == 0x56, "a plain voice packet, fits GRP_DATA");
+  // The same bytes VoxFec makes for the clip.
+  const auto clip = clip1200();
+  std::vector<uint8_t> padded(10 * 156, 0);
+  memcpy(padded.data(), clip.data(), clip.size());
+  for (int k = 0; k < (int)sim.parity.size(); k++) {
+    int b, j;
+    VoxFec::parityAt(10, false, k, &b, &j);
+    uint8_t out[VoxFec::kMaxParityPacket];
+    const int n = VoxFec::encodeParity(kSid, padded.data(), 10, 156, 1500 - 9 * 156, b, j, out, sizeof out);
+    CHECK(sim.parity[k].data == std::vector<uint8_t>(out, out + n), "parity %d differs", k);
+  }
+  // A listener that lost packets 2, 5 and 9 of it gets them back.
+  std::vector<uint8_t> store(10 * 156);
+  VoxWire::Assembly a;
+  a.begin(kSid, 10, store.data(), store.size(), 156);
+  for (auto& p : sim.sent) {
+    VoxWire::Packet pk;
+    if (VoxWire::parsePacket(p.data.data(), p.data.size(), &pk) && pk.index != 2 && pk.index != 5 && pk.index != 9)
+      a.add(pk);
+  }
+  std::vector<VoxFec::Parity> pv;
+  for (auto& p : sim.parity) pv.push_back(VoxFec::Parity{p.data[5], (uint8_t)(p.data.size() - 6), p.data.data() + 6});
+  const int got = VoxFec::rebuild(10, 156, a.payload(), [&](int i) { return a.have((uint8_t)i); }, pv.data(),
+                                  (int)pv.size(), [&](int i, const uint8_t* d, int len) {
+                                    a.add(VoxWire::Packet{kSid, (uint8_t)i, d, len});
+                                  });
+  CHECK(got == 3 && a.complete() && std::vector<uint8_t>(a.payload(), a.payload() + a.payloadLen()) == clip,
+        "rebuilt %d", got);
+
+  Sim sim2;
+  VoxServe s2(sim2);
+  sim2.clips[kSid] = {1, clip1200()};
+  const std::vector<int> miss = {1, 4};
+  const auto some = dartFetch(kSid, kKeyA, &miss, true, &path);
+  s2.onPayload(some.data(), some.size(), -1);
+  sim2.run(s2, 30000);
+  CHECK(sim2.sent.size() == 2 && sim2.parity.empty(), "missing packets only: %zu, %zu parity", sim2.sent.size(),
+        sim2.parity.size());
+}
+
+// A zero-hop request (empty reply path) reaches everyone in range: a radio
+// that isn't the author waits a moment and leaves out what it hears another
+// node send meanwhile; the author answers at once.
+void testZeroHopHoldsBack() {
+  Sim sim;
+  VoxServe s(sim);
+  sim.clips[kSid] = {1, clip1200()};   // held here, recorded elsewhere
+  const std::vector<uint8_t> empty;
+  const std::vector<int> miss = {3, 6, 8};
+  const auto req = dartFetch(kSid, kKeyA, &miss, true, &empty);
+  s.onPayload(req.data(), req.size(), -1);
+  sim.run(s, 500);
+  CHECK(sim.sent.empty(), "not the author: waits");
+  // Another holder sends packet 6 meanwhile.
+  uint8_t pk[200];
+  const auto clip = clip1200();
+  const int n = VoxWire::encodePacket(kSid, 6, clip.data() + 6 * 156, 156, 0x42, pk, sizeof pk);
+  s.onPayload(pk, (size_t)n, -1);
+  sim.run(s, 30000);
+  std::vector<int> idx;
+  for (auto& p : sim.sent) idx.push_back(p.data[5]);
+  CHECK(idx == std::vector<int>({3, 8}), "sent %zu: leaves out the one heard", idx.size());
+  CHECK(!sim.sent.empty() && sim.sent[0].path.empty(), "answered zero-hop");
+
+  Sim own;
+  VoxServe so(own);
+  own.clips[kSid] = {1, clip1200()};
+  so.markOwn(kSid);
+  so.onPayload(req.data(), req.size(), -1);
+  own.run(so, 500);
+  CHECK(!own.sent.empty(), "the author answers at once");
 }
 
 void testIgnores() {
@@ -453,6 +554,8 @@ int main(int argc, char** argv) {
   testDuplicateIgnored();
   testNewerRequestReplaces();
   testQueuedListeners();
+  testParityAfterWholeClip();
+  testZeroHopHoldsBack();
   testIgnores();
   testSendRetry();
   if (g_fail) {

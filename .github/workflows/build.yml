@@ -48,6 +48,11 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_map_highlight test/test_map_highlight.cpp
           /tmp/test_map_highlight
+      - name: Photo and voice parity (VoxFec, byte for byte with Open TAK's vectors)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_vox_fec test/test_vox_fec.cpp
+          /tmp/test_vox_fec test/data/vox
       - name: Mesh photo fetch client (simulated mesh and Open TAK sender)
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \

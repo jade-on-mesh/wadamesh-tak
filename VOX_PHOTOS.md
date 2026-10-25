@@ -87,6 +87,37 @@ reduced still-picture header and no AVIF container, 2,750 B ("Standard") or
   finishes, the photo is decoded on the background task and opens in the image
   viewer by itself; tapping a downloaded photo later opens it again.
 
+## Parity packets, zero-hop requests and backoff
+
+These follow MeshCore Open TAK, which defines them (`lib/vox/vox_fec.dart` and
+`voice_service.dart` there).
+
+- **Parity.** A clip sent all at once ends with parity packets: a channel push,
+  or an answer to a request for the whole clip.
+  - **Code:** Reed-Solomon over GF(256), in blocks of 20 packets. Voice gets 3
+    per block of 8 or more packets; photos get 2 per block, about 10%.
+  - **What it fixes:** a listener that lost up to that many packets of a block
+    rebuilds them itself, with no request. A clip that used to stall for
+    minutes on one lost packet now completes with the burst.
+  - **Wire:** a parity packet is an ordinary `0x56` voice packet
+    `[0x56][sid ^ 0xFEC0FEC0][block * 8 + j][last packet length][parity]`, at
+    most 163 bytes. Companions route it like voice (radio2), and radios or
+    apps without parity drop it as an unknown clip.
+  - **Code here:** `src/ui-touch/VoxFec.h`. `test/test_vox_fec.cpp` checks it
+    byte for byte against the app's vectors (`test/data/vox/fec_vectors.txt`,
+    from the app's `scripts/vox/fec_ref.py`).
+  - **On a standalone:** `VoxFetch` keeps parity packets (even ones heard
+    before the announcement) and rebuilds as packets come in. `VoxServe`
+    sends parity after the data of a whole-clip answer.
+- **Zero-hop requests.** A clip whose packets came 0 hops first asks every
+  radio in range with one raw request with an empty path, which needs no
+  route. Anyone holding it answers zero-hop. A holder that isn't the clip's
+  author waits 1-3 s and leaves out packets it hears another node send.
+- **Channel answers.** The author gathers requests for 2-3 s (it was 300 ms),
+  so listeners asking close together get one burst.
+- **Backoff.** Retries that bring nothing back off by half again after the
+  fourth, up to 4 minutes, as the app does.
+
 ## Voice clips
 
 - A `VE3:` (Codec2) message shows as a voice bubble with its length: "Voice 7s

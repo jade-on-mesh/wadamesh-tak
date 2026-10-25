@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "VoxServe.h"
 
+#include "VoxFec.h"
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -75,7 +77,20 @@ uint32_t VoxServe::currentGen(uint32_t key) const {
   return 0;
 }
 
+bool VoxServe::heardSince(uint32_t sid, int index, uint32_t t) const {
+  for (const Heard& h : heard_)
+    if (h.at && h.sid == sid && h.index == index && (int32_t)(h.at - t) >= 0) return true;
+  return false;
+}
+
 void VoxServe::onPayload(const uint8_t* data, size_t len, int channel, int hops) {
+  VoxWire::Packet p;
+  if (VoxWire::parsePacket(data, len, &p)) {   // another node sending: note it
+    const uint32_t now = io_.nowMs();
+    heard_[heard_next_] = Heard{p.sid, p.index, now ? now : 1};
+    heard_next_ = (heard_next_ + 1) % (int)(sizeof heard_ / sizeof heard_[0]);
+    return;
+  }
   VoxWire::FetchRequest r;
   if (!VoxWire::parseFetch(data, len, &r)) return;
   uint8_t self[6];
@@ -154,7 +169,13 @@ void VoxServe::enqueue(const VoxWire::FetchRequest& r, int channel, bool from_dm
     t.route_len = r.path_len;
     for (int i = 0; i < r.path_len; i++) t.route[i] = r.path[r.path_len - 1 - i];
   }
-  t.not_before = channel >= 0 ? now + kOwnChannelDelayMs : now;
+  t.asked_at = now ? now : 1;
+  t.zero_hop_req = channel < 0 && r.has_path && r.path_len == 0;
+  // On a channel, gather: listeners' requests close together go in one burst.
+  // A zero-hop raw request reached everyone in range: the author goes first.
+  t.not_before = channel >= 0 ? now + kOwnChannelDelayMs + io_.random32() % 1000
+               : t.zero_hop_req && !isOwn(r.sid) ? now + kZeroHopWaitMs + io_.random32() % 2000
+               : now;
   t.route_deadline = now + (from_dm ? kRouteWaitDmMs : kRouteWaitMs);
 
   // The same request again (heard twice, or a quick retry): ignore it.
@@ -268,6 +289,32 @@ bool VoxServe::start(Job& j) {
     finish(j, "nothing it asked for exists");
     return false;
   }
+  if (j.all) j.par_total = VoxFec::totalParity(j.total, j.mode == VoxWire::kImageModeId);
+  return true;
+}
+
+// The next parity packet of a whole-clip answer. False when there are none left.
+bool VoxServe::sendParity(Job& j, uint32_t now) {
+  if (j.par_next >= j.par_total) return false;
+  const int pb = VoxWire::packetBytes(j.mode);
+  int b = 0, k = 0;
+  if (!VoxFec::parityAt(j.total, j.mode == VoxWire::kImageModeId, j.par_next, &b, &k)) return false;
+  // encodeParity reads whole packets: the last one is short in j.bits, so
+  // the stride stays pb and its length is passed.
+  const int last_len = (int)(j.len - (size_t)(j.total - 1) * (size_t)pb);
+  uint8_t pkt[VoxFec::kMaxParityPacket];
+  const int n = VoxFec::encodeParity(j.sid, j.bits, j.total, pb, last_len, b, k, pkt, sizeof pkt);
+  const bool zero_hop = j.channel >= 0 && j.max_hops == 0;
+  const bool ok = n > 0 && (j.channel >= 0 ? io_.sendChannelData(j.channel, VoxWire::kChannelDataType, pkt, (size_t)n, zero_hop)
+                                           : io_.sendRaw(j.route, j.route_len, pkt, (size_t)n));
+  if (!ok) {
+    if (++j.send_failures > 8) { j.par_next = j.par_total; return false; }
+    j.next_at = now + 250;
+    return true;
+  }
+  sent_total_++;
+  j.par_next++;
+  j.next_at = now + j.gap;
   return true;
 }
 
@@ -320,8 +367,23 @@ void VoxServe::tick() {
   }
   if (!after(now, j.next_at)) return;
 
-  const int idx = j.channel >= 0 ? nextPending(j) : packetIndex(j, j.next);
-  if (idx < 0) { finish(j, "served"); return; }
+  int idx = j.channel >= 0 ? nextPending(j) : j.next < packetCount(j) ? packetIndex(j, j.next) : -1;
+  // Not the author: leave out what another node sent since the request.
+  while (idx >= 0 && !isOwn(j.sid) && heardSince(j.sid, idx, j.asked_at)) {
+    if (j.channel >= 0) {
+      j.pend[idx >> 3] &= (uint8_t)~(1u << (idx & 7));
+      idx = nextPending(j);
+    } else {
+      j.next++;
+      idx = j.next < packetCount(j) ? packetIndex(j, j.next) : -1;
+    }
+  }
+  if (idx < 0) {
+    // The data's done: the parity of a whole-clip answer follows.
+    if (sendParity(j, now)) return;
+    finish(j, "served");
+    return;
+  }
   const bool zero_hop = j.channel >= 0 && j.max_hops == 0;
   const int pb = VoxWire::packetBytes(j.mode);
   const size_t off = (size_t)idx * (size_t)pb;
@@ -347,9 +409,9 @@ void VoxServe::tick() {
     // A farther listener may have joined: flood from here on, spaced for relays.
     j.gap = j.max_hops == 0 ? zeroHopGap() : packetGap(true, 0);
     j.next_at = now + j.gap;
-    if (nextPending(j) < 0) finish(j, "served");
+    if (nextPending(j) < 0 && j.par_next >= j.par_total) finish(j, "served");
     return;
   }
   j.next_at = now + j.gap;
-  if (j.next >= packetCount(j)) finish(j, "served");
+  if (j.next >= packetCount(j) && j.par_next >= j.par_total) finish(j, "served");
 }
