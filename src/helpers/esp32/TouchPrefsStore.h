@@ -552,6 +552,10 @@ void    touchPrefsSetSoundVolume(uint8_t vol);
  *  (default), 5 = 1600, 6 = 3200. Anything else stored reads back as 1. */
 uint8_t touchPrefsGetVoiceRecordMode();
 void    touchPrefsSetVoiceRecordMode(uint8_t wire_mode);
+/** "Brighter voice": play Codec2 at 16 kHz with the 4-8 kHz band filled in
+ *  (VoxBrighten). Default on. */
+bool    touchPrefsGetVoiceBrighter();
+void    touchPrefsSetVoiceBrighter(bool on);
 
 /** Do Not Disturb: silences the incoming-message chime during a daily time
  *  window. Start/end are half-hour slots (0..47, slot = hour*2 + (min>=30)),
