@@ -1,0 +1,251 @@
+{
+  "_about": [
+    "The fork's released boards: one entry per board, in the order the flasher lists them.",
+    "An entry here is a finished board. fork-release builds every image in its builds (env: a PlatformIO env; idf: the T-Display P4's ESP-IDF build switches), the release notes name it, and the MediaMesh Flasher offers it.",
+    "The flasher's file name is wadamesh-<base><suffix of each chosen option, in order>-merged.bin; every combination of options must be one of builds.",
+    "scripts/build/boards.py checks all of this in PR CI, and writes the flasher's list (flasher/index.html) from this file."
+  ],
+  "boards": [
+    {
+      "id": "tdeck",
+      "name": "LilyGo T-Deck / T-Deck Plus",
+      "chip": "ESP32-S3",
+      "desc": "Keyboard, trackball and touch screen.",
+      "boot": "Usually connects on its own. If not: switch it off, hold the trackball down, plug in USB (or switch on), then release.",
+      "notes": "T-Deck",
+      "base": "tdeck",
+      "options": [],
+      "builds": {
+        "tdeck": {
+          "env": "LilyGo_TDeck_companion_radio_touch"
+        }
+      }
+    },
+    {
+      "id": "m9",
+      "name": "Elecrow ThinkNode M9",
+      "chip": "ESP32-S3",
+      "desc": "QWERTY keyboard and d-pad, LR1110 radio.",
+      "boot": "Usually connects on its own. If not: hold the BOOT button while plugging in USB, then release.",
+      "notes": "ThinkNode M9",
+      "base": "thinknode-m9",
+      "options": [],
+      "builds": {
+        "thinknode-m9": {
+          "env": "ThinkNode_M9_companion_radio_touch"
+        }
+      }
+    },
+    {
+      "id": "pager",
+      "name": "LilyGo T-LoRa Pager",
+      "chip": "ESP32-S3",
+      "desc": "QWERTY keyboard and rotary encoder, no touch screen.",
+      "boot": "Usually connects on its own. If not: hold the BOOT button while plugging in USB, then release. The first USB install resizes the app slots, so it has to be this full install once.",
+      "notes": "T-LoRa Pager (SX1262 or LR1121)",
+      "base": "tlora-pager",
+      "options": [
+        {
+          "key": "radio",
+          "label": "Radio",
+          "help": "Check the label on the back of your unit. The wrong build leaves the radio dead.",
+          "choices": [
+            [
+              "sx1262",
+              "SX1262",
+              "-sx1262"
+            ],
+            [
+              "lr1121",
+              "LR1121",
+              "-lr1121"
+            ]
+          ]
+        }
+      ],
+      "builds": {
+        "tlora-pager-sx1262": {
+          "env": "tlora_pager_sx1262_companion_radio_touch"
+        },
+        "tlora-pager-lr1121": {
+          "env": "tlora_pager_lr1121_companion_radio_touch"
+        }
+      }
+    },
+    {
+      "id": "heltec-v4",
+      "name": "Heltec V4 + TFT",
+      "chip": "ESP32-S3",
+      "desc": "Heltec V4 with the 2.4\" TFT touch screen, on-screen keyboard.",
+      "boot": "Usually connects on its own. If not: hold the USER (BOOT) button while plugging in USB, then release. The first install resizes the app slots, so it has to be this full install once.",
+      "notes": "Heltec V4 and V4-R8 with the TFT",
+      "base": "heltec-v4",
+      "options": [
+        {
+          "key": "model",
+          "label": "Model",
+          "help": "V4-R8 is the one with 8 MB of PSRAM, sold with the Expansion Kit V2 (microSD, buzzer, sensors).",
+          "choices": [
+            [
+              "v4",
+              "V4",
+              ""
+            ],
+            [
+              "r8",
+              "V4-R8 + Expansion Kit V2",
+              "-r8"
+            ]
+          ]
+        }
+      ],
+      "builds": {
+        "heltec-v4": {
+          "env": "heltec_v4_tft_companion_radio_usb_tcp_touch"
+        },
+        "heltec-v4-r8": {
+          "env": "heltec_v4_r8_tft_companion_radio_usb_tcp_touch"
+        }
+      }
+    },
+    {
+      "id": "wio-l2",
+      "name": "Seeed Wio Tracker L2",
+      "chip": "ESP32-S3",
+      "desc": "Touch screen, GPS. Pre-release: still being brought up.",
+      "boot": "Usually connects on its own. If not: hold the BOOT button while plugging in USB, then release. The first install resizes the app slots, so it has to be this full install once.",
+      "notes": "Seeed Wio Tracker L2",
+      "base": "wio-tracker-l2",
+      "options": [],
+      "builds": {
+        "wio-tracker-l2": {
+          "env": "wio_tracker_l2_companion_radio_touch"
+        }
+      }
+    },
+    {
+      "id": "crowpanel",
+      "name": "Elecrow CrowPanel Advance",
+      "chip": "ESP32-S3",
+      "desc": "3.5\" or 5\" touch screen. Needs an SX1262 module fitted (the 5\": in the wireless slot, with the DIP switch set to it).",
+      "boot": "Usually connects on its own. If not: hold the BOOT button, press RST, then release BOOT. The first install resizes the app slots, so it has to be this full install once.",
+      "notes": "Elecrow CrowPanel Advance 3.5 and 5 inch",
+      "base": "crowpanel",
+      "options": [
+        {
+          "key": "size",
+          "label": "Screen",
+          "help": "The size on the box: 3.5\" (480x320) or 5\" (800x480).",
+          "choices": [
+            [
+              "35",
+              "3.5\"",
+              "-35"
+            ],
+            [
+              "50",
+              "5\"",
+              "-50"
+            ]
+          ]
+        }
+      ],
+      "builds": {
+        "crowpanel-35": {
+          "env": "crowpanel_35_companion_radio_touch"
+        },
+        "crowpanel-50": {
+          "env": "crowpanel_50_companion_radio_touch"
+        }
+      }
+    },
+    {
+      "id": "p4",
+      "name": "LilyGo T-Display P4",
+      "chip": "ESP32-P4",
+      "desc": "Large AMOLED or LCD touch screen, ESP32-C6 for Wi-Fi.",
+      "boot": "Usually connects on its own. If not: hold BOOT, tap RST, then release BOOT.",
+      "notes": "T-Display P4 AMOLED or LCD (-lcd; SX1262 or LR2021; -at for units whose C6 still runs the factory ESP-AT)",
+      "base": "tdisplay-p4",
+      "options": [
+        {
+          "key": "screen",
+          "label": "Screen",
+          "help": "The box and listing say AMOLED or LCD (TFT). The wrong one leaves the screen blank: flash the other.",
+          "choices": [
+            [
+              "amoled",
+              "AMOLED",
+              ""
+            ],
+            [
+              "lcd",
+              "LCD",
+              "-lcd"
+            ]
+          ]
+        },
+        {
+          "key": "radio",
+          "label": "Radio",
+          "help": "SX1262 is the common one; LR2021 units say so on the label.",
+          "choices": [
+            [
+              "sx1262",
+              "SX1262",
+              ""
+            ],
+            [
+              "lr2021",
+              "LR2021",
+              "-lr2021"
+            ]
+          ]
+        },
+        {
+          "key": "c6",
+          "label": "Wi-Fi chip firmware",
+          "help": "Current units ship esp-hosted. Pick ESP-AT only for an older unit whose C6 still runs LilyGo's factory ESP-AT.",
+          "choices": [
+            [
+              "hosted",
+              "esp-hosted (current)",
+              ""
+            ],
+            [
+              "at",
+              "ESP-AT (older units)",
+              "-at"
+            ]
+          ]
+        }
+      ],
+      "builds": {
+        "tdisplay-p4": {
+          "idf": ""
+        },
+        "tdisplay-p4-lr2021": {
+          "idf": "WADA_P4_LR2021=1"
+        },
+        "tdisplay-p4-at": {
+          "idf": "WADA_P4_LEGACY_AT=1"
+        },
+        "tdisplay-p4-lr2021-at": {
+          "idf": "WADA_P4_LR2021=1 WADA_P4_LEGACY_AT=1"
+        },
+        "tdisplay-p4-lcd": {
+          "idf": "WADA_P4_LCD=1"
+        },
+        "tdisplay-p4-lcd-lr2021": {
+          "idf": "WADA_P4_LCD=1 WADA_P4_LR2021=1"
+        },
+        "tdisplay-p4-lcd-at": {
+          "idf": "WADA_P4_LCD=1 WADA_P4_LEGACY_AT=1"
+        },
+        "tdisplay-p4-lcd-lr2021-at": {
+          "idf": "WADA_P4_LCD=1 WADA_P4_LR2021=1 WADA_P4_LEGACY_AT=1"
+        }
+      }
+    }
+  ]
+}

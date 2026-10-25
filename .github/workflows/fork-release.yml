@@ -26,6 +26,7 @@ on:
       - "platformio.ini"
       - "scripts/**"
       - "*.py"
+      - "boards.json"
       - ".github/workflows/fork-release.yml"
   workflow_dispatch:
 
@@ -42,6 +43,9 @@ jobs:
     outputs:
       tag: ${{ steps.n.outputs.tag }}
       skip: ${{ steps.n.outputs.skip }}
+      fw: ${{ steps.boards.outputs.fw }}
+      idf: ${{ steps.boards.outputs.idf }}
+      notes: ${{ steps.boards.outputs.notes }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,6 +78,11 @@ jobs:
           echo "Releasing $tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
+      # The boards come from boards.json (scripts/build/boards.py): a board added
+      # there is built here, named in the notes and offered by the flasher.
+      - name: Boards
+        id: boards
+        run: python3 scripts/build/boards.py matrix >> "$GITHUB_OUTPUT"
 
   firmware:
     needs: plan
@@ -81,26 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
-      matrix:
-        include:
-          - env: LilyGo_TDeck_companion_radio_touch
-            board: tdeck
-          - env: ThinkNode_M9_companion_radio_touch
-            board: thinknode-m9
-          - env: tlora_pager_sx1262_companion_radio_touch
-            board: tlora-pager-sx1262
-          - env: tlora_pager_lr1121_companion_radio_touch
-            board: tlora-pager-lr1121
-          - env: heltec_v4_tft_companion_radio_usb_tcp_touch
-            board: heltec-v4
-          - env: heltec_v4_r8_tft_companion_radio_usb_tcp_touch
-            board: heltec-v4-r8
-          - env: wio_tracker_l2_companion_radio_touch
-            board: wio-tracker-l2
-          - env: crowpanel_35_companion_radio_touch
-            board: crowpanel-35
-          - env: crowpanel_50_companion_radio_touch
-            board: crowpanel-50
+      matrix: ${{ fromJSON(needs.plan.outputs.fw) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -144,33 +134,15 @@ jobs:
           retention-days: 90
           if-no-files-found: ignore
 
-  # T-Display P4, AMOLED and LCD: an ESP-IDF build (scripts/build/ci-p4.sh), one image
-  # per screen (RM69A10 AMOLED / HI8561 LCD), radio (SX1262 / LR2021) and C6 firmware
-  # (esp-hosted / the older ESP-AT).
+  # The T-Display P4 images (boards.json entries with idf switches): an ESP-IDF build
+  # (scripts/build/ci-p4.sh), one image per screen, radio and C6 firmware.
   p4:
     needs: plan
     if: needs.plan.outputs.skip != 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
-      matrix:
-        include:
-          - board: tdisplay-p4
-            envs: ""
-          - board: tdisplay-p4-lr2021
-            envs: "WADA_P4_LR2021=1"
-          - board: tdisplay-p4-at
-            envs: "WADA_P4_LEGACY_AT=1"
-          - board: tdisplay-p4-lr2021-at
-            envs: "WADA_P4_LR2021=1 WADA_P4_LEGACY_AT=1"
-          - board: tdisplay-p4-lcd
-            envs: "WADA_P4_LCD=1"
-          - board: tdisplay-p4-lcd-lr2021
-            envs: "WADA_P4_LCD=1 WADA_P4_LR2021=1"
-          - board: tdisplay-p4-lcd-at
-            envs: "WADA_P4_LCD=1 WADA_P4_LEGACY_AT=1"
-          - board: tdisplay-p4-lcd-lr2021-at
-            envs: "WADA_P4_LCD=1 WADA_P4_LR2021=1 WADA_P4_LEGACY_AT=1"
+      matrix: ${{ fromJSON(needs.plan.outputs.idf) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -235,12 +207,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.tag }}
+          BOARDS: ${{ needs.plan.outputs.notes }}
         run: |
           set -euo pipefail
           ver="${TAG#tak-}"   # beta_93.2
           notes="**Wadamesh-tak $ver**: fork build ${ver##*.} on top of Wadamesh ${ver%.*}, adding MeshCore Open TAK photos and voice, OTP Messenger and Team. Built from \`$GITHUB_SHA\`.
 
-          Boards: T-Deck, ThinkNode M9, T-LoRa Pager (SX1262 or LR1121), T-Display P4 AMOLED (SX1262 or LR2021; \`-at\` for units whose C6 still runs the factory ESP-AT). First USB install on any board: flash the \`-merged.bin\` at 0x0 (the plain \`.bin\` only suits a board already running this fork; the Pager needs this once for its bigger app slots, the P4 because its app starts at 0x20000). Identity, contacts and channels are kept; on-device settings and saved Wi-Fi reset. P4: the plain variant unless its C6 still runs the factory ESP-AT. If the screen stays black after flashing, unplug the board and plug it back in.
+          Boards: ${BOARDS}. Easiest: the MediaMesh Flasher, https://cascadiamesh.org/mediamesh-flasher/. First USB install on any board: flash the \`-merged.bin\` at 0x0 (the plain \`.bin\` only suits a board already running this fork; several boards need this once for their bigger app slots, the P4 because its app starts at 0x20000). Identity, contacts and channels are kept; on-device settings and saved Wi-Fi reset. P4: the plain variant unless its C6 still runs the factory ESP-AT. If the screen stays black after flashing, unplug the board and plug it back in.
 
           Fork devices install this from **Settings > About > Install update**. To flash by USB, use a \`-merged.bin\`. Every app image carries a \`.sig\` that the device checks before installing."
           gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "Wadamesh-tak $ver" \

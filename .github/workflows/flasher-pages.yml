@@ -33,6 +33,7 @@ on:
     branches: [main]
     paths:
       - "flasher/**"
+      - "boards.json"
       - ".github/workflows/flasher-pages.yml"
   schedule:
     - cron: "7,37 * * * *"   # every 30 min: a cheap check, publishes only when something changed
@@ -67,7 +68,7 @@ jobs:
             gh api "repos/$REPO/releases?per_page=20" --jq '.[] | select(.tag_name | startswith("tak-beta_")) | .tag_name'
             gh api "repos/jade-on-mesh/spectra-cascadia/releases?per_page=30" --jq '.[] | .tag_name + " " + ([.assets[].name] | sort | join(","))'
             curl -sSfL --retry 3 "$CATALOG" | sha256sum
-            sha256sum flasher/index.html .github/workflows/flasher-pages.yml
+            sha256sum flasher/index.html boards.json .github/workflows/flasher-pages.yml
           } > fingerprint.txt
           fp=$(sha256sum fingerprint.txt | cut -c1-64)
           echo "fp=$fp" >> "$GITHUB_OUTPUT"
@@ -90,6 +91,7 @@ jobs:
           set -euo pipefail
           mkdir -p site/firmware
           cp flasher/index.html site/index.html
+          python3 scripts/build/boards.py flasher site/index.html   # the list from boards.json, even if the copy in flasher/ lags
           touch site/.nojekyll
           gh api "repos/$REPO/releases?per_page=60" > releases-all.json
           python3 - <<'PY'
