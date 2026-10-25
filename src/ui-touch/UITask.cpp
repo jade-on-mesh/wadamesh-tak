@@ -4352,8 +4352,7 @@ static const MeshRadioPreset k_mesh_radio_presets[k_mesh_radio_preset_count] = {
     {"Portugal (Narrow)", 869.618f, 62.5f, 7, 6, 22, 10},   // community PT preset (issue #74)
     {"EU 433MHz (Long Range)", 433.65f, 250.f, 11, 5, 22, 10},
     // US/Canada (902-928 MHz): no legal duty-cycle limit, so MeshCore's own default
-    // pacing (50%: the radio leaves the channel free as long as it just sent) rather than
-    // the EU 869 MHz 10% cap, which slowed photo and voice transfers five-fold.
+    // (50%: 30 minutes of airtime in any hour) rather than the EU 869 MHz 10% cap (6 minutes).
     {"US/Canada", 910.525f, 62.5f, 7, 5, 22, 50},
     {"USA: SoCal (Community)", 927.875f, 62.5f, 7, 5, 22, 50},
     {"USA: San Francisco (Community)", 910.525f, 62.5f, 7, 5, 22, 50},
