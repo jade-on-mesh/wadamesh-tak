@@ -15,7 +15,15 @@
 //                  we wait up to 25 s for it, then answer as raw data.
 //   channel        0x72 as GRP_DATA 0x5643 on the channel the clip was posted in;
 //                  answered on that channel. The clip's author answers after
-//                  300 ms; this radio doesn't stand in for other authors.
+//                  2-3 s, so listeners' requests that come close together are
+//                  answered in one burst; this radio doesn't stand in for
+//                  other authors.
+//
+// A request for the whole clip is answered with its parity packets after the
+// data (VoxFec.h), so a listener mends what that pass loses by itself. A
+// zero-hop request (an empty reply path) reaches every radio in range: one
+// that isn't the clip's author waits 1-3 s and leaves out packets it hears
+// another node send meanwhile.
 //
 // Packets are paced so we never talk over our own repeaters (same formula as
 // the app), salted (0x57) when the requester says it takes them, one request
@@ -59,7 +67,8 @@ class VoxServe {
   static constexpr uint32_t kDupWindowMs = 6000;
   static constexpr uint32_t kRouteWaitMs = 3000;
   static constexpr uint32_t kRouteWaitDmMs = 25000;
-  static constexpr uint32_t kOwnChannelDelayMs = 300;
+  static constexpr uint32_t kOwnChannelDelayMs = 2000;   // plus up to 1 s at random
+  static constexpr uint32_t kZeroHopWaitMs = 1000;       // not the author: plus up to 2 s
 
   explicit VoxServe(VoxServeIo& io) : io_(io) {}
   ~VoxServe();
@@ -71,6 +80,7 @@ class VoxServe {
   // A raw-data payload (channel < 0) or a GRP_DATA 0x5643 payload on `channel`.
   // Anything but a fetch request is ignored.
   // `hops`: how far a channel request came (0 = heard directly; -1 unknown).
+  // Data packets are noted too, to leave out what another node just sent.
   void onPayload(const uint8_t* data, size_t len, int channel, int hops = -1);
   // A DM's text. Returns true if it was a VR3 request (never shown in a chat).
   bool onDirectText(const char* text);
@@ -113,7 +123,14 @@ class VoxServe {
     // farthest requester decides zero-hop (all in range) or flood.
     uint8_t pend[32] = {0};        // bit i: packet i still to send
     int max_hops = 0;
+    uint32_t asked_at = 0;         // when the request came (for heardSince)
+    bool zero_hop_req = false;     // a raw request with an empty reply path
+    // Parity (VoxFec.h) after the data, for a request for the whole clip.
+    int par_total = 0;
+    int par_next = 0;
   };
+
+  struct Heard { uint32_t sid; uint8_t index; uint32_t at; };
 
   struct Recent { uint32_t sig; uint32_t at; };
 
@@ -129,6 +146,8 @@ class VoxServe {
   uint32_t signature(const Job& j) const;
   uint32_t listenerKey(uint32_t sid, const uint8_t key6[6], int channel) const;
   void logf(const char* fmt, ...);
+  bool heardSince(uint32_t sid, int index, uint32_t t) const;
+  bool sendParity(Job& j, uint32_t now);
 
   VoxServeIo& io_;
   Job jobs_[kMaxQueued];
@@ -145,6 +164,8 @@ class VoxServe {
   int gens_next_ = 0;
   int sent_total_ = 0;
   uint32_t seq_ = 0;
+  Heard heard_[48] = {};
+  int heard_next_ = 0;
 
   uint32_t bumpGen(uint32_t key);
   uint32_t currentGen(uint32_t key) const;

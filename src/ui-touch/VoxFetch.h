@@ -59,7 +59,13 @@ class VoxFetchIo {
 class VoxFetch {
  public:
   enum Status : uint8_t { kUnknown = 0, kRemote, kRequesting, kReceiving, kComplete, kUnavailable };
-  enum Method : uint8_t { kNone = 0, kDirect, kDm, kChannel };
+  // kZeroHop: a raw request with an empty path, heard by every radio in range
+  // (any holding the clip answers zero-hop); for a clip whose packets came 0
+  // hops, when no route is known. As the app's _Method.zeroHop.
+  enum Method : uint8_t { kNone = 0, kDirect, kDm, kChannel, kZeroHop };
+
+  // Parity packets (VoxFec.h) kept per session.
+  static constexpr int kMaxParity = 40;
 
   static constexpr int kMaxSessions = 6;
   // Attempt and stall budgets for small transfers; larger and nearly
@@ -83,10 +89,15 @@ class VoxFetch {
     return kMaxStalls;
   }
   // Each request in a row that brought nothing waits longer for the next
-  // answer (up to 3x): a long or busy route is slow, not gone.
+  // answer: up to 3x over the first four (a long or busy route is slow, not
+  // gone), then half as long again each time, at most 4 minutes. As the app's
+  // voxStallBackoff.
+  static constexpr uint32_t kStallBackoffCapMs = 240000;
   static uint32_t stallBackoff(uint32_t wait, int stalls) {
     const int k = stalls < 4 ? stalls : 4;
-    return wait + wait * (uint32_t)k / 2;
+    uint64_t d = (uint64_t)wait + (uint64_t)wait * (uint32_t)k / 2;
+    for (int i = 4; i < stalls && d < kStallBackoffCapMs; i++) d = d * 3 / 2;
+    return d < kStallBackoffCapMs || stalls <= 4 ? (uint32_t)d : kStallBackoffCapMs;
   }
 
   explicit VoxFetch(VoxFetchIo& io) : io_(io) {}
@@ -214,6 +225,12 @@ class VoxFetch {
     uint8_t probe_tries = 0;   // asks made
     uint8_t salt = 0;          // the next request's salt (VoxWire::encodeFetch), counting up
     bool salt_seeded = false;
+    // Parity packets heard (VoxFec.h): kMaxParity entries of [info][len][data].
+    uint8_t* parity = nullptr;
+    uint8_t n_parity = 0;
+    uint8_t rebuilt = 0;       // packets rebuilt from parity
+    uint8_t min_hops = 0xFF;   // fewest hops a channel packet of it came over
+    bool tried_zero_hop = false;
   };
 
   struct Orphan {
@@ -241,6 +258,10 @@ class VoxFetch {
   void accept(Session& s, const VoxWire::Packet& p, uint8_t via = kViaUnknown, const uint8_t* hop = nullptr,
               uint8_t hop_len = 0);
   void keepOrphan(const VoxWire::Packet& p, uint8_t via, bool relayed, const uint8_t* hop, uint8_t hop_len);
+  void acceptParity(Session& s, const VoxWire::Packet& p);
+  // Rebuilds what the session's parity can; true if any packet came back.
+  bool rebuildFromParity(Session& s);
+  void afterPacket(Session& s, int index);
   void adoptOrphans(Session& s);
   uint32_t airMs(const Session& s);
   uint32_t zeroHopGap(uint32_t air);

@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "ui-touch/VoxFec.h"
 #include "ui-touch/VoxFetch.h"
 
 namespace {
@@ -62,6 +63,9 @@ struct Sim : VoxFetchIo {
   }
   int bursts = 0;
   int channel_hops = -1;              // hops reported for channel packets
+  bool send_parity = false;           // an all-packets burst ends with VoxFec parity
+  bool image = true;                  // for the parity count
+  std::vector<uint8_t> last_packed;   // each raw request's path length
   std::map<uint32_t, std::vector<uint8_t>> store;
   VoxFetch* fetch = nullptr;
 
@@ -99,6 +103,19 @@ struct Sim : VoxFetchIo {
     const uint32_t gap = on_channel ? 4 * a + 150 : 2 * a + 150;
     uint32_t t = start;
     const bool first = bursts++ < drop_bursts;
+    if (send_parity && want.empty()) {   // after the data, as the app sends it
+      for (int k = 0; k < VoxFec::totalParity(total, image); k++) {
+        int b, j;
+        VoxFec::parityAt(total, image, k, &b, &j);
+        std::vector<uint8_t> padded((size_t)total * pb, 0);
+        memcpy(padded.data(), payload.data(), payload.size());
+        uint8_t out[VoxFec::kMaxParityPacket];
+        const int n = VoxFec::encodeParity(0xC0FFEE01, padded.data(), total, pb,
+                                           (int)(payload.size() - (size_t)(total - 1) * pb), b, j, out, sizeof out);
+        Event e{start + gap * (uint32_t)(idx.size() + k + 1), std::vector<uint8_t>(out, out + n), on_channel ? 2 : -1};
+        inbox.push_back(e);
+      }
+    }
     for (int i : idx) {
       t += gap;
       served_packets++;
@@ -134,6 +151,7 @@ struct Sim : VoxFetchIo {
     assert(VoxWire::isFetchRequest(data, len) && VoxWire::readSid(data + 1) == 0xC0FFEE01);
     assert(data[5] & VoxWire::kFetchFlagSaltOk);
     raw_requests++;
+    last_packed.push_back(packed);
     const bool has_path = data[5] & VoxWire::kFetchFlagHasPath;
     last_req_had_path.push_back(has_path);
     if (has_path) {   // [len][path] after the indices, our route to the sender
@@ -494,7 +512,10 @@ int main() {
     assert(VoxFetch::stallBudget(14, 17) == 8);   // 3 missing
     assert(VoxFetch::stallBackoff(10000, 0) == 10000);
     assert(VoxFetch::stallBackoff(10000, 1) == 15000);
-    assert(VoxFetch::stallBackoff(10000, 9) == 30000);
+    assert(VoxFetch::stallBackoff(10000, 4) == 30000);
+    assert(VoxFetch::stallBackoff(10000, 5) == 45000);   // then half again each time
+    assert(VoxFetch::stallBackoff(10000, 9) == 227812);  // as the app's voxStallBackoff
+    assert(VoxFetch::stallBackoff(10000, 12) == VoxFetch::kStallBackoffCapMs);
   }
 
   // 15. A requested transfer whose last packet is lost: the stall is noticed
@@ -669,6 +690,55 @@ int main() {
     sim.run(900000);
     assert(gotIt(sim, f));
     assert(sim.duplicate_requests == 0);
+  }
+
+  // 20. Parity (VoxFec): a push that loses 2 packets of a 30-packet photo and
+  //     3 of an 11-packet voice clip is rebuilt with no request at all.
+  {
+    Sim sim; setup(sim, 30 * 156 - 70); sim.send_parity = true; sim.drop_first = {3, 17};
+    VoxFetch f(sim); sim.fetch = &f;
+    f.onEnvelope(envFor(sim), nullptr, "Jade", 2, false);
+    sim.serve({}, true, sim.now, true);
+    sim.run(120000);
+    assert(gotIt(sim, f) && sim.raw_requests + sim.dm_requests + sim.channel_requests == 0);
+    printf("parity: 2 of 30 lost, rebuilt with no request\n");
+  }
+  {
+    Sim sim; setup(sim, 156 * 10 + 60); sim.pb = 156; sim.send_parity = true; sim.image = false;
+    sim.drop_first = {0, 5, 10};
+    VoxFetch f(sim); sim.fetch = &f;
+    VoxWire::Envelope e;
+    assert(VoxWire::parseEnvelope("VE3:1hjtjb5:1:b:b", &e) && e.sid == kSid);
+    f.onEnvelope(e, nullptr, "Jade", 2, false);
+    sim.serve({}, true, sim.now, true);
+    sim.run(60000);
+    assert(gotIt(sim, f) && sim.raw_requests + sim.dm_requests + sim.channel_requests == 0);
+    printf("parity: 3 of 11 voice packets lost, rebuilt with no request\n");
+  }
+  // 20b. Parity that arrives before the announcement is kept and used.
+  {
+    Sim sim; setup(sim, 30 * 156 - 70); sim.send_parity = true; sim.drop_first = {8};
+    VoxFetch f(sim); sim.fetch = &f;
+    sim.serve({}, true, sim.now, true);
+    sim.run(120000);   // all of it, parity included, before the announcement
+    f.onEnvelope(envFor(sim), nullptr, "Jade", 2, false);
+    sim.run(1000);
+    assert(gotIt(sim, f) && sim.channel_requests == 0);
+  }
+
+  // 21. A push heard straight from the sender (0 hops) stops short and the
+  //     sender isn't a contact: one zero-hop raw request asks everyone in
+  //     range, with an empty reply path, before the channel.
+  {
+    Sim sim; setup(sim, 30 * 156 - 70); sim.channel_hops = 0; sim.drop_first = {28, 29}; sim.sender_is_contact = false;
+    VoxFetch f(sim); sim.fetch = &f;
+    f.onEnvelope(envFor(sim), nullptr, "Stranger", 2, false);
+    sim.serve({}, true, sim.now, true);
+    sim.run(120000);
+    assert(gotIt(sim, f));
+    assert(sim.raw_requests >= 1 && sim.last_packed[0] == 0 && sim.last_req_had_path[0]);
+    assert(sim.channel_requests == 0);
+    printf("zero-hop: %d raw request(s) in range, no channel request\n", sim.raw_requests);
   }
 
   printf("all VoxFetch scenarios pass\n");
