@@ -113,9 +113,14 @@ reduced still-picture header and no AVIF container, 2,750 B ("Standard") or
   codebooks in flash) and is sample-exact with it (`test/test_vox_voice.cpp`,
   four modes). Every mode the app can send plays except 700C, compiled out to
   save 82 KB of flash; the app sends 1200 by default.
-- Playback streams frame by frame through the audio sink Lua apps use, on its
-  own task with a 32 KB internal-RAM stack (Codec2 needs ~22 KB), so it works
-  on boards with a speaker: the T-Deck and the T-LoRa Pager. Notification
+- Playback streams frame by frame through the audio sink Lua apps use, so it
+  works on boards with a speaker: the T-Deck and the T-LoRa Pager. It runs on
+  the audio worker, a task with a 16 KB internal-RAM stack made at boot
+  (`VoxAudioTask.cpp`; Codec2 decode needs ~9 KB). If the worker is busy, the
+  clip gets a task of its own when there's a free 16 KB block. If there isn't
+  (a Pager with Wi-Fi and BLE up often has a few KB), the clip waits its turn
+  on the worker and plays as soon as the job there ends. That job is usually
+  a photo decode, which is raised from idle priority so it ends sooner. Notification
   chimes wait while it plays. Others show the bubble and say there's no speaker.
 - **Brighter voice** (Settings > Sound > Voice messages, on by default) plays
   clips and walkie-talkie talk at 16 kHz with the 4-8 kHz band filled in.

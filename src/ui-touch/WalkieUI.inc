@@ -303,7 +303,8 @@ static bool playStart(Heard& h) {
   s_job_stop = false;
   s_job_running = true;
   if (!VoxAudioTask::run(playJob, nullptr) &&
-      xTaskCreate(playTask, "walkie_play", 16 * 1024, nullptr, 3, nullptr) != pdPASS) {
+      xTaskCreate(playTask, "walkie_play", 16 * 1024, nullptr, 3, nullptr) != pdPASS &&
+      !VoxAudioTask::runNext(playJob, nullptr)) {   // the jitter buffer holds it meanwhile
     s_job_running = false;
     __atomic_store_n(&s_lua_audio_active, false, __ATOMIC_RELEASE);
     s_owns_audio = false;
