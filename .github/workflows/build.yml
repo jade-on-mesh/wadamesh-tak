@@ -31,6 +31,11 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_battery_gauge test/test_battery_gauge.cpp
           /tmp/test_battery_gauge
+      - name: u-blox start-up aiding frames
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_ubx_assist test/test_ubx_assist.cpp
+          /tmp/test_ubx_assist
       - name: VOX photo wire format
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \

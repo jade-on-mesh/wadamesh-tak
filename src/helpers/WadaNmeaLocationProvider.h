@@ -26,7 +26,15 @@
 #include <RTClib.h>
 #include <helpers/RefCountedDigitalPin.h>
 #include "esp32/TouchPrefsStore.h"
+#include "UbxAssist.h"
 #include <limits.h>
+
+// u-blox start-up aiding (UbxAssist.h) on boards whose receiver is a u-blox
+// M10 (the build sets GPS_UBX_ASSIST=1): the time, the last known position and
+// AssistNow Autonomous, once each time the receiver comes up.
+#ifndef GPS_UBX_ASSIST
+#define GPS_UBX_ASSIST 0
+#endif
 
 class WadaNmeaLocationProvider : public LocationProvider {
   char _nmeaBuffer[100];
@@ -55,6 +63,12 @@ class WadaNmeaLocationProvider : public LocationProvider {
   uint32_t _probe_deadline_ms = 0;
   bool _stream_locked = false;
   bool _ubx_standby = false;      // rest in software standby (setUbxStandby)
+  bool _ubx_assist = GPS_UBX_ASSIST != 0;
+  bool _assist_due = false;       // send the aiding with the first good sentence after begin()
+  int32_t _known_lat_e6 = 0, _known_lon_e6 = 0;   // last fix (0,0: none)
+  uint32_t _known_saved_ms = 0;   // when it was last written to NVS (0: never this boot)
+  static constexpr const char* kKnownPosKey = "gps_lastpos";
+  static const unsigned long KNOWN_POS_SAVE_MS = 1800000;   // at most every 30 min
   uint8_t _wake_tries = 0;
   uint32_t _wake_check_ms = 0;    // when begin() looks for the stream again (0: not waiting)
   static const unsigned long TIME_SYNC_INTERVAL = 1800000;  // re-sync every 30 minutes
@@ -115,6 +129,41 @@ class WadaNmeaLocationProvider : public LocationProvider {
     _gps_serial->flush();
   }
 
+  void loadKnownPosition() {
+    if (_known_lat_e6 || _known_lon_e6) return;
+    int32_t v[2] = {0, 0};
+    if (touchPrefsGetBlob(kKnownPosKey, (uint8_t*)v, sizeof v) == sizeof v) {
+      _known_lat_e6 = v[0];
+      _known_lon_e6 = v[1];
+    }
+  }
+
+  // The fix, kept for the next start's aiding: in RAM always, in NVS on the
+  // first fix of a boot and then at most every 30 minutes.
+  void noteKnownPosition() {
+    const long la = nmea.getLatitude(), lo = nmea.getLongitude();
+    if (la == 0 && lo == 0) return;
+    _known_lat_e6 = (int32_t)la;
+    _known_lon_e6 = (int32_t)lo;
+    if (!_ubx_assist) return;
+    if (_known_saved_ms && millis() - _known_saved_ms < KNOWN_POS_SAVE_MS) return;
+    const int32_t v[2] = {_known_lat_e6, _known_lon_e6};
+    touchPrefsSetBlob(kKnownPosKey, (const uint8_t*)v, sizeof v);
+    _known_saved_ms = millis() ? millis() : 1;
+  }
+
+  void sendAssist() {
+    if (!_gps_serial) return;
+    auto send = [&](const ubxassist::Frame& f) {
+      if (f.size) _gps_serial->write(f.bytes, f.size);
+    };
+    send(ubxassist::enableAutonomous());
+    if (_clock) send(ubxassist::timeUtc(_clock->getCurrentTime()));
+    if (_known_lat_e6 || _known_lon_e6)
+      send(ubxassist::positionLlh(_known_lat_e6 / 1e6, _known_lon_e6 / 1e6));
+    _gps_serial->flush();
+  }
+
   void noteValidSentence() {
     if (!_probe_serial || _stream_locked) return;
     _stream_locked = true;
@@ -162,6 +211,7 @@ public:
   // u-blox receivers without an enable line: rest in software standby rather than with the
   // GNSS engine stopped (see ubxGnss). Opt-in per board, once its module is known to wake.
   void setUbxStandby(bool on) { _ubx_standby = on; }
+  void setUbxAssist(bool on) { _ubx_assist = on; }
 
   // Override the enable pin's active level at runtime (e.g. once the hardware
   // revision is known). Re-drives the pin so an already-running GPS stays on and an
@@ -200,6 +250,10 @@ public:
       nudgeReceiver();
     }
     ubxGnss(true);
+    if (_ubx_assist) {
+      loadKnownPosition();
+      _assist_due = true;
+    }
     // A receiver in standby spends the first bytes waking up, so the start may be lost;
     // loop() repeats the nudge and the start until the stream is back.
     _wake_tries = 0;
@@ -297,8 +351,14 @@ public:
       nmea.process(c);
       if (sentence_end) {
         const char* sentence = nmea.getSentence();
-        if (sentence && sentence[0] == '$' && MicroNMEA::testChecksum(sentence))
+        if (sentence && sentence[0] == '$' && MicroNMEA::testChecksum(sentence)) {
           noteValidSentence();
+          // The receiver is up and listening at this baud: aid it now.
+          if (_assist_due) {
+            _assist_due = false;
+            sendAssist();
+          }
+        }
       }
     }
 
@@ -327,7 +387,10 @@ public:
           _last_time_sync = millis();
         }
       }
-      if (isValid()) time_valid++;
+      if (isValid()) {
+        time_valid++;
+        noteKnownPosition();
+      }
     }
   }
 };

@@ -129,5 +129,11 @@ MatterMesh OS (T-Deck battery gauge)
     src/helpers/BatteryGauge.h are adapted from
     tdeck-plus/src/services/battery_gauge.h.
 
+MatterMesh OS (u-blox start-up aiding)
+    Copyright (c) 2026 the MatterMesh OS contributors
+    GNU General Public License v3.0 — https://github.com/mattermeshos/mattermesh-os
+    The UBX aiding frames in src/helpers/UbxAssist.h are adapted from
+    tdeck-plus/src/services/gps_assist.h.
+
 This list is not exhaustive and is expanded as dependencies are vendored or
 added.
