@@ -113,5 +113,14 @@ Camillia-MT (CrowPanel Advance 5.0 display, backlight and touch bring-up)
     GT911 reset in variants/crowpanel_50/CrowPanel50Display.cpp are adapted
     from src/hal/crowpanel_50_display.h and src/hal/hw_crowpanel_50.h.
 
+MatterMesh OS (PC emulator: Arduino/ESP-IDF/FreeRTOS host core, SX1262 chip
+model and simulated LoRa air)
+    Copyright (c) 2026 the MatterMesh OS contributors
+    GNU General Public License v3.0 — https://github.com/mattermeshos/mattermesh-os
+    emu/include, emu/core, emu/devices/sx1262.* and emu/air are taken from
+    tdeck-plus/emu, with changes marked "Wadamesh" (task notifications,
+    recursive mutexes, a thread-safe chip and mid-preamble acquisition). Test
+    code only: none of it is in the firmware.
+
 This list is not exhaustive and is expanded as dependencies are vendored or
 added.
