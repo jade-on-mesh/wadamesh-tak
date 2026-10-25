@@ -102,7 +102,10 @@ Everything else (schedules, `tempradio`, diagnostics) works from
 A radio that has never saved MediaMesh settings starts with radio2 **on**
 (send and listen) when its main radio is in the US 902-928 MHz band, and off
 elsewhere, since the default frequency below is a US one. Turning it off is
-remembered.
+remembered. **Sent on radio2** starts as *Photos & voice*. A radio that was
+still on the old automatic pair (`tx.media auto`, `radio2.cross auto`, shown
+as *Custom*) moves to *Photos & voice* once (NVS key `mm_pv_def`); choosing
+that pair again from the Terminal afterwards is kept.
 
 Default settings: 911.150 MHz, 250 kHz, SF7, CR 4/5 (the *250 kHz fast* preset).
 That is about 4× faster than SF7/62.5 for roughly 6 dB less range. Where that
