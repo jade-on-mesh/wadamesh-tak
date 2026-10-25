@@ -144,8 +144,9 @@ jobs:
           retention-days: 90
           if-no-files-found: ignore
 
-  # T-Display P4 with the AMOLED panel: an ESP-IDF build (scripts/build/ci-p4.sh), one
-  # image per radio (SX1262 / LR2021) and C6 firmware (esp-hosted / the older ESP-AT).
+  # T-Display P4, AMOLED and LCD: an ESP-IDF build (scripts/build/ci-p4.sh), one image
+  # per screen (RM69A10 AMOLED / HI8561 LCD), radio (SX1262 / LR2021) and C6 firmware
+  # (esp-hosted / the older ESP-AT).
   p4:
     needs: plan
     if: needs.plan.outputs.skip != 'true'
@@ -162,6 +163,14 @@ jobs:
             envs: "WADA_P4_LEGACY_AT=1"
           - board: tdisplay-p4-lr2021-at
             envs: "WADA_P4_LR2021=1 WADA_P4_LEGACY_AT=1"
+          - board: tdisplay-p4-lcd
+            envs: "WADA_P4_LCD=1"
+          - board: tdisplay-p4-lcd-lr2021
+            envs: "WADA_P4_LCD=1 WADA_P4_LR2021=1"
+          - board: tdisplay-p4-lcd-at
+            envs: "WADA_P4_LCD=1 WADA_P4_LEGACY_AT=1"
+          - board: tdisplay-p4-lcd-lr2021-at
+            envs: "WADA_P4_LCD=1 WADA_P4_LR2021=1 WADA_P4_LEGACY_AT=1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

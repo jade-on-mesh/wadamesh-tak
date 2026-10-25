@@ -500,12 +500,13 @@ const Wada = (() => {
       boot: "Usually connects on its own. If not: hold the BOOT button, press RST, then release BOOT. The first install resizes the app slots, so it has to be this full install once.",
       options: [{ key: "size", label: "Screen", help: "The size on the box: 3.5\" (480x320) or 5\" (800x480).", choices: [["35", "3.5\""], ["50", "5\""]] }],
       slug: o => `crowpanel-${o.size}` },
-    { id: "p4", name: "LilyGo T-Display P4 AMOLED", chip: "ESP32-P4", desc: "Large AMOLED touch screen, ESP32-C6 for Wi-Fi.",
+    { id: "p4", name: "LilyGo T-Display P4", chip: "ESP32-P4", desc: "Large AMOLED or LCD touch screen, ESP32-C6 for Wi-Fi.",
       boot: "Usually connects on its own. If not: hold BOOT, tap RST, then release BOOT.",
       options: [
+        { key: "screen", label: "Screen", help: "The box and listing say AMOLED or LCD (TFT). The wrong one leaves the screen blank: flash the other.", choices: [["amoled", "AMOLED"], ["lcd", "LCD"]] },
         { key: "radio", label: "Radio", help: "SX1262 is the common one; LR2021 units say so on the label.", choices: [["sx1262", "SX1262"], ["lr2021", "LR2021"]] },
         { key: "c6", label: "Wi-Fi chip firmware", help: "Current units ship esp-hosted. Pick ESP-AT only for an older unit whose C6 still runs LilyGo's factory ESP-AT.", choices: [["hosted", "esp-hosted (current)"], ["at", "ESP-AT (older units)"]] }],
-      slug: o => `tdisplay-p4${o.radio === "lr2021" ? "-lr2021" : ""}${o.c6 === "at" ? "-at" : ""}` },
+      slug: o => `tdisplay-p4${o.screen === "lcd" ? "-lcd" : ""}${o.radio === "lr2021" ? "-lr2021" : ""}${o.c6 === "at" ? "-at" : ""}` },
   ];
   let board = BOARDS[0], opts = {}, releases = [], rel = null;
   const slug = () => board.slug(opts);
