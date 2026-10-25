@@ -64,11 +64,13 @@ bool rawActive();
 
 }  // namespace VoxMic
 
-// A task for recording and voice playback, created once at boot (begin()) so
-// its 16 KB internal-RAM stack is there when the user presses the mic, however
-// fragmented the heap has become since. Boards without a mic: all false.
+// A task for recording, voice playback, Wi-Fi updates and the Reader, created
+// once at boot (begin()) so its 16 KB internal-RAM stack is there when needed,
+// however fragmented the heap has become since. Every ESP32 board has it.
 namespace VoxAudioTask {
 bool begin();
+// The worker was made (it may be busy).
+bool exists();
 // The worker exists and is idle.
 bool available();
 // Runs fn(arg) on the worker (fn returns; it must not delete its task). False

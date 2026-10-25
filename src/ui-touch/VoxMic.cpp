@@ -561,6 +561,7 @@ bool begin() {
   return true;
 }
 
+bool exists() { return s_worker != nullptr; }
 bool available() { return s_worker && !s_worker_busy; }
 
 bool run(void (*fn)(void*), void* arg) {
@@ -576,11 +577,63 @@ bool run(void (*fn)(void*), void* arg) {
 
 #else  // no microphone on this board
 
+#if defined(ESP32) || defined(ESP_PLATFORM)
+#include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+// No mic, but the same worker: its 16 KB internal stack, made at boot while the
+// heap is whole, is what Wi-Fi updates, the Reader and voice playback run on.
+// Without it each made its own 16 KB task when needed, and on a Pager with
+// Wi-Fi and BLE up the largest free block was 10 KB ("out of memory (RAM
+// 18K/10K, need 16K)").
+namespace {
+constexpr uint32_t kWorkerStack = 16 * 1024;
+TaskHandle_t s_worker = nullptr;
+void (*volatile s_job)(void*) = nullptr;
+void* volatile s_job_arg = nullptr;
+volatile bool s_worker_busy = false;
+
+void workerTask(void*) {
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    void (*fn)(void*) = s_job;
+    if (fn) fn(s_job_arg);
+    s_job = nullptr;
+    s_worker_busy = false;
+  }
+}
+}  // namespace
+
+namespace VoxAudioTask {
+bool begin() {
+  if (s_worker) return true;
+  if (xTaskCreate(workerTask, "vox_audio", kWorkerStack, nullptr, 3, &s_worker) != pdPASS) {
+    s_worker = nullptr;
+    Serial.println("[VOX] worker: no memory at boot");
+    return false;
+  }
+  return true;
+}
+bool exists() { return s_worker != nullptr; }
+bool available() { return s_worker && !s_worker_busy; }
+bool run(void (*fn)(void*), void* arg) {
+  if (!s_worker || s_worker_busy || !fn) return false;
+  s_worker_busy = true;
+  s_job_arg = arg;
+  s_job = fn;
+  xTaskNotifyGive(s_worker);
+  return true;
+}
+}  // namespace VoxAudioTask
+#else
 namespace VoxAudioTask {
 bool begin() { return false; }
+bool exists() { return false; }
 bool available() { return false; }
 bool run(void (*)(void*), void*) { return false; }
 }  // namespace VoxAudioTask
+#endif
 
 namespace VoxMic {
 bool available() { return false; }

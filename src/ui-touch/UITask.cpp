@@ -78503,9 +78503,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
     // largest block, so the worker could never start and tiles, the update
     // check and the app catalog were all silently dead.
     reserveTileFetchStack();
-#if (defined(HAS_TDECK_GT911) || defined(HAS_TDISPLAY_P4)) && CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
-    VoxAudioTask::begin();   // likewise the voice record/playback stack (16 KB)
-#endif
+    VoxAudioTask::begin();   // likewise the 16 KB worker: voice, Wi-Fi updates, the Reader
     lv_init();
     initTouchFontFallbacks();
     // NB: re-pointing the LVGL theme's font here does NOT work (tried, verified
