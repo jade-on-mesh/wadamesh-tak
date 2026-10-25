@@ -74,6 +74,14 @@ bool exists();
 // The worker exists and is idle.
 bool available();
 // Runs fn(arg) on the worker (fn returns; it must not delete its task). False
-// if there's no worker or it's busy: make a task of your own then.
+// if there's no worker or it's busy (or a job is queued): make a task of your
+// own then.
 bool run(void (*fn)(void*), void* arg);
+// For playback someone is waiting for: runs fn(arg) now if the worker is idle,
+// else queues it to run next, ahead of anything else, and raises the running
+// job (a photo decode runs at idle priority) so it ends sooner. False if
+// there's no worker or another job is already queued.
+bool runNext(void (*fn)(void*), void* arg);
+// A job is waiting for the worker (queued by runNext).
+bool queued();
 }  // namespace VoxAudioTask

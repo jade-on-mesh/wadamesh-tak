@@ -321,28 +321,6 @@ void captureTask(void* arg) {   // the fallback, on a task of its own
   vTaskDelete(nullptr);
 }
 
-// ---- the audio worker ------------------------------------------------------------
-// One task, created at boot while the internal heap is still whole, that runs
-// recordings and voice playback (never both: the UI keeps them apart). Making
-// the stack on demand needed a free 16 KB block at the moment the mic was
-// pressed, which a T-Deck with Wi-Fi up and a while of uptime may not have;
-// this one is held for good instead.
-constexpr uint32_t kWorkerStack = 16 * 1024;
-TaskHandle_t s_worker = nullptr;
-void (*volatile s_job)(void*) = nullptr;
-void* volatile s_job_arg = nullptr;
-volatile bool s_worker_busy = false;
-
-void workerTask(void*) {
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    void (*fn)(void*) = s_job;
-    if (fn) fn(s_job_arg);
-    s_job = nullptr;
-    s_worker_busy = false;
-  }
-}
-
 void shutdownHardware() {
   if (s_codec_on) hwStop();
   s_codec_on = false;
@@ -549,91 +527,8 @@ bool rawActive() { return s_raw; }
 
 }  // namespace VoxMic
 
-namespace VoxAudioTask {
-
-bool begin() {
-  if (s_worker) return true;
-  if (xTaskCreate(workerTask, "vox_audio", kWorkerStack, nullptr, 3, &s_worker) != pdPASS) {
-    s_worker = nullptr;
-    Serial.println("[VOX] audio worker: no memory at boot; recording will make its own task");
-    return false;
-  }
-  return true;
-}
-
-bool exists() { return s_worker != nullptr; }
-bool available() { return s_worker && !s_worker_busy; }
-
-bool run(void (*fn)(void*), void* arg) {
-  if (!s_worker || s_worker_busy || !fn) return false;
-  s_worker_busy = true;
-  s_job_arg = arg;
-  s_job = fn;
-  xTaskNotifyGive(s_worker);
-  return true;
-}
-
-}  // namespace VoxAudioTask
 
 #else  // no microphone on this board
-
-#if defined(ESP32) || defined(ESP_PLATFORM)
-#include <Arduino.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-
-// No mic, but the same worker: its 16 KB internal stack, made at boot while the
-// heap is whole, is what Wi-Fi updates, the Reader and voice playback run on.
-// Without it each made its own 16 KB task when needed, and on a Pager with
-// Wi-Fi and BLE up the largest free block was 10 KB ("out of memory (RAM
-// 18K/10K, need 16K)").
-namespace {
-constexpr uint32_t kWorkerStack = 16 * 1024;
-TaskHandle_t s_worker = nullptr;
-void (*volatile s_job)(void*) = nullptr;
-void* volatile s_job_arg = nullptr;
-volatile bool s_worker_busy = false;
-
-void workerTask(void*) {
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    void (*fn)(void*) = s_job;
-    if (fn) fn(s_job_arg);
-    s_job = nullptr;
-    s_worker_busy = false;
-  }
-}
-}  // namespace
-
-namespace VoxAudioTask {
-bool begin() {
-  if (s_worker) return true;
-  if (xTaskCreate(workerTask, "vox_audio", kWorkerStack, nullptr, 3, &s_worker) != pdPASS) {
-    s_worker = nullptr;
-    Serial.println("[VOX] worker: no memory at boot");
-    return false;
-  }
-  return true;
-}
-bool exists() { return s_worker != nullptr; }
-bool available() { return s_worker && !s_worker_busy; }
-bool run(void (*fn)(void*), void* arg) {
-  if (!s_worker || s_worker_busy || !fn) return false;
-  s_worker_busy = true;
-  s_job_arg = arg;
-  s_job = fn;
-  xTaskNotifyGive(s_worker);
-  return true;
-}
-}  // namespace VoxAudioTask
-#else
-namespace VoxAudioTask {
-bool begin() { return false; }
-bool exists() { return false; }
-bool available() { return false; }
-bool run(void (*)(void*), void*) { return false; }
-}  // namespace VoxAudioTask
-#endif
 
 namespace VoxMic {
 bool available() { return false; }

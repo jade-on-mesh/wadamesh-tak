@@ -75374,13 +75374,19 @@ static bool voxVoicePlay(uint32_t sid, const char** err) {
   s_vox_voice_sid = sid;
   // ~8 KB of Codec2 decode stack (test/test_codec2_stack.c; lib/codec2 keeps its
   // scratch in the instance, in PSRAM), from internal RAM while it plays.
-  // On the audio worker made at boot (VoxMic.h) if there is one.
+  // On the audio worker made at boot (VoxMic.h) if it's idle; else a task of its
+  // own if there's a 16 KB block; else (a Pager with Wi-Fi and BLE up has a few
+  // KB) next on the worker, which a photo decode may hold for a few seconds.
   if (!VoxAudioTask::run(voxVoiceJob, pb) &&
-      xTaskCreate(voxVoiceTask, "vox_voice", 16 * 1024, pb, 3, nullptr) != pdPASS) {
+      xTaskCreate(voxVoiceTask, "vox_voice", 16 * 1024, pb, 3, nullptr) != pdPASS &&
+      !VoxAudioTask::runNext(voxVoiceJob, pb)) {
     s_vox_voice_sid = 0;
     __atomic_store_n(&s_lua_audio_active, false, __ATOMIC_RELEASE);
     free(pb->frames);
     free(pb);
+    Serial.printf("[VOX] can't play: worker %s, largest internal block %u\n",
+                  VoxAudioTask::exists() ? "busy, one already waiting" : "missing",
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     *err = "Not enough memory to play";
     return false;
   }
