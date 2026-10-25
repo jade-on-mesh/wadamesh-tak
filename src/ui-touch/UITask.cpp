@@ -160,6 +160,7 @@ static void* wadaMp3Scratch() { return s_wada_mp3_scratch; }
 #include "VoxAv1Job.h"       // ...run on its own task, polled from the LVGL loop
 #include "VoxPhotos.h"        // ...and fetched from the sender (VoxFetch over the mesh)
 #include "VoxVoice.h"         // MeshCore Open TAK voice clips: Codec2 decode (lib/codec2)
+#include "../helpers/BootMem.h"   // internal RAM at start-up, for Memory detail
 #include "VoxBrighten.h"      // ...and "Brighter voice": the 4-8 kHz band Codec2 leaves out
 #include "VoxMic.h"           // ...and recording them on boards with a microphone (T-Deck)
 #if defined(DOC_CAPTURE)
@@ -17772,7 +17773,7 @@ static void openMemoryDetailCb(lv_event_t* e) {
   const size_t s_min  = heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM);
   const size_t s_lrg  = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
   const size_t dma_free = heap_caps_get_free_size(MALLOC_CAP_DMA);
-  char b[700]; int q = 0;
+  char b[1300]; int q = 0;
   q += snprintf(b + q, sizeof(b) - q,
     "Internal DRAM\n  used  %u / %u KB\n  free  %u KB (low %u)\n  largest free  %u KB\n\n",
     kb(i_tot - i_free), kb(i_tot), kb(i_free), kb(i_min), kb(i_lrg));
@@ -17780,6 +17781,13 @@ static void openMemoryDetailCb(lv_event_t* e) {
     "PSRAM\n  used  %u / %u KB\n  free  %u KB (low %u)\n  largest free  %u KB\n\n",
     kb(s_tot - s_free), kb(s_tot), kb(s_free), kb(s_min), kb(s_lrg));
   q += snprintf(b + q, sizeof(b) - q, "DMA-capable free: %u KB\n", kb(dma_free));
+  if (bootmem::g_count) {
+    q += snprintf(b + q, sizeof(b) - q, "\nInternal free at start-up\n");
+    for (int i = 0; i < bootmem::g_count && q < (int)sizeof(b) - 48; i++)
+      q += snprintf(b + q, sizeof(b) - q, "  %u KB (block %u)  %s\n", kb(bootmem::g_marks[i].free),
+                    kb(bootmem::g_marks[i].largest), bootmem::g_marks[i].what);
+    q += snprintf(b + q, sizeof(b) - q, "\n");
+  }
   q += snprintf(b + q, sizeof(b) - q, "UI loop stack free: %u B\n\n",
                 (unsigned)(uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)));
   q += snprintf(b + q, sizeof(b) - q,
