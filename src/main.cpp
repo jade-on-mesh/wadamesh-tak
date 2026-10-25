@@ -1,3 +1,4 @@
+#include "helpers/BootMem.h"
 #include "helpers/PsramStatic.h"   // buffers in PSRAM (internal RAM is for Wi-Fi, BLE, TLS, stacks)
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
@@ -127,6 +128,7 @@ static uint32_t _atoi(const char* sp) {
 
     #if defined(TLORA_PAGER)
     static void pagerLogInternalHeap(const char* phase) {
+      bootmem::mark(phase);
       const uint32_t caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
       Serial.printf("[heap] %s: internal free=%u largest=%u low=%u dma=%u psram=%u\n",
                     phase,
@@ -809,6 +811,7 @@ void setup() {
   // genuinely needs internal/DMA memory asks for it by capability and is
   // unaffected. Tunable — raise it if something misbehaves.
   heap_caps_malloc_extmem_enable(256);
+  bootmem::mark("setup start");
 
   // Widen the task-watchdog grace period. The ~5 s default trips during a legitimate-but-slow flash
   // burst — a SPIFFS garbage-collect, or a bulk save (DataStore issues ~12 flash ops per contact,
@@ -1603,7 +1606,9 @@ void setup() {
         if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED)   wifi_needs_reconnect = true;
         else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP)    wifi_needs_reconnect = false;
     });
+    bootmem::mark("before Wi-Fi");
     const bool wifi_mode_ready = WiFi.mode(WIFI_STA);
+    bootmem::mark("Wi-Fi started");
 #if defined(TLORA_PAGER)
     if (!wifi_mode_ready) {
       pagerWifiEnterBleFallback("boot STA initialization failed");
