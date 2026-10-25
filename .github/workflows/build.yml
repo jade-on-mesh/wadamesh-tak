@@ -348,6 +348,21 @@ jobs:
           echo "::error title=build log tail::$(tail -40 build.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
       - name: Size
         run: echo "::notice title=tdisplay-p4 size::application.bin $(stat -c %s dist/wadamesh-tdisplay-p4.bin) bytes (5.5 MB slot)"
+      # The LCD panel (HI8561) is the same build with another display driver.
+      - name: Build the LCD variant
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/w" -w /w espressif/idf:v5.5.1 \
+            bash scripts/build/ci-p4.sh dev-check dist tdisplay-p4-lcd WADA_P4_LCD=1 2>&1 | tee build-lcd.log
+          sudo chown -R "$(id -u)" dist
+          echo "::notice title=tdisplay-p4-lcd size::application.bin $(stat -c %s dist/wadamesh-tdisplay-p4-lcd.bin) bytes (5.5 MB slot)"
+      - name: LCD errors as annotations
+        if: failure()
+        shell: bash
+        run: |
+          [ -f build-lcd.log ] || exit 0
+          { grep -E "error:|undefined reference|FAILED|Error" build-lcd.log || true; } | head -30 | while IFS= read -r l; do echo "::error::lcd: ${l}"; done
       # Flash, internal RAM and PSRAM by section, symbol, library and object
       # (scripts/build/mem-report.py), on a branch: annotations are too small.
       - name: Memory report

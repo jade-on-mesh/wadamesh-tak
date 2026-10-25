@@ -35,7 +35,7 @@ stops with "too big for this radio's slots: install once over USB".
 - RAK WisMesh Tap V2 (RAK3312): env `rak_tap_v2_companion_radio_touch` (beta)
 - LilyGo T-Lora Pager: envs `tlora_pager_lr1121_companion_radio_touch` / `tlora_pager_sx1262_companion_radio_touch` (beta); [keyboard shortcuts](TLORA_PAGER_SHORTCUTS.md)
 - Heltec V4-R8 + Expansion Kit V2: env `heltec_v4_r8_tft_companion_radio_usb_tcp_touch` (beta)
-- LilyGo T-Display P4: built from `tdisplay_p4/` (ESP-IDF); AMOLED + SX1262 by default, with `WADA_P4_LCD=1` for TFT-LCD and `WADA_P4_LR2021=1` for LR2021 (beta)
+- LilyGo T-Display P4: built from `tdisplay_p4/` (ESP-IDF); AMOLED + SX1262 by default, with `WADA_P4_LCD=1` for TFT-LCD and `WADA_P4_LR2021=1` for LR2021 (beta). Releases and the flasher carry every combination, `tdisplay-p4[-lcd][-lr2021][-at]`; the LCD builds are not yet tested on hardware
 - Seeed SenseCAP Indicator D1L: env `sensecap_indicator_companion_radio_touch` (experimental, community port, PR #682)
 - Elecrow CrowPanel Advanced 10.1 (ESP32-P4): built from `crowpanel_p4_101/` (ESP-IDF), one image per board revision with `WADA_CP_REV=1.0|1.1|1.2` (experimental, not yet tested on hardware; requires an SX1262 in the wireless slot)
 - Attaky Mesh Series: env `attaky_mesh_series_companion_radio_touch` (beta)
