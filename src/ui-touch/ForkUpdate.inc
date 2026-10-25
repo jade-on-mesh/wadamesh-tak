@@ -524,7 +524,14 @@ static int run(Job& j) {
   tlsUsePsram();
   j.done = xSemaphoreCreateBinary();
   if (!j.done) { say(j, "out of memory"); return j.kind == Kind::Latest ? -1 : 0; }
-  if (VoxAudioTask::run(workerFn, &j)) {
+  // The worker may be busy for a moment (a voice clip, the Reader): wait up to
+  // 5 s for it rather than need a second free 16 KB block.
+  bool on_worker = VoxAudioTask::run(workerFn, &j);
+  for (int i = 0; !on_worker && VoxAudioTask::exists() && i < 50; i++) {
+    vTaskDelay(pdMS_TO_TICKS(100));
+    on_worker = VoxAudioTask::run(workerFn, &j);
+  }
+  if (on_worker) {
     xSemaphoreTake(j.done, portMAX_DELAY);
     vSemaphoreDelete(j.done);
     return j.result;
