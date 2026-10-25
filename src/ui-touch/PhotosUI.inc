@@ -22,6 +22,95 @@ static void pageBuild();
 static void pageClose();
 static void pageBack() { pageClose(); }
 
+// ---- the look ----------------------------------------------------------------
+// Glass over the theme's background (styleGlass: the aurora, a picture or a
+// colour that stands apart), with a light rim, soft rounded tiles and the accent
+// as the one colour. High contrast and the e-paper Pro get solid cards instead.
+static constexpr lv_coord_t kTileR = 14, kThumbR = 10, kGap = 8;
+
+static bool plainLook() {
+#if defined(HAS_TDECK_PRO)
+  return true;
+#else
+  return s_theme_high_contrast;
+#endif
+}
+
+// The lit accent, a little softer for fills.
+static uint32_t accentSoft(uint8_t toward_bg) { return rgbMix(COLOR_GLOW, COLOR_BG, toward_bg); }
+
+// A pressed tile squishes a little and its rim lights up.
+static const lv_style_prop_t kPressProps[] = {LV_STYLE_TRANSFORM_WIDTH, LV_STYLE_TRANSFORM_HEIGHT,
+                                              LV_STYLE_BORDER_COLOR, (lv_style_prop_t)0};
+static lv_style_transition_dsc_t s_press_tr;
+static bool s_press_tr_init = false;
+
+static void styleGlassBox(lv_obj_t* o, lv_coord_t radius) {
+  lv_obj_set_style_radius(o, radius, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(o, 0, LV_PART_MAIN);
+  if (plainLook() || !styleGlass(o)) {
+    lv_obj_set_style_bg_color(o, lv_color_hex(COLOR_PANEL), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(o, s_theme_high_contrast ? 2 : 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(o, lv_color_hex(COLOR_HAIR), LV_PART_MAIN);
+    return;
+  }
+  // The glass's edge: a faint light rim, brighter by day.
+  lv_obj_set_style_border_width(o, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(o, lv_color_white(), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(o, s_theme_day ? 200 : 46, LV_PART_MAIN);
+}
+
+static void styleTile(lv_obj_t* c) {
+  styleGlassBox(c, kTileR);
+  lv_obj_set_style_pad_all(c, 4, LV_PART_MAIN);
+  if (plainLook()) {
+    lv_obj_set_style_border_color(c, lv_color_hex(COLOR_TEXT), LV_PART_MAIN | LV_STATE_PRESSED);
+    return;
+  }
+  if (!s_press_tr_init) {
+    lv_style_transition_dsc_init(&s_press_tr, kPressProps, lv_anim_path_ease_out, 90, 0, nullptr);
+    s_press_tr_init = true;
+  }
+  lv_obj_set_style_transition(c, &s_press_tr, LV_PART_MAIN);
+  lv_obj_set_style_transition(c, &s_press_tr, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_transform_width(c, -3, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_transform_height(c, -3, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(c, 2, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_border_color(c, lv_color_hex(COLOR_GLOW), LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_border_opa(c, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_PRESSED);
+  // Keyboard and trackball focus looks the same as a press.
+  lv_obj_set_style_border_width(c, 2, LV_PART_MAIN | LV_STATE_FOCUS_KEY);
+  lv_obj_set_style_border_color(c, lv_color_hex(COLOR_GLOW), LV_PART_MAIN | LV_STATE_FOCUS_KEY);
+  lv_obj_set_style_border_opa(c, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_FOCUS_KEY);
+}
+
+// A round accent bubble with an icon: the header's badge and the empty state's.
+static lv_obj_t* iconBubble(lv_obj_t* parent, lv_coord_t d, const char* icon) {
+  lv_obj_t* b = lv_obj_create(parent);
+  lv_obj_remove_style_all(b);
+  lv_obj_set_size(b, d, d);
+  lv_obj_clear_flag(b, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_style_radius(b, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_PART_MAIN);
+  if (plainLook()) {
+    lv_obj_set_style_bg_color(b, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+  } else {
+    lv_obj_set_style_bg_color(b, lv_color_hex(COLOR_GLOW), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(b, lv_color_hex(COLOR_ACCENT), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_dir(b, LV_GRAD_DIR_VER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(b, 2, LV_PART_MAIN);
+    lv_obj_set_style_border_color(b, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(b, 70, LV_PART_MAIN);
+  }
+  lv_obj_t* l = lv_label_create(b);
+  lv_label_set_text(l, icon);
+  lv_obj_set_style_text_font(l, &ui_icons_20, LV_PART_MAIN);
+  lv_obj_set_style_text_color(l, lv_color_hex(plainLook() ? COLOR_BG : COLOR_ON_GLOW), LV_PART_MAIN);
+  lv_obj_center(l);
+  return b;
+}
+
 static void thumbDeleteCb(lv_event_t* e) {
   lv_img_dsc_t* dsc = (lv_img_dsc_t*)lv_event_get_user_data(e);
   if (!dsc) return;
@@ -45,7 +134,7 @@ static bool addThumb(lv_obj_t* cell, uint32_t sid) {
       lv_obj_t* img = lv_img_create(cell);
       lv_img_set_src(img, dsc);
       lv_obj_clear_flag(img, LV_OBJ_FLAG_CLICKABLE);
-      lv_obj_set_style_radius(img, 4, LV_PART_MAIN);
+      lv_obj_set_style_radius(img, kThumbR, LV_PART_MAIN);
       lv_obj_set_style_clip_corner(img, true, LV_PART_MAIN);
       lv_obj_add_event_cb(img, thumbDeleteCb, LV_EVENT_DELETE, dsc);
       lv_obj_center(img);
@@ -53,10 +142,22 @@ static bool addThumb(lv_obj_t* cell, uint32_t sid) {
     }
     free(px);
   }
-  lv_obj_t* l = lv_label_create(cell);
+  // Not decoded yet: a soft accent glow with the photo icon, filled in shortly.
+  lv_obj_t* ph = lv_obj_create(cell);
+  lv_obj_remove_style_all(ph);
+  lv_obj_set_size(ph, LV_PCT(100), LV_PCT(100));
+  lv_obj_clear_flag(ph, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_style_radius(ph, kThumbR, LV_PART_MAIN);
+  if (!plainLook()) {
+    lv_obj_set_style_bg_opa(ph, 150, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ph, lv_color_hex(accentSoft(150)), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(ph, lv_color_hex(accentSoft(215)), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_dir(ph, LV_GRAD_DIR_VER, LV_PART_MAIN);
+  }
+  lv_obj_t* l = lv_label_create(ph);
   lv_label_set_text(l, UI_ICON_IMAGE);
   lv_obj_set_style_text_font(l, &ui_icons_20, LV_PART_MAIN);
-  lv_obj_set_style_text_color(l, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+  lv_obj_set_style_text_color(l, lv_color_hex(plainLook() ? COLOR_SUB : COLOR_GLOW), LV_PART_MAIN);
   lv_obj_center(l);
   VoxPhotos::requestThumb(sid);   // the background decoder makes one; the grid fills in
   return false;
@@ -168,40 +269,103 @@ static void pageBuild() {
   lv_obj_remove_style_all(s_body);
   lv_obj_set_size(s_body, LV_PCT(100), LV_PCT(100));
   lv_obj_set_flex_flow(s_body, LV_FLEX_FLOW_ROW_WRAP);
-  lv_obj_set_style_pad_all(s_body, 6, LV_PART_MAIN);
-  lv_obj_set_style_pad_row(s_body, 6, LV_PART_MAIN);
-  lv_obj_set_style_pad_column(s_body, 6, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(s_body, kGap, LV_PART_MAIN);
+  lv_obj_set_style_pad_row(s_body, kGap, LV_PART_MAIN);
+  lv_obj_set_style_pad_column(s_body, kGap, LV_PART_MAIN);
   lv_obj_set_scroll_dir(s_body, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(s_body, LV_SCROLLBAR_MODE_ACTIVE);
 
   VoxPhotos::StoredPhoto* list =
       (VoxPhotos::StoredPhoto*)heap_caps_malloc(sizeof(VoxPhotos::StoredPhoto) * kMaxListed,
                                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   const int n = list ? VoxPhotos::listPhotos(list, kMaxListed) : 0;
 
-  // Cells about kThumbMax + a margin wide, as many as fit across.
-  const lv_coord_t avail = lv_obj_get_content_width(s_root) > 0 ? lv_obj_get_content_width(s_root) - 12
-                                                                : lv_disp_get_hor_res(nullptr) - 12;
-  const lv_coord_t want = VoxPhotos::kThumbMax + 6;
-  int cols = (int)((avail + 6) / (want + 6));
+  // Tiles about a thumbnail (kThumbMax) plus the frame wide, as many as fit across.
+  const lv_coord_t avail = lv_obj_get_content_width(s_root) > 0 ? lv_obj_get_content_width(s_root) - 2 * kGap
+                                                                : lv_disp_get_hor_res(nullptr) - 2 * kGap;
+  const lv_coord_t want = VoxPhotos::kThumbMax + 8;
+  int cols = (int)((avail + kGap) / (want + kGap));
   if (cols < 2) cols = 2;
-  const lv_coord_t cell = (lv_coord_t)((avail - (cols - 1) * 6) / cols);
+  const lv_coord_t cell = (lv_coord_t)((avail - (cols - 1) * kGap) / cols);
 
-  char line[64];
-  lv_obj_t* head = lv_label_create(s_body);
-  if (n) snprintf(line, sizeof line, n == 1 ? TR("1 photo") : TR("%d photos"), n);
-  else snprintf(line, sizeof line, "%s", TR("No photos yet. Photos you download from the mesh show up here."));
-  lv_label_set_text(head, line);
-  lv_label_set_long_mode(head, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(head, LV_PCT(100));
-  lv_obj_set_style_text_font(head, &g_font_12, LV_PART_MAIN);
-  lv_obj_set_style_text_color(head, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+  char line[96];
+  if (!n) {
+    // Empty: a friendly card in the middle of the page.
+    lv_obj_t* card = lv_obj_create(s_body);
+    lv_obj_remove_style_all(card);
+    styleGlassBox(card, 20);
+    lv_obj_set_width(card, LV_PCT(100));
+    lv_obj_set_height(card, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_pad_ver(card, 22, LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(card, 16, LV_PART_MAIN);
+    lv_obj_set_style_pad_row(card, 8, LV_PART_MAIN);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    iconBubble(card, 52, UI_ICON_IMAGE);
+    lv_obj_t* t = lv_label_create(card);
+    lv_label_set_text(t, TR("No photos yet"));
+    lv_obj_set_style_text_font(t, &g_font_semi_16, LV_PART_MAIN);
+    lv_obj_set_style_text_color(t, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+    lv_obj_t* d = lv_label_create(card);
+    lv_label_set_text(d, TR("Photos you download from the mesh show up here."));
+    lv_label_set_long_mode(d, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(d, LV_PCT(100));
+    lv_obj_set_style_text_align(d, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_style_text_font(d, &g_font_12, LV_PART_MAIN);
+    lv_obj_set_style_text_color(d, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+    if (list) heap_caps_free(list);
+    return;
+  }
+
+  // Header: an accent bubble, the count, and a pill with "newest first".
+  {
+    lv_obj_t* head = lv_obj_create(s_body);
+    lv_obj_remove_style_all(head);
+    styleGlassBox(head, 18);
+    lv_obj_set_size(head, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_clear_flag(head, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_pad_all(head, 8, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(head, 10, LV_PART_MAIN);
+    lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    iconBubble(head, 36, UI_ICON_IMAGE);
+    lv_obj_t* col = lv_obj_create(head);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_flex_grow(col, 1);
+    lv_obj_set_height(col, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_t* t = lv_label_create(col);
+    lv_label_set_text(t, TR("From the mesh"));
+    lv_obj_set_style_text_font(t, &g_font_semi_14, LV_PART_MAIN);
+    lv_obj_set_style_text_color(t, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+    lv_obj_t* c = lv_label_create(col);
+    snprintf(line, sizeof line, n == 1 ? TR("1 photo") : TR("%d photos"), n);
+    lv_label_set_text(c, line);
+    lv_obj_set_style_text_font(c, &g_font_12, LV_PART_MAIN);
+    lv_obj_set_style_text_color(c, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+    lv_obj_t* pill = lv_label_create(head);
+    lv_label_set_text(pill, TR("Newest first"));
+    lv_obj_set_style_text_font(pill, &g_font_12, LV_PART_MAIN);
+    lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(pill, 9, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(pill, 3, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(pill, LV_OPA_COVER, LV_PART_MAIN);
+    if (plainLook()) {
+      lv_obj_set_style_bg_color(pill, lv_color_hex(COLOR_CONTROL), LV_PART_MAIN);
+      lv_obj_set_style_text_color(pill, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+    } else {
+      lv_obj_set_style_bg_color(pill, lv_color_hex(accentSoft(s_theme_day ? 200 : 170)), LV_PART_MAIN);
+      lv_obj_set_style_text_color(pill, lv_color_hex(s_theme_day ? COLOR_ACCENT : COLOR_GLOW), LV_PART_MAIN);
+    }
+  }
 
   const int shown = n < s_limit ? n : s_limit;
   for (int i = 0; i < shown; i++) {
     lv_obj_t* c = lv_btn_create(s_body);
     styleButton(c);
+    styleTile(c);
     lv_obj_set_size(c, cell, cell);
-    lv_obj_set_style_pad_all(c, 0, LV_PART_MAIN);
     lv_obj_add_event_cb(c, openCb, LV_EVENT_CLICKED, (void*)(uintptr_t)list[i].sid);
     lv_obj_add_event_cb(c, holdCb, LV_EVENT_LONG_PRESSED, (void*)(uintptr_t)list[i].sid);
     addThumb(c, list[i].sid);
@@ -209,12 +373,15 @@ static void pageBuild() {
   if (n > shown) {
     lv_obj_t* more = lv_btn_create(s_body);
     styleButton(more);
-    lv_obj_set_size(more, LV_PCT(100), 32);
+    styleTile(more);
+    lv_obj_set_style_radius(more, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_size(more, LV_PCT(100), 36);
     lv_obj_add_event_cb(more, [](lv_event_t*) { s_limit += kPage; pageBuild(); }, LV_EVENT_CLICKED, nullptr);
     lv_obj_t* l = lv_label_create(more);
     snprintf(line, sizeof line, TR("Show more (%d)"), n - shown);
     lv_label_set_text(l, line);
     useChainedFont(l);
+    lv_obj_set_style_text_color(l, lv_color_hex(plainLook() ? COLOR_TEXT : COLOR_GLOW), LV_PART_MAIN);
     lv_obj_center(l);
   }
   if (n) {
@@ -222,6 +389,8 @@ static void pageBuild() {
     lv_label_set_text(tip, TR("Tap a photo to view it. Hold it to send it to a chat or delete it."));
     lv_label_set_long_mode(tip, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(tip, LV_PCT(100));
+    lv_obj_set_style_text_align(tip, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_style_pad_top(tip, 2, LV_PART_MAIN);
     lv_obj_set_style_text_font(tip, &g_font_12, LV_PART_MAIN);
     lv_obj_set_style_text_color(tip, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
   }
