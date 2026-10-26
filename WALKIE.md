@@ -31,18 +31,25 @@ Without the trackball: hold the Mic key (above), or long-press a channel in
 Chats, choose **Walkie-talkie**, and hold the card's **Talk** button on the
 touchscreen.
 
-Talks play by themselves as they arrive, on any channel, card open or not,
-like a scanner. The card shows who is talking. While someone else is talking, the button waits
+A talk goes only to the channel it's on, and only people with that channel
+hear it. The Mic key talks on the channel whose chat is open (else the
+walkie-talkie opened last); in a DM it doesn't talk at all, as a talk would go
+to a whole channel: record a voice message there instead.
+
+Talks play by themselves as they arrive on the channel whose chat or card is
+open. **Play talks on every channel** (off by default) plays them from every
+channel, like a scanner. The card shows who is talking. While someone else is talking, the button waits
 until they finish. It's half duplex: nothing plays while you talk.
 
 - **Reach** switches between *through repeaters* (the default: the whole
   MediaMesh hears it live, 2-3 s behind) and *direct* (radio to radio: only
   radios in range hear it live, a little sooner, and repeaters stay quiet).
   People out of range still get the voice message.
-- **Play talks live (all channels)** is on by default. Off, talks only play
-  while that channel's card is open.
-- **Play this channel's talks live** mutes one channel when turned off. Its
-  talks still arrive as voice messages.
+- **Play talks on every channel** is off by default: talks play in the
+  channel you're in. On, every channel's talks play as they arrive.
+- **Mute voice in this channel**: its talks don't play, even with its chat
+  open (only with its card open). They still arrive as voice messages, to
+  play with a tap.
 
 A talk heard live in full is kept with its voice message, so the message plays
 straight away with nothing to download.

@@ -5,9 +5,11 @@
 //
 // Hold the button and talk: the mic is encoded to Codec2 1200 as it's
 // captured (VoxMic), and each second goes out on the channel as soon as it's
-// there. Talks on any channel play as they arrive, through the audio worker,
-// unless "Play talks live" is off or the channel is muted (then only while its
-// walkie-talkie is open). When the button is let go the talk is posted as a
+// there. A talk only ever goes to the channel it's on (never from a DM). Talks
+// play as they arrive, through the audio worker, on the channel whose chat or
+// walkie-talkie is open, and on every channel with "Play talks on every
+// channel" (off by default); a channel with voice muted plays only with its
+// walkie-talkie open. When the button is let go the talk is posted as a
 // voice message with the same session id and the "PTT" caption, which the chat
 // shows as a talk with a waveform; a talk heard in full is kept, so its message
 // plays with nothing to fetch.
@@ -109,7 +111,7 @@ static bool heardTalk(uint32_t sid) {
 }
 
 // ---- settings ----------------------------------------------------------------
-static bool s_live_all = true;        // talks on every channel play live (unless muted)
+static bool s_live_all = false;       // talks on every channel play live, like a scanner (unless muted)
 static String s_muted;                // channels whose talks don't play live, one name per line
 static String s_direct;               // channels set to Direct, one name per line
 static char s_last[33] = "";          // the walkie-talkie last opened (the Mic key talks there)
@@ -121,7 +123,7 @@ static void prefsLoad() {
   s_prefs_loaded = true;
   SdNvsPrefs p;
   if (!p.begin("walkie", true)) return;
-  s_live_all = p.getBool("liveall", true);
+  s_live_all = p.getBool("liveall", false);
   s_muted = p.getString("muted", "");
   s_direct = p.getString("direct", "");
   snprintf(s_last, sizeof s_last, "%s", p.getString("last", "").c_str());
@@ -168,7 +170,8 @@ static void listSet(String& list, int ch, bool on) {
 static bool isDirect(int ch) { return listHas(s_direct, ch); }
 static void setDirect(int ch, bool on) { listSet(s_direct, ch, on); }
 
-// The channel's talks play live while "Play talks live" is on (not muted).
+// Voice isn't muted in the channel. Muted: its talks don't play live (only
+// with its walkie-talkie open) and its voice messages play only when tapped.
 static bool channelLive(int ch) { return !listHas(s_muted, ch); }
 static void setChannelLive(int ch, bool on) { listSet(s_muted, ch, !on); }
 static bool liveAll() { prefsLoad(); return s_live_all; }
@@ -180,7 +183,27 @@ static void setLiveAll(bool on) {
 
 // ---- live playback -----------------------------------------------------------
 static int s_card_ch = -1;   // the channel whose walkie-talkie is open
-static bool listensTo(int ch) { return ch == s_card_ch || (liveAll() && channelLive(ch)); }
+
+// The channel whose chat is open, or -1 (none, or a DM's).
+static int openChannel() {
+  if (!g_lv.ch.detail_open || !g_lv.task) return -1;
+  bool ch = false; uint16_t unread; uint32_t ts;
+  char tname[UITask::MAX_THREAD_NAME + 1];
+  const int t = g_lv.task->activeThreadIdx();
+  if (t < 0 || !g_lv.task->getThreadInfo(t, ch, unread, ts, tname, sizeof tname) || !ch) return -1;
+  ChannelDetails cd{};
+  for (int i = 0; i < MAX_GROUP_CHANNELS; ++i)
+    if (the_mesh.getChannel(i, cd) && cd.name[0] && strncmp(cd.name, tname, sizeof cd.name) == 0) return i;
+  return -1;
+}
+
+// A talk on `ch` plays live: its walkie-talkie is open; or voice isn't muted
+// there and its chat is open, or "Play talks on every channel" is on.
+static bool listensTo(int ch) {
+  if (ch == s_card_ch) return true;
+  prefsLoad();
+  return channelLive(ch) && (openChannel() == ch || liveAll());
+}
 
 #if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
 struct Chunk { uint16_t len; uint8_t data[kPktBytes]; };
@@ -596,10 +619,10 @@ static void reachText() {
 static void listenText() {
   if (s_live_all_lbl)
     lv_label_set_text_fmt(s_live_all_lbl, "%s %s", liveAll() ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE,
-                          TR("Play talks live (all channels)"));
+                          TR("Play talks on every channel"));
   if (s_listen_lbl)
-    lv_label_set_text_fmt(s_listen_lbl, "%s %s", liveAll() && channelLive(s_card_ch) ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE,
-                          liveAll() ? TR("Play this channel's talks live") : TR("This channel: only while open"));
+    lv_label_set_text_fmt(s_listen_lbl, "%s %s", channelLive(s_card_ch) ? LV_SYMBOL_CLOSE : LV_SYMBOL_OK,
+                          TR("Mute voice in this channel"));
 }
 static void reachCb(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED || talking()) return;
@@ -612,7 +635,7 @@ static void liveAllCb(lv_event_t* e) {
   listenText();
 }
 static void listenCb(lv_event_t* e) {
-  if (lv_event_get_code(e) != LV_EVENT_CLICKED || !liveAll()) return;
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   setChannelLive(s_card_ch, !channelLive(s_card_ch));
   listenText();
 }
@@ -777,10 +800,13 @@ static void cardClose() {
 #if CAP_TRACKBALL && WALKIE_CAN_TALK
   s_ball_lbl = nullptr;
 #endif
-#if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
-  if (s_play_sid && !(liveAll() && channelLive(s_card_ch))) playStop();
-#endif
+  const int was = s_card_ch;
   s_card_ch = -1;
+#if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
+  if (s_play_sid && !listensTo(was)) playStop();
+#else
+  (void)was;
+#endif
 }
 
 // ---- every 50 ms (card open) or from the loop ------------------------------------
@@ -815,18 +841,14 @@ static void ensureTimer() {
 static bool s_key_down = false, s_key_talking = false, s_key_tried = false;
 static uint32_t s_key_since = 0;
 
-// The open channel chat's channel, else the last walkie-talkie's; -1 if neither.
+// The open channel chat's channel, else the last walkie-talkie's; -1 if neither,
+// and always -1 in a DM: a talk goes to everyone on a channel, so it must never
+// go out from a private chat to whichever channel was talked on last.
 static int keyChannel() {
-  if (g_lv.ch.detail_open && g_lv.task) {
-    bool ch = false; uint16_t unread; uint32_t ts;
-    char tname[UITask::MAX_THREAD_NAME + 1];
-    const int t = g_lv.task->activeThreadIdx();
-    if (t >= 0 && g_lv.task->getThreadInfo(t, ch, unread, ts, tname, sizeof tname) && ch) {
-      ChannelDetails cd{};
-      for (int i = 0; i < MAX_GROUP_CHANNELS; ++i)
-        if (the_mesh.getChannel(i, cd) && cd.name[0] && strncmp(cd.name, tname, sizeof cd.name) == 0) return i;
-    }
-  }
+  if (g_lv.dm.detail_open) return -1;
+  const int open = openChannel();
+  if (open >= 0) return open;
+  if (g_lv.ch.detail_open) return -1;   // a channel chat we couldn't place
   prefsLoad();
   if (!s_last[0]) return -1;
   ChannelDetails cd{};
@@ -867,7 +889,11 @@ static void keyTick(bool held, uint32_t now, bool at_once = false) {
   if (talking()) return;
   const int ch = keyChannel();
   if (ch < 0) {
-    if (g_lv.task) g_lv.task->showAlert(TR("Open a channel, or its walkie-talkie once, then hold Mic to talk"), 2200);
+    if (g_lv.task)
+      g_lv.task->showAlert(g_lv.dm.detail_open
+                               ? TR("Push-to-talk is for channels. Record a voice message here instead")
+                               : TR("Open a channel, or its walkie-talkie once, then hold Mic to talk"),
+                           2400);
     return;
   }
   if (!s_card || s_card_ch != ch) cardOpen(ch);
