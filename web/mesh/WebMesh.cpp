@@ -432,10 +432,11 @@ void MyMesh::uiExportBackup(Print& out, double node_lat, double node_lon) {
   out.print("  \"public_key\": \""); hex(self_id.pub_key, 32); out.print("\",\n");
   out.print("  \"private_key\": \"\",\n");
   snprintf(l, sizeof l,
-    "  \"radio_settings\": {\"frequency\": %.4f, \"bandwidth\": %.1f, \"spreading_factor\": %u, \"coding_rate\": %u, \"tx_power\": %d},\n",
-    (double)p->freq, (double)p->bw, (unsigned)p->sf, (unsigned)p->cr, (int)p->tx_power_dbm);
+    "  \"radio_settings\": {\"frequency\": %lu, \"bandwidth\": %lu, \"spreading_factor\": %u, \"coding_rate\": %u, \"tx_power\": %d},\n",
+    (unsigned long)lround((double)p->freq * 1000.0), (unsigned long)lround((double)p->bw * 1000.0),   // kHz and Hz, as the MeshCore app
+    (unsigned)p->sf, (unsigned)p->cr, (int)p->tx_power_dbm);
   out.print(l);
-  snprintf(l, sizeof l, "  \"position_settings\": {\"latitude\": %.6f, \"longitude\": %.6f},\n", node_lat, node_lon);
+  snprintf(l, sizeof l, "  \"position_settings\": {\"latitude\": \"%.6f\", \"longitude\": \"%.6f\"},\n", node_lat, node_lon);
   out.print(l);
   out.print("  \"other_settings\": null,\n");
   out.print("  \"auto_add_settings\": null,\n");
@@ -515,6 +516,12 @@ static int hexToBytes(const char* hx, uint8_t* out, int max_bytes) {
 // (replace_contacts only clears this browser's copy); 256-bit channel keys are not in
 // the companion protocol. The demo replays its own cast and channels at every start, so
 // there an import keeps the name, settings and app preferences.
+// A JSON number, or one written as a string (the MeshCore app's coordinates).
+static double webJsonNum(JsonVariantConst v) {
+  if (v.is<const char*>()) return atof(v.as<const char*>());
+  return v.as<double>();
+}
+
 bool MyMesh::uiImportBackup(Stream& in, uint8_t sections, bool replace_channels, bool replace_contacts,
                             int* out_channels, int* out_contacts, bool* out_saved) {
   (void)replace_channels;
@@ -533,8 +540,17 @@ bool MyMesh::uiImportBackup(Stream& in, uint8_t sections, bool replace_channels,
   if (sections & 0x02) {
     JsonObjectConst r = root["radio_settings"].as<JsonObjectConst>();
     if (!r.isNull()) {
-      if (!r["frequency"].isNull())        { _prefs.freq = r["frequency"].as<float>(); dirty = true; }
-      if (!r["bandwidth"].isNull())        { _prefs.bw = r["bandwidth"].as<float>(); dirty = true; }
+      // kHz and Hz (the MeshCore app, MeshCore One) or MHz and kHz (older exports).
+      if (!r["frequency"].isNull()) {
+        double f = webJsonNum(r["frequency"]);
+        if (f > 10000.0) f /= 1000.0;
+        if (f > 100.0 && f < 3000.0) { _prefs.freq = (float)f; dirty = true; }
+      }
+      if (!r["bandwidth"].isNull()) {
+        double bw = webJsonNum(r["bandwidth"]);
+        if (bw > 1000.0) bw /= 1000.0;
+        if (bw > 1.0 && bw <= 1625.0) { _prefs.bw = (float)bw; dirty = true; }
+      }
       if (!r["spreading_factor"].isNull()) { _prefs.sf = (uint8_t)r["spreading_factor"].as<int>(); dirty = true; }
       if (!r["coding_rate"].isNull())      { _prefs.cr = (uint8_t)r["coding_rate"].as<int>(); dirty = true; }
       if (!r["tx_power"].isNull())         { _prefs.tx_power_dbm = (int8_t)r["tx_power"].as<int>(); dirty = true; }
@@ -584,8 +600,8 @@ bool MyMesh::uiImportBackup(Stream& in, uint8_t sections, bool replace_channels,
   if (sections & 0x04) {
     JsonObjectConst ps = root["position_settings"].as<JsonObjectConst>();
     if (!ps.isNull()) {
-      if (!ps["latitude"].isNull())  { sensors.node_lat = ps["latitude"].as<double>(); dirty = true; }
-      if (!ps["longitude"].isNull()) { sensors.node_lon = ps["longitude"].as<double>(); dirty = true; }
+      if (!ps["latitude"].isNull())  { sensors.node_lat = webJsonNum(ps["latitude"]); dirty = true; }
+      if (!ps["longitude"].isNull()) { sensors.node_lon = webJsonNum(ps["longitude"]); dirty = true; }
     }
   }
   if (dirty && !savePrefs() && out_saved) *out_saved = false;   // as src/MyMesh.cpp (#708)
@@ -622,10 +638,8 @@ bool MyMesh::uiImportBackup(Stream& in, uint8_t sections, bool replace_channels,
       c.type = e["type"].as<uint8_t>();
       c.flags = e["flags"].as<uint8_t>();
       c.out_path_len = OUT_PATH_UNKNOWN;
-      const char* la = e["latitude"].as<const char*>();
-      const char* lo = e["longitude"].as<const char*>();
-      c.gps_lat = la ? (int32_t)(atof(la) * 1e6) : 0;
-      c.gps_lon = lo ? (int32_t)(atof(lo) * 1e6) : 0;
+      c.gps_lat = (int32_t)(webJsonNum(e["latitude"]) * 1e6);
+      c.gps_lon = (int32_t)(webJsonNum(e["longitude"]) * 1e6);
       c.last_advert_timestamp = e["last_advert"].as<uint32_t>();
       c.lastmod = e["last_modified"].as<uint32_t>();
       ContactInfo* slot = lookupContactByPubKey(c.id.pub_key, PUB_KEY_SIZE);

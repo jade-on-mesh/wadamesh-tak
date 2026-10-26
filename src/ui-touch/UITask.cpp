@@ -164,6 +164,7 @@ static void* wadaMp3Scratch() { return s_wada_mp3_scratch; }
 #include "VoxPhotos.h"        // ...and fetched from the sender (VoxFetch over the mesh)
 #include "VoxVoice.h"         // MeshCore Open TAK voice clips: Codec2 decode (lib/codec2)
 #include "../helpers/BootMem.h"   // internal RAM at start-up, for Memory detail
+#include "../helpers/ForeignImport.h"   // Settings > Backups > From another firmware
 #include "VoxRestoreSmall.h"  // ...and the small AI voice restorer (a model on the SD card)
 #include "VoxBrighten.h"      // ...and "Brighter voice": the 4-8 kHz band Codec2 leaves out
 #include "VoxMic.h"           // ...and recording them on boards with a microphone (T-Deck)
@@ -55426,6 +55427,119 @@ static void backupChosenCb(lv_event_t* e) {
   backupPickerClose();
   confirmBackupImport(stored);
 }
+
+// ---- Imports from other MeshCore firmware (helpers/ForeignImport.h) ------------
+// Their files on the SD card become a MeshCore backup JSON next to them
+// (/wadamesh-import-<name>.json, kept so it can be imported again or looked at),
+// which is then imported like any backup: identity, channels and contacts.
+struct ForeignSrc {
+  const char* label;   // as the firmware calls itself
+  const char* dir;     // its folder on the SD card
+  const char* slug;    // for the converted file's name
+  bool punk;           // MeshPunk's own formats; else MeshCore's companion files
+};
+static const ForeignSrc kForeignSrcs[] = {
+  { "Squatch Mesh", "/inw",      "squatchmesh", false },
+  { "MeshPunk",     "/meshpunk", "meshpunk",    true  },
+};
+static int s_foreign_pick = -1;
+
+static const char* const* foreignFiles(const ForeignSrc& s) {
+  static const char* const kCompanion[3] = { "/identity/_main.id", "/contacts3", "/channels2" };
+  static const char* const kPunk[3] = { "/identity", "/contacts.bin", "/channels" };
+  return s.punk ? kPunk : kCompanion;
+}
+static bool foreignPresent(fs::FS* fs, const ForeignSrc& s) {
+  if (!fs) return false;
+  char p[64];
+  for (int i = 0; i < 3; i++) {
+    snprintf(p, sizeof p, "%s%s", s.dir, foreignFiles(s)[i]);
+    if (fs->exists(p)) return true;
+  }
+  return false;
+}
+// One of its files into PSRAM (null, 0 when it isn't there).
+static uint8_t* foreignRead(fs::FS* fs, const ForeignSrc& s, int which, size_t* len) {
+  *len = 0;
+  char p[64];
+  snprintf(p, sizeof p, "%s%s", s.dir, foreignFiles(s)[which]);
+  if (!fs->exists(p)) return nullptr;
+  File f = fs->open(p, FILE_READ);
+  if (!f) return nullptr;
+  const size_t n = f.size();
+  uint8_t* b = n && n <= 4u * 1024u * 1024u ? (uint8_t*)heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : nullptr;
+  if (b && f.read(b, n) != n) { heap_caps_free(b); b = nullptr; }
+  f.close();
+  if (b) *len = n;
+  return b;
+}
+static bool foreignFileEmit(void* ctx, const char* s, size_t n) {
+  return static_cast<File*>(ctx)->write((const uint8_t*)s, n) == n;
+}
+static void doForeignImport() {
+  if (!g_lv.task || s_foreign_pick < 0 || s_foreign_pick >= (int)(sizeof kForeignSrcs / sizeof kForeignSrcs[0])) return;
+  const ForeignSrc& src = kForeignSrcs[s_foreign_pick];
+  fs::FS* fs = backupSdFs();
+  if (!fs) { g_lv.task->showAlert(TR("Import: no SD card"), 2000); return; }
+  size_t n_id = 0, n_co = 0, n_ch = 0;
+  uint8_t* id = foreignRead(fs, src, 0, &n_id);
+  uint8_t* co = foreignRead(fs, src, 1, &n_co);
+  uint8_t* ch = foreignRead(fs, src, 2, &n_ch);
+  char out[64];
+  snprintf(out, sizeof out, "/wadamesh-import-%s.json", src.slug);
+  File f = fs->open(out, FILE_WRITE);
+  foreign::Counts cnt;
+  bool ok = false;
+  if (f) {
+    ok = src.punk ? foreign::meshPunkToBackup(id, n_id, co, n_co, (const char*)ch, n_ch, foreignFileEmit, &f, &cnt)
+                  : foreign::companionToBackup(id, n_id, co, n_co, ch, n_ch, foreignFileEmit, &f, &cnt);
+    f.close();
+  }
+  if (id) heap_caps_free(id);
+  if (co) heap_caps_free(co);
+  if (ch) heap_caps_free(ch);
+  Serial.printf("[import] %s: identity %d, %d channels, %d contacts -> %s\n", src.label, cnt.identity ? 1 : 0,
+                cnt.channels, cnt.contacts, out);
+  if (!ok) { g_lv.task->showAlert(TR("Import: couldn't write to the SD card"), 2400); return; }
+  if (!cnt.identity && !cnt.channels && !cnt.contacts) {
+    g_lv.task->showAlert(TR("Nothing to import there"), 2000);
+    return;
+  }
+  switch (backupImportAndReboot(fs, out, nullptr)) {
+    case BackupImport::BadFile:
+      g_lv.task->showAlert(TR("Import failed (bad/unreadable JSON)"), 2400); break;
+    case BackupImport::StoreFailed:
+      g_lv.task->showAlert(TR("Import failed: internal storage unavailable. Identity, channels and contacts were not saved."), 4000); break;
+    case BackupImport::Rebooting: break;
+  }
+}
+static void confirmForeignImport(int i) {
+  s_foreign_pick = i;
+  static char msg[200];
+  snprintf(msg, sizeof msg, TR("Import from %s?\nReplaces identity,\nchannels & contacts\nwith its, then reboots."),
+           kForeignSrcs[i].label);
+  showConfirm(msg, TR("Import"), doForeignImport, /*actions_only_nav=*/true, /*focus_confirm=*/true);
+}
+// What's on the card, to pick from (straight to the confirmation when it's one).
+static void openForeignPicker() {
+  fs::FS* fs = backupSdFs();
+  int found[sizeof kForeignSrcs / sizeof kForeignSrcs[0]];
+  int nf = 0;
+  for (int i = 0; i < (int)(sizeof kForeignSrcs / sizeof kForeignSrcs[0]); i++)
+    if (foreignPresent(fs, kForeignSrcs[i])) found[nf++] = i;
+  if (!nf) {
+    if (g_lv.task)
+      g_lv.task->showAlert(TR(fs ? "No Squatch Mesh (/inw) or MeshPunk (/meshpunk) data on the SD card"
+                                 : "Put in the SD card from the other firmware first"), 3000);
+    return;
+  }
+  if (nf == 1) { confirmForeignImport(found[0]); return; }
+  static const ActItem kItems[] = {
+    { LV_SYMBOL_DOWNLOAD, "Squatch Mesh", [] { confirmForeignImport(0); }, false },
+    { LV_SYMBOL_DOWNLOAD, "MeshPunk",     [] { confirmForeignImport(1); }, false },
+  };
+  openActionList(TR("Import from"), kItems, (int)(sizeof kItems / sizeof kItems[0]));
+}
 #if CAP_BACKUP_DATE_LABELS
 // The local time stamped into "meshcore-backup-YYYYMMDD-HHMMSS.json" by
 // backupMakeFilename(); false for every other name (the MeshCore app's fixed
@@ -55777,7 +55891,13 @@ static void buildBackupsSettings() {
       if (lv_event_get_code(e) == LV_EVENT_CLICKED) boardPickFile(".json,application/json");
     });
 #endif
-    setNote(c, "Replaces identity, channels and contacts with the backup's, then restarts.");
+    setActionRow(c, LV_SYMBOL_SHUFFLE, "From another firmware", nullptr, [](lv_event_t* e) {
+      if (lv_event_get_code(e) == LV_EVENT_CLICKED) openForeignPicker();
+    });
+    setNote(c, "Replaces identity, channels and contacts with the backup's, then restarts. Import backup reads "
+               "the MeshCore app's and Squatch Mesh's meshcore-backup.json, and MeshCore Open's contacts export "
+               "(adds its contacts). From another firmware reads Squatch Mesh's /inw and MeshPunk's /meshpunk "
+               "folders on the SD card.");
   }
 
   // What is on the device now, each with its own delete.

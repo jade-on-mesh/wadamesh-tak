@@ -43,6 +43,11 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_vox_wire test/test_vox_wire.cpp
           /tmp/test_vox_wire
+      - name: Imports from other firmware (Squatch Mesh, MeshPunk, MeshCore Open)
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_foreign_import test/test_foreign_import.cpp src/helpers/ForeignImport.cpp
+          /tmp/test_foreign_import
       - name: "Linked pictures (LinkImage: links, JPEG/PNG/GIF/BMP/WebP decode)"
         run: |
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -I test \
