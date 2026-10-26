@@ -133,6 +133,8 @@ class VoxServe {
     int par_total = 0;
     int par_next = 0;
     floodpace::Answer answer;      // flooded data packets sent, for FloodPace
+    bool mark_ok = false;          // everyone asking reads marked (0x58) packets
+    uint32_t first_sent_ms = 0;    // when its first packet went (the log's timing)
   };
   struct PaceRec { bool used = false; int channel = -1; floodpace::Pace pace; };
   struct AnswerRec { uint32_t sid = 0; int channel = -1; floodpace::Answer answer; };
@@ -140,6 +142,9 @@ class VoxServe {
   int paces_next_ = 0;
   AnswerRec answers_[6];
   int answers_next_ = 0;
+  // Sends of each packet of the clip last marked (the marked packets' salt).
+  uint8_t mark_sends_[256] = {0};
+  uint32_t mark_sid_ = 0;
 
   struct Heard { uint32_t sid; uint8_t index; uint32_t at; };
 

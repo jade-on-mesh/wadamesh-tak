@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "VoxFetch.h"
+
+#include <stdarg.h>
+#include <stdio.h>
 #include "FloodPace.h"
 
 #include "VoxFec.h"
@@ -129,7 +132,7 @@ void VoxFetch::adoptOrphans(Session& s) {
   for (int i = 0; i < kMaxOrphans; i++) {
     Orphan& o = orphans_[i];
     if (!o.len || o.sid != psid) continue;
-    VoxWire::Packet p{o.sid, o.index, o.data, o.len};
+    VoxWire::Packet p{o.sid, o.index, o.data, o.len, false, 0};
     o.len = 0;
     if (s.st != kComplete) acceptParity(s, p);
   }
@@ -137,7 +140,7 @@ void VoxFetch::adoptOrphans(Session& s) {
     Orphan& o = orphans_[i];
     if (!o.len || o.sid != s.sid) continue;
     if (o.relayed) s.relayed = true;
-    VoxWire::Packet p{o.sid, o.index, o.data, o.len};
+    VoxWire::Packet p{o.sid, o.index, o.data, o.len, false, 0};
     o.len = 0;
     if (s.st != kComplete) accept(s, p, o.via, o.hop, o.hop_len);
   }
@@ -291,7 +294,7 @@ void VoxFetch::probe(Session& s) {
   if (s.channel >= 0) {
     uint8_t req[VoxWire::kFetchMinLen + VoxWire::kThumbPackets + 16];
     const int n = VoxWire::encodeFetch(s.sid, key6, want, n_want, req, sizeof req, true, nullptr, 0,
-                                       nextSalt(s));
+                                       nextSalt(s), true);   // on a channel: we read marked answers
     if (n > 0) io_.sendChannelData(s.channel, VoxWire::kChannelDataType, req, (size_t)n);
     return;
   }
@@ -351,6 +354,8 @@ void VoxFetch::attempt(Session& s) {
   if (m == kZeroHop) s.tried_zero_hop = true;
   s.at_last_attempt = s.asm_.total() ? s.asm_.received() : 0;
   s.rx_last_ms = 0;   // the next packet starts a new burst
+  s.asked_ms = io_.nowMs();
+  s.answered = false;
 
   uint8_t missing[VoxWire::kMaxPackets];
   int n_missing = 0;
@@ -398,7 +403,7 @@ void VoxFetch::attempt(Session& s) {
   } else {
     uint8_t req[VoxWire::kFetchMinLen + VoxWire::kMaxFetchIndices];
     const int n = VoxWire::encodeFetch(s.sid, key6, any ? missing : nullptr, n_missing, req, sizeof req, true,
-                                       nullptr, 0, salt);
+                                       nullptr, 0, salt, true);   // on a channel: we read marked answers
     sent = n > 0 && io_.sendChannelData(s.channel, VoxWire::kChannelDataType, req, (size_t)n);
   }
 
@@ -424,6 +429,14 @@ void VoxFetch::onTimeout(Session& s) {
   if (s.st != kRequesting && s.st != kReceiving) return;
   const int got = s.storage ? s.asm_.received() : 0;
   const int stall_budget = stallBudget(got, s.total);
+  if (s.asked_ms) {
+    if (s.answered && s.rx_gaps)
+      logf("[VOX] fetch %08lx: timeout, %d/%d, asked %lu ms ago, packets ~%lu ms apart", (unsigned long)s.sid,
+           got, (int)s.total, (unsigned long)(io_.nowMs() - s.asked_ms), (unsigned long)s.rx_gap_ms);
+    else
+      logf("[VOX] fetch %08lx: timeout, %d/%d, asked %lu ms ago, %s", (unsigned long)s.sid, got, (int)s.total,
+           (unsigned long)(io_.nowMs() - s.asked_ms), s.answered ? "one packet came" : "nothing came");
+  }
   if (got > s.at_last_attempt) {
     s.stalls = 0;
   } else {
@@ -510,7 +523,7 @@ bool VoxFetch::rebuildFromParity(Session& s) {
   }
   const int n = VoxFec::rebuild(
       s.total, s.packet_bytes, s.asm_.payload(), [&](int i) { return s.asm_.have((uint8_t)i); }, par, s.n_parity,
-      [&](int i, const uint8_t* d, int len) { s.asm_.add(VoxWire::Packet{s.sid, (uint8_t)i, d, len}); });
+      [&](int i, const uint8_t* d, int len) { s.asm_.add(VoxWire::Packet{s.sid, (uint8_t)i, d, len, false, 0}); });
   if (n <= 0) return false;
   s.rebuilt = (uint8_t)(s.rebuilt + n > 255 ? 255 : s.rebuilt + n);
   return true;
@@ -527,14 +540,21 @@ void VoxFetch::accept(Session& s, const VoxWire::Packet& p, uint8_t via, const u
     if (s.r2_hop_len) memcpy(s.r2_hop, hop, s.r2_hop_len);
   }
   if (s.n_parity) rebuildFromParity(s);
-  afterPacket(s, p.index);
+  afterPacket(s, p.index, p.marked ? p.left : -1);
 }
 
 // After a packet (or a rebuild, index -1) went in: complete, or keep the
 // session's timers going.
-void VoxFetch::afterPacket(Session& s, int index) {
+void VoxFetch::afterPacket(Session& s, int index, int left) {
   s.last_touch = io_.nowMs();
-  if (s.st == kRequesting || s.st == kReceiving) noteGap(s, s.last_touch);
+  if (s.st == kRequesting || s.st == kReceiving) {
+    noteGap(s, s.last_touch);
+    if (!s.answered && s.asked_ms && index >= 0) {
+      s.answered = true;
+      logf("[VOX] fetch %08lx: first packet %lu ms after asking", (unsigned long)s.sid,
+           (unsigned long)(s.last_touch - s.asked_ms));
+    }
+  }
   if (s.asm_.complete()) {
     complete(s);
     return;
@@ -543,7 +563,15 @@ void VoxFetch::afterPacket(Session& s, int index) {
   // transfer) are kept quietly; they count when we do ask.
   if (s.st == kRequesting || s.st == kReceiving) {
     s.st = kReceiving;
-    if (index >= 0 && index == s.expected_last) {
+    if (left >= 0) {
+      // A marked packet: `left` more of the answer to come. None: it's over and
+      // the gaps are final. Else the rest should take that many gaps.
+      const uint32_t gap = s.rx_gaps ? s.rx_gap_ms : burstGap(s);
+      arm(s, markedWait(left, gap));
+      if (left == 0)
+        logf("[VOX] fetch %08lx: answer over (marked), %d missing", (unsigned long)s.sid,
+             s.asm_.total() - s.asm_.received());
+    } else if (index >= 0 && index == s.expected_last) {
       // The sender's burst is over, so the gaps are final: ask again soon.
       arm(s, gapRequestDelay(s.relayed, burstGap(s), zeroHopGap(airMs(s))));
     } else {
@@ -666,4 +694,13 @@ const char* VoxFetch::statusText(uint32_t sid, char* buf, size_t cap) const {
       break;
   }
   return buf;
+}
+
+void VoxFetch::logf(const char* fmt, ...) {
+  char line[160];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(line, sizeof line, fmt, ap);
+  va_end(ap);
+  io_.log(line);
 }

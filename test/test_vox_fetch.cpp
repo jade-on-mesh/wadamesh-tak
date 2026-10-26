@@ -71,6 +71,7 @@ struct Sim : VoxFetchIo {
 
   // ---- what happened
   int raw_requests = 0, dm_requests = 0, channel_requests = 0;
+  bool last_channel_mark_ok = false;
   int served_packets = 0, changes = 0;
   std::vector<bool> last_req_had_path;
   std::vector<std::string> dm_texts;
@@ -95,7 +96,8 @@ struct Sim : VoxFetchIo {
   }
 
   // The sender serves `want` (all if empty) as a paced burst on a plane.
-  void serve(const std::vector<int>& want, bool on_channel, uint32_t start, bool lossy_link_ok) {
+  bool mark_answers = false;   // answer channel requests that ask for it with marked (0x58) packets
+  void serve(const std::vector<int>& want, bool on_channel, uint32_t start, bool lossy_link_ok, bool marked = false) {
     std::vector<int> idx = want;
     const int total = (int)((payload.size() + pb - 1) / pb);
     if (idx.empty()) for (int i = 0; i < total; i++) idx.push_back(i);
@@ -116,9 +118,11 @@ struct Sim : VoxFetchIo {
         inbox.push_back(e);
       }
     }
+    int left = (int)idx.size();
     for (int i : idx) {
       t += gap;
       served_packets++;
+      left--;
       if (!lossy_link_ok || rnd() < loss) continue;
       bool drop = false;
       for (int d : drop_first) drop |= first && d == i;
@@ -126,13 +130,13 @@ struct Sim : VoxFetchIo {
       const size_t off = (size_t)i * pb;
       const size_t n = payload.size() - off < (size_t)pb ? payload.size() - off : (size_t)pb;
       Event e{t, {}, on_channel ? 2 : -1};
-      e.data.push_back(VoxWire::kPacketSaltedMagic);
+      e.data.push_back(marked ? VoxWire::kPacketMarkedMagic : VoxWire::kPacketSaltedMagic);
       uint8_t sid[4];
       VoxWire::writeSid(0xC0FFEE01, sid);
       e.data.insert(e.data.end(), sid, sid + 4);
       e.data.push_back((uint8_t)i);
       e.data.insert(e.data.end(), payload.begin() + off, payload.begin() + off + n);
-      e.data.push_back((uint8_t)rnd());   // salt
+      e.data.push_back(marked ? (uint8_t)(((bursts & 3) << 6) | (left < 63 ? left : 63)) : (uint8_t)rnd());   // salt
       inbox.push_back(e);
     }
   }
@@ -196,7 +200,9 @@ struct Sim : VoxFetchIo {
     assert(!(data[5] & VoxWire::kFetchFlagHasPath));
     channel_requests++;
     if (alreadySeen(data, len)) return true;
-    if (flood_works) serve(missingOf(data, len), true, now + 3 * air + 300, true);
+    last_channel_mark_ok = (data[5] & VoxWire::kFetchFlagMarkOk) != 0;
+    if (flood_works)
+      serve(missingOf(data, len), true, now + 3 * air + 300, true, mark_answers && last_channel_mark_ok);
     return true;
   }
   uint32_t packetAirMs() override { return air; }
@@ -649,6 +655,31 @@ int main() {
   assert(VoxFetch::gapRequestDelay(false, 800, 210) == 610);
   assert(VoxFetch::gapRequestDelay(true, 800, 210) == 1800);
   assert(VoxFetch::stallWait(800) == 3400);
+  assert(VoxFetch::markedWait(0, 900) == 300);
+  assert(VoxFetch::markedWait(1, 900) == 2 * 900 + 450);
+  assert(VoxFetch::markedWait(3, 600) == 4 * 600 + 400);
+
+  // 18. End-of-answer marker on a channel: the listener's requests say they read
+  //     marked packets, and with them a lost tail is asked for again sooner.
+  {
+    uint32_t took[2] = {0, 0};
+    for (int marked = 0; marked < 2; marked++) {
+      Sim sim; setup(sim, 2750); sim.sender_is_contact = false; sim.mark_answers = marked != 0;
+      sim.drop_first = {16, 17};   // the end of the first answer is lost
+      VoxFetch f(sim); sim.fetch = &f;
+      f.onEnvelope(envFor(sim), nullptr, "Jade", 2, true);
+      sim.run(5000);
+      const int asked = sim.channel_requests;
+      const uint32_t start = sim.now;
+      while (!gotIt(sim, f) && sim.now - start < 600000) sim.run(50);
+      assert(gotIt(sim, f));
+      assert(sim.channel_requests > 0 && sim.last_channel_mark_ok);   // channel requests say they read it
+      (void)asked;
+      took[marked] = sim.now - start;
+    }
+    printf("lost tail on a channel: %lu ms unmarked, %lu ms marked\n", (unsigned long)took[0], (unsigned long)took[1]);
+    assert(took[1] < took[0]);
+  }
   assert(VoxFetch::shouldFinishPassive(18, 36) && !VoxFetch::shouldFinishPassive(17, 36));
   assert(!VoxFetch::shouldFinishPassive(36, 36) && !VoxFetch::shouldFinishPassive(0, 0));
 
