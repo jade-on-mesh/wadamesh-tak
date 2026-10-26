@@ -86,10 +86,11 @@
   #define CAP_TOUCH        1
   #define CAP_ROTATABLE    0
   #define CAP_LARGE_SCREEN 1   // 480x480
-  #define CAP_SD           0
+  #define CAP_SD           0   // the microSD slot is wired to the RP2040 co-processor, not the S3
   #define CAP_FILESYSTEM   1
   #define CAP_GPS          0
   #define CAP_OTA          0   // one factory app slot, no in-place update
+  #define CAP_TILE_STORAGE 0   // no tiles partition and no card the map can use (#692)
   #define CAP_LOCK_SCREEN  0
   #define CAP_BATTERY      0   // no battery fitted
 
@@ -253,6 +254,12 @@
   #define CAP_LOCK_SCREEN  0
 #endif
 
+// Somewhere to keep map tiles: a tiles partition, or a card the map can fall back to.
+// 0 = the map says this board has none, instead of "reflash the tiles partition".
+#ifndef CAP_TILE_STORAGE
+  #define CAP_TILE_STORAGE 1
+#endif
+
 // Boards without a battery ADC must not advertise battery history/calibration.
 #ifndef CAP_BATTERY
   #define CAP_BATTERY 1
@@ -266,6 +273,16 @@
   #define CAP_MICROSD 1
 #else
   #define CAP_MICROSD 0
+#endif
+
+// Offline maps from PMTiles PNG archives on the card (Map options -> Map file) and
+// the "Zoom: map levels only" limit. ~11 KB of reader + UI, on every board with a card.
+#ifndef CAP_MAP_PMTILES
+  #if CAP_MICROSD
+    #define CAP_MAP_PMTILES 1
+  #else
+    #define CAP_MAP_PMTILES 0
+  #endif
 #endif
 
 // No dedicated "tiles" LittleFS partition in the board's own partition table, and no free flash to
@@ -409,6 +426,17 @@
   #define CAP_GPS_BAUD_AUTO 0
 #endif
 
+// The same probe, but only while the user has not picked a speed (Settings > GPS >
+// Serial speed > Auto, the default): the T-Deck Plus GPS talks 38400 or 9600
+// depending on the unit, newer ThinkNode M9s 115200. The speed it locks on is kept
+// apart from the user's choice (touchPrefsSetGpsBaudFound), and a picked speed is
+// used as it is, never probed past.
+#if (defined(HAS_TDECK_GT911) && !defined(HAS_TDECK_PRO)) || defined(HAS_THINKNODE_M9)
+  #define CAP_GPS_BAUD_FIND 1
+#else
+  #define CAP_GPS_BAUD_FIND 0
+#endif
+
 // A switchable LoRa antenna: an on-board antenna plus an external socket, picked at
 // run time (T-Display P4: SKY13453 on XL9535 IO1). Gates the Radio settings antenna
 // rows, the "Always use the external antenna" boot option and the control panel
@@ -474,10 +502,19 @@
 // hardware gate as CAP_COMPASS: the ThinkNode M9's QMI8658 is the only one
 // driven so far (variants/thinknode_m9/M9Imu.*). Its point is tilt — a 2-axis
 // magnetic heading is wrong by ~1.5 degrees per degree of tilt at mid latitudes.
-#if defined(HAS_M9_IMU)
+#if defined(HAS_M9_IMU) || defined(TLORA_PAGER)   // + the Pager's BHI260AP (variants/lilygo_tlora_pager/PagerImu.*)
   #define CAP_IMU 1
 #else
   #define CAP_IMU 0
+#endif
+
+// The constellation screensaver's optional note left of the battery
+// (CstStatus::batt_note). Only the Pager fills it, from its fuel gauge, so only
+// the Pager carries the label (the Tanmatsu has no flash to spare for an empty one).
+#if defined(TLORA_PAGER)
+  #define CAP_CST_BATT_NOTE 1
+#else
+  #define CAP_CST_BATT_NOTE 0
 #endif
 
 #if defined(HAS_CC_BRIGHTNESS)
@@ -740,4 +777,38 @@
 #endif
 #ifndef CAP_FW_UPDATE_CHECK
   #define CAP_FW_UPDATE_CHECK 1
+#endif
+
+// Settings > Contact Management: delete contacts not heard from in N days (#719).
+// On every board; the Tanmatsu got room for it back when its image shrank by
+// ~195 KB (silent asserts, deflated emoji), see sdkconfigs/wadamesh_tanmatsu.
+#ifndef CAP_CONTACT_PURGE
+  #define CAP_CONTACT_PURGE 1
+#endif
+
+// The two-line date of the lock screen and the Constellation screensaver (#742):
+// a portrait or narrow panel at Large / Huge text wraps the day name over the rest.
+// Off on the Tanmatsu, whose fixed 800 x 480 landscape panel always fits the date
+// on one line, so the check is only image size its AppFS ceiling has no room for.
+#ifndef CAP_DATE_WRAP
+  #if defined(HAS_TANMATSU)
+    #define CAP_DATE_WRAP 0
+  #else
+    #define CAP_DATE_WRAP 1
+  #endif
+#endif
+
+// Settings > Display > Screensaver > "Keep north up" (#706): the Constellation stops
+// its slow turn, so north stays at the top.
+#ifndef CAP_SSAVER_NORTH_LOCK
+  #if CAP_SCREENSAVER
+    #define CAP_SSAVER_NORTH_LOCK 1
+  #else
+    #define CAP_SSAVER_NORTH_LOCK 0
+  #endif
+#endif
+
+// Backups listed by their date, or "Default", instead of the file name (#739).
+#ifndef CAP_BACKUP_DATE_LABELS
+  #define CAP_BACKUP_DATE_LABELS 1
 #endif
