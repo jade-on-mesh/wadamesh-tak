@@ -13,8 +13,7 @@
   #include <helpers/ui/MomentaryButton.h>
 #endif
 #include "helpers/sensors/EnvironmentSensorManager.h"
-#include "helpers/sensors/MicroNMEALocationProvider.h"
-#include "../../src/helpers/WadaNmeaLocationProvider.h"   // the T-Deck's GPS provider
+#include "../../src/helpers/WadaNmeaLocationProvider.h"   // the core provider plus the baud probe
 
 #include "../../src/helpers/MediaMeshRadio.h"   // RADIO_DRIVER_CLASS (MediaMesh radio2 scan)
 

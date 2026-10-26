@@ -4,6 +4,7 @@
 #include <Mesh.h>
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/MeshTouchTxTrace.h>
+#include "helpers/UiRequestSlot.h"
 #include "AbstractUITask.h"
 
 // Node-discovery control packet (standard MeshCore — matches examples/simple_repeater
@@ -276,10 +277,13 @@ public:
    *  bit0=identity(name+key) bit1=radio bit2=position bit3=channels bit4=contacts
    *  bit5=screen/app preferences + Wi-Fi (touch builds; "app_settings" in the file).
    *  `replace_*` clears existing channels/contacts first. Returns false on a
-   *  malformed document. Fills counts (channels/contacts applied) if non-null. */
+   *  malformed document. Fills counts (channels/contacts applied) if non-null.
+   *  `out_saved` (if non-null) goes false when the identity or node prefs could not
+   *  be written -- no internal store mounted (#708) -- so the caller can say so
+   *  instead of reporting a restore that will be gone after the reboot. */
   bool uiImportBackup(Stream& in, uint8_t sections,
                       bool replace_channels, bool replace_contacts,
-                      int* out_channels, int* out_contacts);
+                      int* out_channels, int* out_contacts, bool* out_saved = nullptr);
   /** Factory reset: wipe ALL persistent data — formats the internal filesystem
    *  (identity, contacts, channels, saved messages, exported backups) and erases
    *  NVS (Wi-Fi credentials + every setting). The caller MUST reboot immediately
@@ -462,6 +466,7 @@ public:
       memcpy(&_ui_pending_status, recipient.id.pub_key, 4);
       _ui_pending_kind = UiReqKind::Status;
       _ui_pending_tag  = tag;   // request tag, reflected by the repeater
+      _ui_pending_at   = millis();
     }
     return r;
   }
@@ -572,6 +577,7 @@ public:
     if (r == MSG_SEND_SENT_FLOOD || r == MSG_SEND_SENT_DIRECT) {
       memcpy(&_ui_login_then, recipient.id.pub_key, 4);
       _ui_login_then_kind = kind;
+      _ui_login_then_at = millis();
     } else {
       cancelUIDeferredLogin();
     }
@@ -672,6 +678,15 @@ public:
    *  the request a moment after a fallback login was accepted. */
   void uiRequestTick() {
     const uint32_t now = millis();
+    // The slot is single-flight and every UI request waits for it, but not every
+    // sender keeps a deadline (telemetry auto-poll, the Home sensor widget). One
+    // unanswered request then held it until reboot: the admin app's status,
+    // neighbours and access list never went out. Nothing waits longer than 45 s.
+    if (_ui_pending_status && UiRequestSlot::expired(now, _ui_pending_at)) cancelUIPingPending();
+    if (_ui_login_then && UiRequestSlot::expired(now, _ui_login_then_at)) {
+      _ui_login_then = 0;
+      _ui_login_then_kind = UiReqKind::None;
+    }
     if (_ui_fallback_at && (int32_t)(now - _ui_fallback_at) >= 0) {
       _ui_fallback_at = 0;
       if (_ui_pending_status && memcmp(&_ui_pending_status, _ui_fallback_key, 4) == 0) {
@@ -1090,6 +1105,7 @@ public:
       memcpy(&_ui_pending_status, recipient.id.pub_key, 4);
       _ui_pending_kind = UiReqKind::Telemetry;
       _ui_pending_tag  = tag;   // request tag, reflected by the repeater
+      _ui_pending_at   = millis();
     }
     return r;
   }
@@ -1108,6 +1124,7 @@ public:
       memcpy(&_ui_pending_status, recipient.id.pub_key, 4);
       _ui_pending_kind = UiReqKind::Binary;
       _ui_pending_tag  = tag;
+      _ui_pending_at   = millis();
     }
     return r;
   }
@@ -1147,6 +1164,7 @@ public:
       memcpy(&_ui_pending_status, pub_key, 4);
       _ui_pending_kind = UiReqKind::Regions;
       _ui_pending_tag = tag;
+      _ui_pending_at = millis();
     }
     return result;
   }
@@ -1613,6 +1631,7 @@ private:
    *  matching by pubkey alone misroutes the login OK as the REQ reply.
    *  Compare tag in onContactResponse to keep the two streams separate. */
   uint32_t _ui_pending_tag = 0;
+  uint32_t _ui_pending_at = 0;   // millis() when the slot was taken (UiRequestSlot::expired)
   UiLoginInfo _ui_last_login = {};   // uiLastLoginInfo()
   /** Deferred guest-login-then-request arm: holds the first 4 bytes of the
    *  recipient pub_key (0 = none) plus which REQ to send, set by
@@ -1620,6 +1639,7 @@ private:
    *  matching LOGIN-OK arrives, removing the ACL-commit race on the first try. */
   uint32_t _ui_login_then = 0;
   UiReqKind _ui_login_then_kind = UiReqKind::None;
+  uint32_t _ui_login_then_at = 0;
   // Direct-first UI requests (#683): fall back to the guest login at _ui_fallback_at
   // if the reply has not come; after a fallback LOGIN-OK the REQ waits until
   // _ui_deferred_at. 0 = not armed.
