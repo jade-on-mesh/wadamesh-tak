@@ -29,9 +29,10 @@ namespace foreign {
 typedef bool (*Emit)(void* ctx, const char* s, size_t n);
 
 struct Counts {
-  int contacts = 0;
-  int channels = 0;
-  bool identity = false;
+  int contacts;
+  int channels;
+  bool identity;
+  Counts() : contacts(0), channels(0), identity(false) {}
 };
 
 constexpr size_t kCompanionContactRec = 152;

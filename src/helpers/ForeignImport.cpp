@@ -11,6 +11,7 @@ namespace foreign {
 namespace {
 
 struct Out {
+  Out(Emit e, void* c) : emit(e), ctx(c) {}   // a constructor: the firmware builds as C++11
   Emit emit;
   void* ctx;
   bool ok = true;
@@ -129,7 +130,7 @@ bool fromHex(const char* s, size_t n, uint8_t* out, size_t out_len) {
 
 bool companionToBackup(const uint8_t* id, size_t id_len, const uint8_t* contacts3, size_t contacts_len,
                        const uint8_t* channels2, size_t channels_len, Emit emit, void* ctx, Counts* counts) {
-  Out o{emit, ctx};
+  Out o(emit, ctx);
   if (counts) *counts = Counts();
   o.put("{");
   identity(o, id, id_len, counts);
@@ -173,7 +174,7 @@ bool companionToBackup(const uint8_t* id, size_t id_len, const uint8_t* contacts
 
 bool meshPunkToBackup(const uint8_t* id, size_t id_len, const uint8_t* contacts, size_t contacts_len,
                       const char* channels, size_t channels_len, Emit emit, void* ctx, Counts* counts) {
-  Out o{emit, ctx};
+  Out o(emit, ctx);
   if (counts) *counts = Counts();
   o.put("{");
   identity(o, id, id_len, counts);
