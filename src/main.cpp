@@ -27,6 +27,10 @@
 #include "ui-touch/UsbFilesSession.h"   // kUsbFilesUartRxQueue
 #endif
 #endif
+#if defined(TLORA_PAGER) && defined(HAS_TOUCH_UI)
+#include "ui-touch/VoxMic.h"   // VoxAudioTask::begin before Wi-Fi
+void reserveTileFetchStack();   // UITask.cpp
+#endif
 
 #if defined(WADA_LVGL_O2)
 // LVGL compiled at -O2 (scripts/build/perf_lvgl.py) goes 160 bytes deeper into the
@@ -1611,6 +1615,16 @@ void setup() {
         if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED)   wifi_needs_reconnect = true;
         else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP)    wifi_needs_reconnect = false;
     });
+#if defined(TLORA_PAGER) && defined(HAS_TOUCH_UI)
+    // Take the two task stacks that must be one piece of internal RAM before
+    // Wi-Fi does: the 16 KB worker (voice playback, Wi-Fi updates, the Reader)
+    // and the 8 KB net worker (map tiles, update check). UITask::begin() made
+    // them after Wi-Fi had taken 36 KB, and on the Pager the worker didn't fit:
+    // updates said "out of memory (need 16K)" and voice made its own task.
+    reserveTileFetchStack();
+    VoxAudioTask::begin();
+    bootmem::mark("worker stacks taken");
+#endif
     bootmem::mark("before Wi-Fi");
     const bool wifi_mode_ready = WiFi.mode(WIFI_STA);
     bootmem::mark("Wi-Fi started");
