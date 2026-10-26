@@ -306,7 +306,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:6px 18px}
         <label class="check" id="forceRow" hidden><input type="checkbox" id="force"><span>Flash this file anyway<small>Only if you know it is a merged image for this exact board.</small></span></label>
       </div>
       <button class="linkbtn" id="useLocal" type="button">Use a file from my computer instead</button>
-      <label class="check" id="eraseRow"><input type="checkbox" id="eraseAll"><span>Erase everything first<small id="eraseHelp"></small></span></label>
+      <label class="check" id="eraseRow"><input type="checkbox" id="eraseAll" autocomplete="off"><span>Erase everything first<small id="eraseHelp"></small></span></label>
       <label class="check" id="xlRow" hidden><input type="checkbox" id="xlOk"><span>This board passed <code>tools/flash128_test</code><small>XL uses the upper 64 KB of flash, which only some STM32F103C8 chips really have. Run the test on each board first.</small></span></label>
       <div class="actions">
         <button class="btn" id="dfuMode" type="button" hidden>1. Start update mode</button>
@@ -941,7 +941,7 @@ function renderInstall() {
     $("iSub").textContent = t.label + ". Plug the device in with a data USB cable, press Install, then pick its port in the browser's list.";
     $("iFile").innerHTML = `File <code>${esc(t.name)}</code>${t.size ? ` <span>${fmtMB(t.size)}</span>` : ""} <span>written at 0x0 (bootloader, partition table and app)</span>`;
     $("bootTip").textContent = t.boot; $("eraseHelp").textContent = t.eraseHelp;
-    $("eraseRow").hidden = false; $("xlRow").hidden = true;
+    $("eraseRow").hidden = false; $("eraseAll").checked = false; $("xlRow").hidden = true;
     $("iStatus").innerHTML = ready(); showDrop(!t.urls.length);
   } else if (t.kind === "nrf") {
     $("iSub").textContent = `${t.label}. Plug the board in with a data USB cable. Press 1 and pick its port to restart it into update mode, then press 2 and pick its port again (the name may change).`;
@@ -1340,6 +1340,10 @@ for (const b of document.querySelectorAll("[data-goto]")) b.addEventListener("cl
 const setTheme = th => { if (th === "light" || th === "dark") document.documentElement.dataset.theme = th; };
 try { setTheme(new URLSearchParams(location.search).get("theme")); } catch {}
 // The host page (e.g. the WordPress block following DarkMySite's day/night switch) can change it live.
+// "Erase everything first" starts unchecked: browsers restore a ticked box on
+// reload or Back (autocomplete="off" stops most, the back/forward cache needs this).
+$("eraseAll").checked = false;
+window.addEventListener("pageshow", () => { $("eraseAll").checked = false; });
 window.addEventListener("message", e => { if (e.source === window.parent && e.data?.mediamesh === "theme") setTheme(e.data.theme); });
 if (window.parent !== window) {
   const post = () => { try { window.parent.postMessage({ mediamesh: "height", h: Math.ceil(document.documentElement.getBoundingClientRect().height) }, "*"); } catch {} };
