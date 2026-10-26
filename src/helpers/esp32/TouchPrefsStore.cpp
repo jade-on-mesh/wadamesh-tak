@@ -2704,7 +2704,9 @@ void touchPrefsSetVoiceRecordMode(uint8_t m) {
 }
 bool touchPrefsGetVoiceBrighter() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("vox_bright", 1) != 0; }
 void touchPrefsSetVoiceBrighter(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("vox_bright", on ? 1 : 0); }
-bool touchPrefsGetVoiceRestore() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("vox_rest", 0) != 0; }
+// On unless turned off: only boards that can play it (CAP_LUA_AUDIO) ask, and the
+// model downloads by itself there.
+bool touchPrefsGetVoiceRestore() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("vox_rest", 1) != 0; }
 void touchPrefsSetVoiceRestore(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("vox_rest", on ? 1 : 0); }
 bool touchPrefsGetDndEnabled() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("dnd_en", 0) != 0; }
 void touchPrefsSetDndEnabled(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("dnd_en", on ? 1 : 0); }

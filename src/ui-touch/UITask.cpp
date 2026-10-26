@@ -38495,6 +38495,21 @@ static int wifiScanWatchdogSafe(uint32_t cap_ms, uint16_t per_chan_ms = 300) {
 #error "WADA_BOARD_ID: this board has no release artifact name. Add it here AND to scripts/release.sh ENVS, or a self-update fetches another board's firmware and its test reports land under the wrong board."
 #endif
 
+// The AI voice restorer's model (Settings > Sound), downloaded over Wi-Fi by the
+// fetch worker when it isn't on this standalone yet: models/vox-restorer-small.bin
+// from this firmware's own release, else from main (voxRsModelTick).
+#if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE && defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION) && WADA_FORK_RELEASES
+#define VOX_RS_DOWNLOAD 1
+static volatile uint8_t s_vrs_dl_state = 0;      // 0 not needed / unknown, 1 wanted, 2 downloading, 3 downloaded, 4 failed
+static volatile bool s_vrs_dl_request = false;   // UI -> worker
+static uint8_t* volatile s_vrs_dl = nullptr;     // the worker's download buffer
+static volatile size_t s_vrs_dl_len = 0;
+static char s_vrs_dl_msg[112];
+static constexpr size_t kVrsDlCap = 4u << 20;    // the model is about 1 MB
+#else
+#define VOX_RS_DOWNLOAD 0
+#endif
+
 #if WADA_FORK_RELEASES
 #include "ForkUpdate.inc"   // this fork's update check + signed install (GitHub releases)
 #endif
@@ -39131,6 +39146,25 @@ static void tileFetchTaskFn(void* arg) {
       }
       s_pwd_dl_len = got;
       s_pwd_state = ok ? 3 : 4;
+      continue;
+    }
+#endif
+#if VOX_RS_DOWNLOAD
+    // The AI voice restorer's model (voxRsModelTick asked): this release's, else main's.
+    if (s_vrs_dl_request) {
+      s_vrs_dl_request = false;
+      char tag[32], url[160];
+      forkupd::tagFor(firmwareReleaseN(), tag, sizeof tag);
+      s_vrs_dl_msg[0] = 0;
+      size_t got = 0;
+      snprintf(url, sizeof url, "https://raw.githubusercontent.com/" WADA_FORK_REPO "/%s/models/vox-restorer-small.bin", tag);
+      bool ok = s_vrs_dl && forkFetchFile(url, s_vrs_dl, kVrsDlCap, &got, s_vrs_dl_msg, sizeof s_vrs_dl_msg);
+      if (!ok && s_vrs_dl) {
+        snprintf(url, sizeof url, "https://raw.githubusercontent.com/" WADA_FORK_REPO "/main/models/vox-restorer-small.bin");
+        ok = forkFetchFile(url, s_vrs_dl, kVrsDlCap, &got, s_vrs_dl_msg, sizeof s_vrs_dl_msg);
+      }
+      s_vrs_dl_len = got;
+      s_vrs_dl_state = ok ? 3 : 4;
       continue;
     }
 #endif
@@ -77809,7 +77843,13 @@ static bool voxRsEnsure() {
   }
   if (!found) found = voxRsReadFrom(backupInternalFs(), kVoxRestorePath, &buf, &len);
   if (!found) {
+#if VOX_RS_DOWNLOAD
+    if (s_vrs_dl_state == 0) s_vrs_dl_state = 1;   // fetched over Wi-Fi (voxRsModelTick)
+    snprintf(s_vox_rs_note, sizeof s_vox_rs_note, "%s",
+             s_vrs_dl_state == 2 ? "Downloading the model..." : "No model yet: it downloads over Wi-Fi");
+#else
     snprintf(s_vox_rs_note, sizeof s_vox_rs_note, "%s", "No model: copy vox-restorer-small.bin to /models on the SD card");
+#endif
     return false;
   }
   const char* err = nullptr;
@@ -77839,12 +77879,114 @@ static bool voxRsSink(void* ctx, const float* y, size_t n) {
   return true;
 }
 
+#if VOX_RS_DOWNLOAD
+// Whether the model is on this standalone (SD card, data or internal store),
+// without loading it.
+static bool voxRsHaveFile() {
+  if (s_vox_rs.loaded()) return true;
+#if CAP_SD
+  if (s_sd_mounted && SD.exists(kVoxRestorePath)) return true;
+#endif
+#if defined(HAS_TANMATSU) || defined(HAS_TDISPLAY_P4) || defined(HAS_CROWPANEL_P4_101) || defined(HAS_WIO_TRACKER_L2)
+  if (tanSdTryMount() && SD_MMC.exists(kVoxRestorePath)) return true;
+#endif
+  if (uiDataFsReady() && s_ui_data_fs) {
+    char p[96];
+    snprintf(p, sizeof p, "%s%s", s_ui_data_root, kVoxRestorePath);
+    if (s_ui_data_fs->exists(p)) return true;
+  }
+  fs::FS* in = backupInternalFs();
+  return in && in->exists(kVoxRestorePath);
+}
+
+// Keeps the downloaded model: on the SD card when there is one, else on the
+// internal store (about 1 MB).
+static bool voxRsSaveModel(const uint8_t* b, size_t n) {
+  fs::FS* fs = nullptr;
+#if CAP_SD
+  if (s_sd_mounted) fs = &SD;
+#endif
+#if defined(HAS_TANMATSU) || defined(HAS_TDISPLAY_P4) || defined(HAS_CROWPANEL_P4_101) || defined(HAS_WIO_TRACKER_L2)
+  if (!fs && tanSdTryMount()) fs = &SD_MMC;
+#endif
+  for (int pass = 0; pass < 2; pass++) {
+    if (!fs) { fs = backupInternalFs(); pass = 1; }
+    if (!fs) return false;
+    fs->mkdir("/models");
+    WdtHeavyGuard guard;
+    File f = fs->open(kVoxRestorePath, "w");
+    bool ok = false;
+    if (f) {
+      ok = f.write(b, n) == n;
+      f.close();
+      if (!ok) fs->remove(kVoxRestorePath);
+    }
+    if (ok) return true;
+    fs = nullptr;   // the card wouldn't take it: the internal store
+  }
+  return false;
+}
+
+// From the loop: with AI voice restorer on and no model here, fetch it once
+// Wi-Fi is up (on the fetch worker), check it loads, and keep it.
+static void voxRsModelTick(uint32_t now) {
+  static uint32_t next_ms = 0;
+  if ((long)(now - next_ms) < 0) return;
+  if (s_vrs_dl_state == 3 || s_vrs_dl_state == 4) {
+    uint8_t* b = s_vrs_dl;
+    s_vrs_dl = nullptr;
+    const char* err = nullptr;
+    bool ok = s_vrs_dl_state == 3 && b && s_vrs_dl_len > 0;
+    if (ok && !s_vox_rs.loaded()) {   // it must load, or it isn't the model
+      s_vox_rs.setYield([] { vTaskDelay(1); });
+      ok = s_vox_rs.load(b, s_vrs_dl_len, &err);
+    }
+    if (ok && voxRsSaveModel(b, s_vrs_dl_len)) {
+      Serial.printf("[VOX] restorer model downloaded: %u KB\n", (unsigned)(s_vrs_dl_len / 1024));
+      s_vox_rs_note[0] = 0;
+      s_vrs_dl_state = 0;
+      if (g_lv.task) g_lv.task->showAlert(TR("AI voice restorer: model installed"), 2200);
+    } else {
+      Serial.printf("[VOX] restorer model download failed: %s\n",
+                    err ? err : s_vrs_dl_msg[0] ? s_vrs_dl_msg : ok ? "couldn't store it" : "?");
+      s_vrs_dl_state = 1;
+      next_ms = now + 10UL * 60UL * 1000UL;   // try again in 10 min
+    }
+    heap_caps_free(b);
+    return;
+  }
+  next_ms = now + 5000;
+  if (s_vrs_dl_state == 2 || !touchPrefsGetVoiceRestore()) return;
+  if (s_vrs_dl_state == 0) {   // once a boot: is it here?
+    static bool checked = false;
+    if (checked) return;
+    checked = true;
+    if (voxRsHaveFile()) return;
+    s_vrs_dl_state = 1;
+  }
+  if (firmwareReleaseN() < 0 || WiFi.status() != WL_CONNECTED || (uint32_t)WiFi.localIP() == 0) return;
+  uint8_t* b = (uint8_t*)heap_caps_malloc(kVrsDlCap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!b) { next_ms = now + 60000; return; }
+  s_vrs_dl = b;
+  s_vrs_dl_len = 0;
+  s_vrs_dl_state = 2;
+  ensureTileFetchTaskRunning();
+  s_vrs_dl_request = true;
+}
+#endif
+
 // Settings > Sound > AI voice restorer: what to do, then how the last clip went.
 void voxRsDescribe(char* out, size_t cap) {
   int k = snprintf(out, cap, "%s",
+#if VOX_RS_DOWNLOAD
+                   TR("Experimental. Rebuilds voice messages with a small AI model trained with MeshCore Open TAK's "
+                      "voice training kit. The model (about 1 MB) downloads over Wi-Fi by itself, or copy "
+                      "vox-restorer-small.bin to /models on the SD card. A clip plays once it's restored."));
+#else
                    TR("Experimental. Rebuilds voice messages with a small AI model trained with MeshCore Open TAK's "
                       "voice training kit: copy vox-restorer-small.bin to /models on the SD card. A clip plays once "
                       "it's restored."));
+#endif
   if (k < 0 || (size_t)k >= cap) return;
   if (s_vox_rs_note[0]) {
     snprintf(out + k, cap - k, "\n%s.", s_vox_rs_note);
@@ -86929,6 +87071,9 @@ void UITask::loop() {
     }
     uiCp("ui:vox");
     VoxPhotos::tick();
+#if VOX_RS_DOWNLOAD
+    voxRsModelTick(millis());   // the AI voice restorer's model, fetched over Wi-Fi when it isn't here
+#endif
     voxThumbTick();         // photo bubbles' thumbnails, decoded one at a time in the background
 #if CAP_LINK_IMAGES
     linkImgTick();          // pictures linked in messages: one download at a time
