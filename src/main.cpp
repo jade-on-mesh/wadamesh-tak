@@ -1,4 +1,5 @@
 #include "helpers/BootMem.h"
+#include "helpers/esp32/WifiLean.h"   // Pager: smaller Wi-Fi driver buffers (a no-op elsewhere)
 #include "helpers/PsramStatic.h"   // buffers in PSRAM (internal RAM is for Wi-Fi, BLE, TLS, stacks)
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
@@ -1626,6 +1627,7 @@ void setup() {
     bootmem::mark("worker stacks taken");
 #endif
     bootmem::mark("before Wi-Fi");
+    wifiLeanInit();   // Pager: smaller Wi-Fi buffers first (WifiLean.h)
     const bool wifi_mode_ready = WiFi.mode(WIFI_STA);
     bootmem::mark("Wi-Fi started");
 #if defined(TLORA_PAGER)
@@ -1724,7 +1726,6 @@ void setup() {
           // the request. This is a heap refusal, not Wi-Fi ownership.
           s_pager_ble_after_wifi = true;
           Serial.println("[boot] BLE cold start deferred: insufficient contiguous heap");
-          bootmem::mark("BLE refused: needs 50 KB (block 20)");
         }
       }
     } else {
@@ -1994,7 +1995,8 @@ void loop() {
 #endif
   if (wifi_state_machine_active) {
     if (!wifi_started) {
-      const bool wifi_mode_ready = WiFi.mode(WIFI_STA);
+      wifiLeanInit();   // Pager: smaller Wi-Fi buffers first (WifiLean.h)
+    const bool wifi_mode_ready = WiFi.mode(WIFI_STA);
       if (!wifi_mode_ready) {
 #if defined(TLORA_PAGER) && defined(BLE_PIN_CODE)
         const bool ble_waiting = s_pager_ble_after_wifi ||

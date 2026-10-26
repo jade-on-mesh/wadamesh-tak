@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "WifiLean.h"
 #include "BootTimeSync.h"
 
 #if defined(ESP32)
@@ -221,6 +222,7 @@ BootTimeSyncResult bootTimeSyncRun(bool clock_is_current, uint32_t& out_epoch) {
   // Stage the STA WITHOUT touching the persisted Wi-Fi/BLE intent flags — no
   // wifiConfigSetRadioEnabled(), no user-facing enable/disable methods.
   WiFi.persistent(false);         // nothing this session does reaches NVS
+  wifiLeanInit();                 // Pager: smaller Wi-Fi buffers (WifiLean.h)
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(false);   // no background retries left behind
 
