@@ -11,6 +11,7 @@
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
 #include <ArduinoJson.h>   // settings backup import (uiImportBackup)
+#include "helpers/ForeignImport.h"   // MeshCore Open's contacts export (base64 keys)
 #include <string.h>
 #include <SHA256.h>   // derive a region's flood-scope key from its #hashtag name
 #include <time.h>     // gmtime_r for the "clock" CLI command
@@ -2744,6 +2745,29 @@ bool MyMesh::uiImportBackup(Stream& in, uint8_t sections,
   } alloc;
   JsonDocument doc(&alloc);
   if (deserializeJson(doc, in)) return false;
+  if (doc.is<JsonArrayConst>()) {
+    // MeshCore Open's contacts export (Discovered contacts > Export): a list of
+    // {"publicKey": base64, "name", "type", "flags", "latitude", "longitude",
+    // "lastSeen" (ms)}. Contacts only, added to the ones here (nothing replaced).
+    int nco = 0;
+    if (sections & 0x10) {
+      for (JsonVariantConst ev : doc.as<JsonArrayConst>()) {
+        JsonObjectConst e = ev.as<JsonObjectConst>();
+        uint8_t pub[32];
+        if (e.isNull() || !foreign::base64Key32(e["publicKey"].as<const char*>(), pub)) continue;
+        if (lookupContactByPubKey(pub, PUB_KEY_SIZE) || !memcmp(pub, self_id.pub_key, 32)) continue;   // known, or us
+        const char* nm = e["name"].as<const char*>();
+        const double lat = e["latitude"].as<double>(), lon = e["longitude"].as<double>();
+        const uint32_t seen = (uint32_t)(e["lastSeen"].as<double>() / 1000.0);
+        const uint8_t type = e["type"].isNull() ? (uint8_t)ADV_TYPE_CHAT : e["type"].as<uint8_t>();
+        if (uiAddContactFromBackup(pub, nm && nm[0] ? nm : "?", type, e["flags"].as<uint8_t>(),
+                                   (int32_t)(lat * 1e6), (int32_t)(lon * 1e6), seen, seen)) nco++;
+      }
+      if (nco) saveContacts();
+    }
+    if (out_contacts) *out_contacts = nco;
+    return true;
+  }
   JsonObjectConst root = doc.as<JsonObjectConst>();
   if (root.isNull()) return false;
 
