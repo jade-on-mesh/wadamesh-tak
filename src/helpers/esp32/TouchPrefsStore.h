@@ -556,6 +556,10 @@ void    touchPrefsSetVoiceRecordMode(uint8_t wire_mode);
  *  (VoxBrighten). Default on. */
 bool    touchPrefsGetVoiceBrighter();
 void    touchPrefsSetVoiceBrighter(bool on);
+/** "AI voice restorer": play Codec2 voice messages through the small restorer
+ *  (VoxRestoreSmall, its model on the SD card) when it's there. Default off. */
+bool    touchPrefsGetVoiceRestore();
+void    touchPrefsSetVoiceRestore(bool on);
 
 /** Do Not Disturb: silences the incoming-message chime during a daily time
  *  window. Start/end are half-hour slots (0..47, slot = hour*2 + (min>=30)),
