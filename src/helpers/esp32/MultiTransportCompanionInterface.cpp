@@ -231,24 +231,18 @@ static uint8_t s_ble_fail = BLE_FAIL_NONE;
 
 #if defined(TLORA_PAGER)
 // Bluetooth's start on the Pager, across a reset (RTC memory keeps it through a
-// panic or restart; a power-on leaves garbage, which matches neither value).
-// Armed just before NimBLE starts and cleared once it has: still armed at the
-// next boot means NimBLE aborted for want of memory, so this power-on goes
-// back to the old 50 KB reserve.
+// panic or restart; a power-on leaves garbage). Armed just before NimBLE starts
+// and cleared once it has: still armed at the next boot means NimBLE aborted,
+// which the start-up list then says.
 #include <esp_attr.h>
 static constexpr uint32_t kPagerBleArmed = 0x424C4541u;   // 'BLEA'
-static constexpr uint32_t kPagerBleSafe  = 0x424C4553u;   // 'BLES'
 RTC_NOINIT_ATTR static uint32_t s_pager_ble_arm;
-static bool pagerBleSafe() {
-  static int s = -1;
-  if (s < 0) {
-    if (s_pager_ble_arm == kPagerBleArmed) {
-      s_pager_ble_arm = kPagerBleSafe;
-      bootmem::mark("BLE start crashed last boot: 50 KB again");
-    }
-    s = s_pager_ble_arm == kPagerBleSafe;
-  }
-  return s;
+static void pagerBleCheckLastStart() {
+  static bool done = false;
+  if (done) return;
+  done = true;
+  if (s_pager_ble_arm == kPagerBleArmed) bootmem::mark("BLE start crashed last boot");
+  s_pager_ble_arm = 0;
 }
 #endif
 uint8_t bleLastFailReason() { return s_ble_fail; }
@@ -273,18 +267,16 @@ void MultiTransportCompanionInterface::enableBle() {
     // not be rejected (UITask used to gate both cases identically, trapping the
     // user with BLE resident-but-off and neither radio enableable).
 #if defined(TLORA_PAGER)
-    // The Pager can't keep 50 KB free beside Wi-Fi. Bluetooth itself measured
-    // about 21 KB of internal RAM there (NimBLE's host is in PSRAM since #166),
-    // so ask for that plus room to run. A failed controller allocation aborts
-    // inside NimBLE (ESP_ERROR_CHECK), so a start that never finished falls
-    // back to the old reserve for the rest of this power-on (pagerBleSafe()).
-    const bool ble_safe = pagerBleSafe();
-    const size_t BLE_COEXIST_MIN_FREE  = (ble_safe ? 50u : 32u) * 1024u;
-    const size_t BLE_COEXIST_MIN_BLOCK = (ble_safe ? 20u : 12u) * 1024u;
-#else
+    // The full 50 KB reserve on the Pager too. A 32 KB one (#168) let NimBLE
+    // start beside Wi-Fi with 38 KB free (30 KB block), and it aborted in its
+    // controller bring-up on every power-on (beta_99.77): Bluetooth with Wi-Fi
+    // up needs more than the 21 KB it measured with Wi-Fi off. A failed
+    // allocation there aborts (ESP_ERROR_CHECK), so it can't be tried and
+    // caught; it has to be refused here.
+    pagerBleCheckLastStart();
+#endif
     const size_t BLE_COEXIST_MIN_FREE  = 50u * 1024u;
     const size_t BLE_COEXIST_MIN_BLOCK = 20u * 1024u;
-#endif
     const uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     const size_t internal_free = heap_caps_get_free_size(internal_caps);
     const size_t internal_max  = heap_caps_get_largest_free_block(internal_caps);
@@ -294,8 +286,7 @@ void MultiTransportCompanionInterface::enableBle() {
                     (unsigned)internal_free, (unsigned)internal_max);
       s_ble_fail = BLE_FAIL_HEAP;
 #if defined(TLORA_PAGER)
-      bootmem::mark(ble_safe ? "BLE refused: needs 50 KB (block 20)"
-                             : "BLE refused: needs 32 KB (block 12)");
+      bootmem::mark("BLE refused: needs 50 KB (block 20)");
 #endif
       return;
     }
