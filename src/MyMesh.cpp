@@ -2603,15 +2603,19 @@ void MyMesh::uiExportBackup(Print& out, double node_lat, double node_lon) {
   out.print("  \"private_key\": \""); hex(prv, 64); out.print("\",\n");
   if (p) {
     char l[176];
+    // As the MeshCore app writes them: frequency in kHz, bandwidth in Hz, whole
+    // numbers (MeshCore One refuses anything else). Older Wadamesh exports wrote
+    // MHz and kHz; the import below reads both.
     snprintf(l, sizeof l,
-      "  \"radio_settings\": {\"frequency\": %.4f, \"bandwidth\": %.1f, \"spreading_factor\": %u, \"coding_rate\": %u, \"tx_power\": %d},\n",
-      (double)p->freq, (double)p->bw, (unsigned)p->sf, (unsigned)p->cr, (int)p->tx_power_dbm);
+      "  \"radio_settings\": {\"frequency\": %lu, \"bandwidth\": %lu, \"spreading_factor\": %u, \"coding_rate\": %u, \"tx_power\": %d},\n",
+      (unsigned long)lround((double)p->freq * 1000.0), (unsigned long)lround((double)p->bw * 1000.0),
+      (unsigned)p->sf, (unsigned)p->cr, (int)p->tx_power_dbm);
     out.print(l);
   }
   {
     char l[96];
     snprintf(l, sizeof l,
-      "  \"position_settings\": {\"latitude\": %.6f, \"longitude\": %.6f},\n",
+      "  \"position_settings\": {\"latitude\": \"%.6f\", \"longitude\": \"%.6f\"},\n",   // strings, as the app
       node_lat, node_lon);
     out.print(l);
   }
@@ -2731,6 +2735,13 @@ static int mc_hexToBytes(const char* hex, uint8_t* out, int max_bytes) {
   return n;
 }
 
+// A JSON number, or a number written as a string (the MeshCore app writes
+// coordinates as strings); 0 for anything else.
+static double jsonNum(JsonVariantConst v) {
+  if (v.is<const char*>()) return atof(v.as<const char*>());
+  return v.as<double>();
+}
+
 bool MyMesh::uiImportBackup(Stream& in, uint8_t sections,
                             bool replace_channels, bool replace_contacts,
                             int* out_channels, int* out_contacts) {
@@ -2781,8 +2792,18 @@ bool MyMesh::uiImportBackup(Stream& in, uint8_t sections,
   if (sections & 0x02) {  // radio
     JsonObjectConst r = root["radio_settings"].as<JsonObjectConst>();
     if (!r.isNull()) {
-      if (!r["frequency"].isNull())        { _prefs.freq = r["frequency"].as<float>(); prefs_dirty = true; }
-      if (!r["bandwidth"].isNull())        { _prefs.bw = r["bandwidth"].as<float>(); prefs_dirty = true; }
+      // The MeshCore app (and MeshCore One) write kHz and Hz; older Wadamesh
+      // exports MHz and kHz. No LoRa band is below 10 MHz or above 1 MHz wide.
+      if (!r["frequency"].isNull()) {
+        double f = jsonNum(r["frequency"]);
+        if (f > 10000.0) f /= 1000.0;
+        if (f > 100.0 && f < 3000.0) { _prefs.freq = (float)f; prefs_dirty = true; }
+      }
+      if (!r["bandwidth"].isNull()) {
+        double bw = jsonNum(r["bandwidth"]);
+        if (bw > 1000.0) bw /= 1000.0;
+        if (bw > 1.0 && bw <= 1625.0) { _prefs.bw = (float)bw; prefs_dirty = true; }
+      }
       if (!r["spreading_factor"].isNull()) { _prefs.sf = (uint8_t)r["spreading_factor"].as<int>(); prefs_dirty = true; }
       if (!r["coding_rate"].isNull())      { _prefs.cr = (uint8_t)r["coding_rate"].as<int>(); prefs_dirty = true; }
       if (!r["tx_power"].isNull())         { _prefs.tx_power_dbm = (int8_t)r["tx_power"].as<int>(); prefs_dirty = true; }
@@ -2844,8 +2865,8 @@ bool MyMesh::uiImportBackup(Stream& in, uint8_t sections,
   if (sections & 0x04) {  // position
     JsonObjectConst ps = root["position_settings"].as<JsonObjectConst>();
     if (!ps.isNull()) {
-      if (!ps["latitude"].isNull())  { sensors.node_lat = ps["latitude"].as<double>(); prefs_dirty = true; }
-      if (!ps["longitude"].isNull()) { sensors.node_lon = ps["longitude"].as<double>(); prefs_dirty = true; }
+      if (!ps["latitude"].isNull())  { sensors.node_lat = jsonNum(ps["latitude"]); prefs_dirty = true; }
+      if (!ps["longitude"].isNull()) { sensors.node_lon = jsonNum(ps["longitude"]); prefs_dirty = true; }
     }
   }
   if (prefs_dirty) savePrefs();
@@ -2884,9 +2905,7 @@ bool MyMesh::uiImportBackup(Stream& in, uint8_t sections,
         uint8_t pub[32]; mc_hexToBytes(pk, pub, 32);
         const char* cn = e["custom_name"].as<const char*>();
         const char* nm = (cn && cn[0]) ? cn : e["name"].as<const char*>();
-        double lat = 0, lon = 0;
-        const char* la = e["latitude"].as<const char*>(); if (la) lat = atof(la);
-        const char* lo = e["longitude"].as<const char*>(); if (lo) lon = atof(lo);
+        const double lat = jsonNum(e["latitude"]), lon = jsonNum(e["longitude"]);   // strings in the app's files
         if (uiAddContactFromBackup(pub, nm, e["type"].as<uint8_t>(), e["flags"].as<uint8_t>(),
                                    (int32_t)(lat * 1e6), (int32_t)(lon * 1e6),
                                    e["last_advert"].as<uint32_t>(), e["last_modified"].as<uint32_t>())) nco++;
