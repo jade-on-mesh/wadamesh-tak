@@ -17,6 +17,7 @@
 
 #include <map>
 #include <string>
+#include <initializer_list>
 #include <vector>
 
 #include "ui-touch/VoxFec.h"
@@ -273,8 +274,8 @@ void testChannelOwnOnly() {
 }
 
 // A listener 4 hops away (the stalled MediaMesh photo, 26 Oct): wait out the
-// request's flood (a relay per hop) and space the flooded answers for the
-// relays (three hops' worth, at most twice the 1-hop gap).
+// request's flood (two relays of it) and space the flooded answers for the
+// next two repeaters to clear (FloodPace's fast gap).
 void testChannelFarListener() {
   Sim sim;
   VoxServe s(sim);
@@ -286,10 +287,10 @@ void testChannelFarListener() {
   s.onPayload(req.data(), req.size(), 3, 4);
   sim.run(s, 30000);
   CHECK(sim.sent.size() == 2, "sent %zu", sim.sent.size());
-  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 500 + 4 * 1938 && sim.sent[0].at - t0 < 1100 + 4 * 1938,
+  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 500 + 2 * 1938 && sim.sent[0].at - t0 < 1100 + 2 * 1938 + 20,
         "waits out a 4-hop request's flood (%u)", sim.sent.empty() ? 0u : sim.sent[0].at - t0);
   const uint32_t gap = sim.sent.size() == 2 ? sim.sent[1].at - sim.sent[0].at : 0;
-  CHECK(gap == 4300, "4-hop flood gap %u (capped at twice 4 * air + 150)", gap);
+  CHECK(gap >= 2938 && gap < 2960, "4-hop flood gap %u (2 relays to clear)", gap);
 
   // MediaMesh's 250 kHz: 157 ms a packet.
   Sim fast;
@@ -300,7 +301,66 @@ void testChannelFarListener() {
   f.onPayload(req.data(), req.size(), 3, 4);
   fast.run(f, 30000);
   const uint32_t g2 = fast.sent.size() == 2 ? fast.sent[1].at - fast.sent[0].at : 0;
-  CHECK(g2 == 1600, "radio2 4-hop flood gap %u (800 doubled)", g2);
+  CHECK(g2 >= 922 && g2 < 940, "radio2 4-hop flood gap %u", g2);
+}
+
+// FloodPace on its own: the same cases as the app's vox_timing_test.dart.
+void testFloodPace() {
+  using namespace floodpace;
+  CHECK(relayMs(157) == 608, "relay %u", relayMs(157));
+  Pace p(157);
+  CHECK(p.gapMs(0) == 800 && p.gapMs(1) == 800 && p.gapMs(20) == 922, "start %u %u", p.gapMs(1), p.gapMs(20));
+  CHECK(p.settleMs(0) == 0 && p.settleMs(1) == 608 && p.settleMs(20) == 2 * 608, "settle %u", p.settleMs(20));
+  auto ans = [](std::initializer_list<int> v) { Answer a; for (int i : v) a.add(i); return a; };
+  auto bits = [](std::initializer_list<int> v) {
+    std::vector<uint8_t> m(32, 0);
+    for (int i : v) m[i >> 3] |= (uint8_t)(1u << (i & 7));
+    return m;
+  };
+  Answer a = ans({1, 4, 5, 7, 8, 9});
+  p.feedback(a, bits({1, 4, 5, 8, 9}).data());
+  CHECK(p.gapMs(4) == 1200 && p.settleMs(4) == 3 * 608, "lossy %u %u", p.gapMs(4), p.settleMs(4));
+  p.feedback(a, bits({1, 4, 5, 8, 9}).data());
+  CHECK(p.gapMs(4) == 1200 && p.settleMs(4) == 3 * 608, "a second report on it moved the pace");
+  p.feedback(a, bits({}).data());
+  CHECK(p.gapMs(4) == 922 && p.gapMs(0) == 800 && p.settleMs(4) == 2 * 608, "clean report %u %u", p.gapMs(4), p.settleMs(4));
+  p.feedback(a, bits({1, 4, 5, 7, 8, 9}).data());
+  CHECK(p.gapMs(4) == 922, "slowed after a clean report");
+  for (int k = 0; k < 6; k++) { Answer c = ans({0, 1, 2, 3}); p.feedback(c, bits({0, 2, 3}).data()); }
+  CHECK(p.gapMs(4) == 1600 && p.settleMs(4) == 4 * 608, "congested %u %u", p.gapMs(4), p.settleMs(4));
+  for (int k = 0; k < 6; k++) { Answer c = ans({0, 1, 2, 3}); p.feedback(c, bits({}).data()); }
+  CHECK(p.gapMs(4) == 922 && p.settleMs(4) == 2 * 608, "cleared %u %u", p.gapMs(4), p.settleMs(4));
+  Pace m(500);
+  CHECK(m.gapMs(1) == 2150 && m.gapMs(4) == 2938 && m.settleMs(1) == 1938 && slowGapMs(500) == 4300,
+        "main mesh %u %u %u", m.gapMs(1), m.gapMs(4), m.settleMs(1));
+}
+
+// Listeners' requests after an answer teach the author's pace.
+void testChannelPaceLearns() {
+  Sim sim;
+  sim.air = 157;
+  VoxServe s(sim);
+  sim.clips[kSid] = {1, clip1200(1000)};   // several packets
+  s.markOwn(kSid);
+  const std::vector<int> miss = {0, 1, 2, 3, 4, 5};
+  const auto req = dartFetch(kSid, kKeyA, &miss, true, nullptr);
+  s.onPayload(req.data(), req.size(), 3, 4);
+  sim.run(s, 30000);
+  const size_t first = sim.sent.size();
+  CHECK(first >= 2, "first answer %zu", first);
+  const uint32_t g1 = sim.sent[1].at - sim.sent[0].at;
+  // Everything but packet 1 lost (and so the first): slower, and a longer wait.
+  const std::vector<int> still = {0, 2, 3, 4, 5};
+  const auto req2 = dartFetch(kSid, kKeyB, &still, true, nullptr);
+  const uint32_t t1 = sim.now;
+  s.onPayload(req2.data(), req2.size(), 3, 4);
+  sim.run(s, 40000);
+  CHECK(sim.sent.size() > first + 1, "second answer");
+  if (sim.sent.size() > first + 1) {
+    const uint32_t g2 = sim.sent[first + 1].at - sim.sent[first].at;
+    CHECK(g2 > g1 + 200, "slower after a lossy answer: %u then %u", g1, g2);
+    CHECK(sim.sent[first].at - t1 >= 500 + 3 * 608, "waited a relay more (%u)", sim.sent[first].at - t1);
+  }
 }
 
 void testDuplicateIgnored() {
@@ -585,6 +645,8 @@ int main(int argc, char** argv) {
   testChannelMergeAndZeroHop();
   testChannelOwnOnly();
   testChannelFarListener();
+  testFloodPace();
+  testChannelPaceLearns();
   testDuplicateIgnored();
   testNewerRequestReplaces();
   testQueuedListeners();

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "VoxFetch.h"
+#include "FloodPace.h"
 
 #include "VoxFec.h"
 
@@ -175,13 +176,9 @@ int VoxFetch::hops(const Session& s) {
 }
 
 uint32_t VoxFetch::packetGap(bool flood, int h, uint32_t air) {
-  if (flood) {   // VoxServe::packetGap: paced for the relays to a listener h hops away
-    const int base = imax(800, (int)(air * 4 + 150));
-    if (h < 2) return (uint32_t)base;
-    const int relay = (int)(air + 2.5 * air * 1.15 + 0.5);
-    const int g = imin((int)air + imin(h, 3) * relay, 2 * base);
-    return (uint32_t)imax(g, base);
-  }
+  // An answer on the channel may be paced as slow as FloodPace's slow gap: expect
+  // that, so a slow answer isn't taken for a stall (faster ones shorten the wait).
+  if (flood) return floodpace::slowGapMs(air);
   if (h <= 0) return (uint32_t)imax(400, (int)(air * 2 + 150));
   const double relay_air = air * 1.15;
   return (uint32_t)(air + imin(h, 2) * 2.5 * relay_air + 400);
