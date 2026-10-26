@@ -55465,7 +55465,13 @@ static void doForeignImport() {
     g_lv.task->showAlert(TR("Nothing to import there"), 2000);
     return;
   }
-  if (!backupImportAndReboot(fs, out, nullptr)) g_lv.task->showAlert(TR("Import failed (bad/unreadable JSON)"), 2400);
+  switch (backupImportAndReboot(fs, out, nullptr)) {
+    case BackupImport::BadFile:
+      g_lv.task->showAlert(TR("Import failed (bad/unreadable JSON)"), 2400); break;
+    case BackupImport::StoreFailed:
+      g_lv.task->showAlert(TR("Import failed: internal storage unavailable. Identity, channels and contacts were not saved."), 4000); break;
+    case BackupImport::Rebooting: break;
+  }
 }
 static void confirmForeignImport(int i) {
   s_foreign_pick = i;
