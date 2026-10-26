@@ -1,27 +1,40 @@
-# AI voice restorer (experimental)
+# AI voice restorer
 
 Codec2 voice sounds buzzy and robotic, with nothing above 4 kHz. MeshCore Open
 TAK rebuilds it with an AI voice restorer, a 28 MB model far too big and slow
-for a standalone. This is a small one, about 30 times smaller, to find out how
-it sounds and how fast each standalone runs it.
+for a standalone. This is a small one, about 30 times smaller, trained with the
+voice training kit and tried on the T-Deck and the T-Display P4.
 
-## Trying it
+## Using it
 
-1. Train it with MeshCore Open TAK's voice training kit
-   (`tools/voice-training`): option **4, Small restorer**, about 2 hours on a
-   gaming GPU. Train the big restorer (option 2) first if you can: the small
-   one then learns to sound like it.
-2. Copy `output/vox-restorer-small.bin` (about 1 MB) to the standalone's SD
-   card as `/models/vox-restorer-small.bin`.
-3. **Settings > Sound > AI voice restorer**: on.
-4. Play a voice message. The clip is restored first, then plays, so there is a
-   pause before it starts on a slow board. The setting's line then says how
-   long the last clip took ("Last clip: 8.0 s of voice restored in 5.1 s"),
-   or why it couldn't be used.
+**Settings > Sound > AI voice restorer**, on by default on the standalones
+that can play voice: the T-Deck, T-Deck Max, T-Lora Pager (SX1262 and LR1121),
+T-Display P4 and Tanmatsu.
 
-Off by default. Turning it off frees the model's memory. Talks heard live
-(the walkie-talkie) play as before; Brighter voice isn't used on a restored
-clip, which already has its treble.
+- The model (`models/vox-restorer-small.bin` in this repository, about 1 MB)
+  isn't in the firmware: the T-Deck's app slot has no room for it. The
+  standalone downloads it by itself the first time it's on Wi-Fi, from its own
+  release (else from `main`), checks it loads, and keeps it on the SD card, or
+  on the internal store without one. A failed download is tried again every
+  10 minutes. Until then voice plays as before.
+- Or copy it yourself: `/models/vox-restorer-small.bin` on the SD card.
+- Play a voice message. The clip is restored first, then plays, so there is a
+  pause before it starts on a slow board. The setting's line says how long the
+  last clip took ("Last clip: 8.0 s of voice restored in 5.1 s"), or why it
+  couldn't be used.
+
+Turning it off frees the model's memory. Talks heard live (the walkie-talkie)
+play as before; Brighter voice isn't used on a restored clip, which already
+has its treble.
+
+## A model of your own
+
+Train it with MeshCore Open TAK's voice training kit (`tools/voice-training`):
+option **4, Small restorer**, about 2 hours on a gaming GPU. Train the big
+restorer (option 2) first if you can: the small one then learns to sound like
+it. Copy `output/vox-restorer-small.bin` to the SD card as above (a copy on the
+card is used before the downloaded one), or replace `models/vox-restorer-small.bin`
+here so every standalone gets it.
 
 ## What it does
 

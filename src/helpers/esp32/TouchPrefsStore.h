@@ -575,7 +575,7 @@ void    touchPrefsSetVoiceRecordMode(uint8_t wire_mode);
 bool    touchPrefsGetVoiceBrighter();
 void    touchPrefsSetVoiceBrighter(bool on);
 /** "AI voice restorer": play Codec2 voice messages through the small restorer
- *  (VoxRestoreSmall, its model on the SD card) when it's there. Default off. */
+ *  (VoxRestoreSmall, its model on the SD card or downloaded over Wi-Fi). Default on. */
 bool    touchPrefsGetVoiceRestore();
 void    touchPrefsSetVoiceRestore(bool on);
 bool    touchPrefsGetVibrate();                // vibrate on notifications (boards with a motor), default false (Pager: true)
