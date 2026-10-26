@@ -75278,8 +75278,12 @@ static volatile bool     s_vox_voice_stop = false;
 #if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
 // "Brighter voice" (Settings > Sound): Codec2 played at 16 kHz with the 4-8
 // kHz band filled in by VoxBrighten, else at Codec2's own 8 kHz as before.
+// Voice always goes to the speaker at 16 kHz, Brighter voice or not: at 8 kHz
+// VoxPlayOut has nothing to interpolate, its low-pass is skipped, and the
+// speaker gets every sample held twice as long, with mirror images of the voice
+// all over 4-8 kHz: the standalones' constant buzz. (As the app plays it.)
 static uint32_t voxSourceRate() {
-  return touchPrefsGetVoiceBrighter() ? VoxBrighten::kMinRate : (uint32_t)kVoxVoiceSampleRate;
+  return VoxBrighten::kMinRate;   // 16 kHz
 }
 // Starts `b` when the setting is on and the speaker runs fast enough.
 static void voxBrightBegin(VoxBrighten* b, uint32_t output_rate) {
@@ -75326,9 +75330,11 @@ static void voxVoiceJob(void* arg) {
     // Level: from the clip's first 3 s, so a quiet recording plays as loud as a
     // close one (GridDown normalises each clip the same way), then the
     // speaker's rate through VoxPlayOut (interpolated, low-passed).
-    const float norm = voxPlayNormGain(voxCodec2Peak(pb->mode, pb->frames, pb->len, 3 * kVoxVoiceSampleRate));
+    const int peak = voxCodec2Peak(pb->mode, pb->frames, pb->len, 3 * kVoxVoiceSampleRate);
+    const float norm = voxPlayNormGain(peak);
     VoxPlayOut po;
     po.begin(sink.output_rate, sink.gain * norm);
+    po.setGate(voxPlayGateLevel(peak));   // pauses 16 dB down, as the sender's gate
     voxBrightBegin(&s_vox_bright, sink.output_rate);
     s_vox_voice_len = (uint32_t)pb->len;
     for (size_t i = 0; i + bpf <= pb->len && !s_vox_voice_stop && !failed; i += bpf) {

@@ -329,6 +329,8 @@ void VoxPlayOut::begin(uint32_t out_rate, float gain) {
   rel_ = 1.0f;
   prev_ = 0;
   x1_ = x2_ = y1_ = y2_ = 0;
+  env_ = 0;
+  gate_ = 1.0f;   // open: the first syllable isn't faded in
   lpf_ = out_rate > (uint32_t)kVoxVoiceSampleRate;
   if (lpf_) {   // RBJ low-pass, fc 3.6 kHz, Q 0.7071, at the output rate
     const double pi = 3.14159265358979323846;
@@ -344,8 +346,23 @@ void VoxPlayOut::begin(uint32_t out_rate, float gain) {
   }
 }
 
+// The pause gate, per 8 kHz sample: a peak envelope (30 ms decay), opening in
+// 2 ms and closing over 120 ms (longer than the sender's 60 ms: a word's quiet
+// tail isn't clipped), down to -16 dB.
+constexpr float kPlayGateFloor   = 0.16f;
+constexpr float kPlayEnvDecay    = 0.99584f;                  // exp(-1 / (0.030 * 8000))
+constexpr float kPlayGateAttack  = 1.0f / (0.002f * 8000.0f);
+constexpr float kPlayGateRelease = 1.0f / (0.120f * 8000.0f);
+
 void VoxPlayOut::push(int16_t s, int16_t* out, size_t cap, size_t* n) {
-  const float cur = (float)s * gain_;
+  float cur = (float)s * gain_;
+  if (gate_open_ > 0) {
+    const float a = fabsf((float)s);
+    env_ = a > env_ ? a : env_ * kPlayEnvDecay;
+    const float to = env_ > gate_open_ ? 1.0f : kPlayGateFloor;
+    gate_ += (to - gate_) * (to > gate_ ? kPlayGateAttack : kPlayGateRelease);
+    cur *= gate_;
+  }
   while (rel_ <= 1.0f) {
     float y = prev_ + (cur - prev_) * rel_;
     if (lpf_) {
@@ -373,6 +390,10 @@ float voxPlayNormGain(int peak) {
   if (g < 1.0f) g = 1.0f;
   if (g > 6.0f) g = 6.0f;              // a near-silent clip isn't turned into hiss
   return g;
+}
+
+float voxPlayGateLevel(int peak) {
+  return peak > 0 ? (float)peak * 0.015849f : 0.0f;   // -36 dB
 }
 
 int voxCodec2Peak(int wire_mode, const uint8_t* bits, size_t len, size_t max_samples) {

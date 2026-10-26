@@ -141,12 +141,19 @@ class VoxPlayOut {
  public:
   void begin(uint32_t out_rate, float gain);
   void setGain(float g) { gain_ = g; }
+  // Pauses: while the decoded voice stays under `open_level` (raw Codec2
+  // samples, before the gain) it is turned down 16 dB, as the sender's noise
+  // gate does, so Codec2's buzzy rendering of background noise between words
+  // fades instead of droning on. 0 (the default) turns it off. For a clip,
+  // voxPlayGateLevel(peak) of its peak.
+  void setGate(float open_level) { gate_open_ = open_level; }
   // One 8 kHz sample in; the output samples it completes are appended to
   // out[*n] (capacity `cap`).
   void push(int16_t s, int16_t* out, size_t cap, size_t* n);
 
  private:
   float step_ = 1, rel_ = 1, prev_ = 0, gain_ = 1;
+  float gate_open_ = 0, env_ = 0, gate_ = 1;
   bool lpf_ = false;
   float b0_ = 1, b1_ = 0, b2_ = 0, a1_ = 0, a2_ = 0;
   float x1_ = 0, x2_ = 0, y1_ = 0, y2_ = 0;
@@ -159,3 +166,7 @@ int voxCodec2Peak(int wire_mode, const uint8_t* bits, size_t len, size_t max_sam
 // The level to play a clip at so its speech peaks near -3 dBFS: 1 for a clip
 // already loud, up to 6x for a quiet one, from its peak (voxCodec2Peak).
 float voxPlayNormGain(int peak);
+
+// The level that opens VoxPlayOut's pause gate for a clip peaking at `peak`:
+// 36 dB under it (0 = no gate, for an unknown or silent peak).
+float voxPlayGateLevel(int peak);

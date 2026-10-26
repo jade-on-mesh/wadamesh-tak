@@ -5,6 +5,8 @@
 // every sample against the app's own Codec2 build decoding the same bits.
 // Build: test/build_vox_voice_test.sh
 
+#include <vector>
+#include <cmath>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -124,5 +126,44 @@ int main(int argc, char** argv) {
   for (int mode = 1; mode <= 6; mode++) assert(voxCodec2Decode(mode, noise, sizeof noise, out, 40000) > 0);
   free(out);
   printf("4 clips decoded sample-exact; 700C/Mimi refused; noise survives\n");
+
+  // VoxPlayOut's pause gate: 0.5 s of a loud 300 Hz tone, then 1 s of low
+  // noise 46 dB under it. Played at 16 kHz with and without the gate.
+  {
+    const int talk = 4000, pause = 8000;
+    std::vector<int16_t> in(talk + pause);
+    uint32_t r = 12345;
+    for (int i = 0; i < talk; i++) in[i] = (int16_t)(20000 * sin(2 * M_PI * 300 * i / 8000.0));
+    for (int i = talk; i < talk + pause; i++) {
+      r = r * 1103515245u + 12345u;
+      in[i] = (int16_t)((int)((r >> 16) % 201) - 100);   // +-100: -46 dB
+    }
+    auto play = [&](bool gate, std::vector<int16_t>& out) {
+      VoxPlayOut po;
+      po.begin(16000, 1.0f);
+      if (gate) po.setGate(voxPlayGateLevel(20000));
+      out.assign(2 * in.size() + 8, 0);
+      size_t n = 0;
+      for (int16_t s : in) po.push(s, out.data(), out.size(), &n);
+      out.resize(n);
+    };
+    std::vector<int16_t> a, b;
+    play(false, a);
+    play(true, b);
+    auto rms = [](const std::vector<int16_t>& v, size_t from, size_t to) {
+      double e = 0;
+      for (size_t i = from; i < to; i++) e += (double)v[i] * v[i];
+      return sqrt(e / (double)(to - from));
+    };
+    // Speech untouched (after the filter's first few ms).
+    const double t_a = rms(a, 200, 2 * talk), t_b = rms(b, 200, 2 * talk);
+    assert(fabs(t_b / t_a - 1) < 0.01);
+    // The pause, once the gate has closed (from 800 ms in): 16 dB down.
+    const double p_a = rms(a, 2 * talk + 12800, a.size()), p_b = rms(b, 2 * talk + 12800, b.size());
+    const double down = 20 * log10(p_a / p_b);
+    printf("pause gate: speech %.2f dB, pause %.1f dB down\n", 20 * log10(t_b / t_a), down);
+    assert(down > 15 && down < 17);
+    assert(voxPlayGateLevel(0) == 0 && voxPlayGateLevel(-1) == 0);
+  }
   return 0;
 }
