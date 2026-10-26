@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "VoxFetch.h"
+#include "FloodPace.h"
 
 #include "VoxFec.h"
 
@@ -175,7 +176,9 @@ int VoxFetch::hops(const Session& s) {
 }
 
 uint32_t VoxFetch::packetGap(bool flood, int h, uint32_t air) {
-  if (flood) return (uint32_t)imax(800, (int)(air * 4 + 150));
+  // An answer on the channel may be paced as slow as FloodPace's slow gap: expect
+  // that, so a slow answer isn't taken for a stall (faster ones shorten the wait).
+  if (flood) return floodpace::slowGapMs(air);
   if (h <= 0) return (uint32_t)imax(400, (int)(air * 2 + 150));
   const double relay_air = air * 1.15;
   return (uint32_t)(air + imin(h, 2) * 2.5 * relay_air + 400);
@@ -227,11 +230,18 @@ uint32_t VoxFetch::waitFor(Session& s) {
   // Once packets flow the stream is live: silence for a few packet gaps means
   // its tail was lost, not that the request is still on its way.
   if (s.st == kReceiving) return stallWait(burstGap(s));
-  const uint32_t hop_ms = io_.packetAirMs() * 2 + 700;
-  // In range: the answer is a packet away (holders wait up to 4.5 s).
-  if (s.last == kZeroHop) return 2 * hop_ms + 6000;
-  const uint32_t trips = s.last == kDm ? 5 : s.last == kChannel ? 3 : 2;
-  return trips * (uint32_t)(h + 1) * hop_ms + 8000;
+  // voxAnswerWaitMs: on MediaMesh's fast packets (under 400 ms) a channel
+  // request is the request and the answer (2 trips), and the margin 2.5 s plus
+  // the sender's longest wait for the request's flood to clear, not 8 s.
+  const uint32_t air = io_.packetAirMs();
+  const uint32_t hop_ms = air * 2 + 700;
+  const bool fast = air < 400;
+  // In range: the answer is a packet away (a holder waits up to 3 s).
+  if (s.last == kZeroHop) return 2 * hop_ms + (fast ? 3500 : 6000);
+  uint32_t trips = s.last == kDm ? 5 : s.last == kChannel ? 3 : 2;
+  if (!fast) return trips * (uint32_t)(h + 1) * hop_ms + 8000;
+  if (s.last == kChannel && trips > 2) trips = 2;
+  return trips * (uint32_t)(h + 1) * hop_ms + 2500 + (s.last == kChannel ? floodpace::settleMaxMs(air, h) : 0);
 }
 
 void VoxFetch::arm(Session& s, uint32_t ms) {

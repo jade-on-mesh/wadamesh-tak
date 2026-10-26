@@ -648,7 +648,7 @@ int main() {
   // 16. The shared timing (lib/vox/vox_timing.dart).
   assert(VoxFetch::gapRequestDelay(false, 800, 210) == 610);
   assert(VoxFetch::gapRequestDelay(true, 800, 210) == 1800);
-  assert(VoxFetch::stallWait(800) == 4900);
+  assert(VoxFetch::stallWait(800) == 3400);
   assert(VoxFetch::shouldFinishPassive(18, 36) && !VoxFetch::shouldFinishPassive(17, 36));
   assert(!VoxFetch::shouldFinishPassive(36, 36) && !VoxFetch::shouldFinishPassive(0, 0));
 

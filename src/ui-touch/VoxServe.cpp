@@ -175,7 +175,20 @@ void VoxServe::enqueue(const VoxWire::FetchRequest& r, int channel, bool from_dm
   // together share one burst; a later tap gets its own. Short, as in the app:
   // the one asking is watching a spinner.
   // A zero-hop raw request reached everyone in range: the author goes first.
-  t.not_before = channel >= 0 ? now + kOwnChannelDelayMs + io_.random32() % 500
+  if (channel >= 0 && !r.all) {   // a report on our last answer for this clip
+    for (AnswerRec& a : answers_) {
+      if (a.sid != r.sid || a.channel != channel) continue;
+      uint8_t miss[32] = {0};
+      for (int m = 0; m < r.n_missing; m++) miss[r.missing[m] >> 3] |= (uint8_t)(1u << (r.missing[m] & 7));
+      paceFor(channel).feedback(a.answer, miss);
+    }
+  }
+  // On a channel, not before the request's own flood has died down near us: its
+  // relays (hidden from us, heard by our next repeater) took out the first
+  // packets of every answer to a listener 4 hops away (#177 cut the wait to
+  // 0.5-1 s). FloodPace: a relay per hop it came, learnt up or down from there.
+  t.not_before = channel >= 0 ? now + kOwnChannelDelayMs + io_.random32() % 250 +
+                                    paceFor(channel).settleMs(hops < 0 ? 3 : hops)
                : t.zero_hop_req && !isOwn(r.sid) ? now + kZeroHopWaitMs + io_.random32() % 2000
                : now;
   t.route_deadline = now + (from_dm ? kRouteWaitDmMs : kRouteWaitMs);
@@ -258,9 +271,21 @@ uint32_t VoxServe::zeroHopGap() {
   return g > 150 ? g : 150;
 }
 
+floodpace::Pace& VoxServe::paceFor(int channel) {
+  const uint32_t air = io_.packetAirMs();
+  for (PaceRec& p : paces_)
+    if (p.used && p.channel == channel) { p.pace.air = air; return p.pace; }
+  PaceRec& p = paces_[paces_next_];
+  paces_next_ = (paces_next_ + 1) % (int)(sizeof paces_ / sizeof paces_[0]);
+  p.used = true;
+  p.channel = channel;
+  p.pace = floodpace::Pace(air);
+  return p.pace;
+}
+
 uint32_t VoxServe::packetGap(bool flood, int hops) {
   const uint32_t air = io_.packetAirMs();
-  if (flood) return air * 4 + 150 > 800 ? air * 4 + 150 : 800;
+  if (flood) return floodpace::baseGapMs(air);
   if (hops <= 0) return air * 2 + 150 > 400 ? air * 2 + 150 : 400;
   const int h = hops < 2 ? hops : 2;
   return (uint32_t)(air + h * 2.5 * (air * 1.15) + 400 + 0.5);
@@ -322,6 +347,17 @@ bool VoxServe::sendParity(Job& j, uint32_t now) {
 
 void VoxServe::finish(Job& j, const char* why) {
   logf("[VOX] serve %08lx: %s (%d/%d sent)", (unsigned long)j.sid, why, j.next, j.bits ? packetCount(j) : 0);
+  if (j.channel >= 0 && j.answer.n > 0) {   // what listeners still lack after it tells the pace how it did
+    AnswerRec& a = answers_[answers_next_];
+    answers_next_ = (answers_next_ + 1) % (int)(sizeof answers_ / sizeof answers_[0]);
+    for (AnswerRec& o : answers_) if (o.sid == j.sid && o.channel == j.channel) o.sid = 0;
+    a.sid = j.sid;
+    a.channel = j.channel;
+    a.answer = j.answer;
+    const floodpace::Pace& p = paceFor(j.channel);
+    logf("[VOX] serve %08lx: pace %lu ms apart, %lu ms first", (unsigned long)j.sid,
+         (unsigned long)p.gapMs(j.max_hops), (unsigned long)p.settleMs(j.max_hops));
+  }
   if (j.bits) io_.freeClip(j.bits);
   j = Job();
   active_ = -1;
@@ -361,7 +397,7 @@ void VoxServe::tick() {
     }
   }
   if (!j.gap) {
-    j.gap = j.channel >= 0 ? (j.max_hops == 0 ? zeroHopGap() : packetGap(true, 0)) : packetGap(false, j.route_len);
+    j.gap = j.channel >= 0 ? (j.max_hops == 0 ? zeroHopGap() : paceFor(j.channel).gapMs(j.max_hops)) : packetGap(false, j.route_len);
     j.next_at = now;
     logf("[VOX] serve %08lx: sending %d packets %s, %lu ms apart", (unsigned long)j.sid, packetCount(j),
          j.channel < 0 ? "direct" : j.max_hops == 0 ? "zero-hop on the channel" : "on the channel",
@@ -406,10 +442,11 @@ void VoxServe::tick() {
   }
   sent_total_++;
   j.next++;
+  if (j.channel >= 0 && !zero_hop) j.answer.add(idx);
   if (j.channel >= 0) {
     j.pend[idx >> 3] &= (uint8_t)~(1u << (idx & 7));
     // A farther listener may have joined: flood from here on, spaced for relays.
-    j.gap = j.max_hops == 0 ? zeroHopGap() : packetGap(true, 0);
+    j.gap = j.max_hops == 0 ? zeroHopGap() : paceFor(j.channel).gapMs(j.max_hops);
     j.next_at = now + j.gap;
     if (nextPending(j) < 0 && j.par_next >= j.par_total) finish(j, "served");
     return;
