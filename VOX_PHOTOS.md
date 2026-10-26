@@ -8,7 +8,10 @@ on the radio itself.
 ## How the app sends a photo
 
 A photo is announced with an ordinary text message,
-`VI1:{sid}:14:{packets}:{aspect}` (base36), and its bytes are only sent when a
+`VI1:{sid}:14:{packets}:{aspect} IMAGE` (base36; the plain word `IMAGE`, then
+any caption, tells people on other clients what it is; a Mimi voice message's
+word is `VOICE`, and Codec2's `VE3:` has none, as MeshCore SAR plays only a
+bare one), and its bytes are only sent when a
 receiver asks for them: direct raw-data fetch first, then a `VR3:` DM, then a
 GRP_DATA flood (type `0x5643`) on the channel the photo was posted in. The
 reassembled payload is `[0x01][AV1 OBUs]`: one 8-bit 4:2:0 key frame with a

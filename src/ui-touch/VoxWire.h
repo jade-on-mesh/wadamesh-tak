@@ -10,6 +10,10 @@
 //     VE3:{sid}:{mode}:{total}:{seconds}   Codec2 voice (the published VE3 format)
 //     VM1:{sid}:{mode}:{total}:{seconds}   Mimi neural voice (VOX only)
 //     VI1:{sid}:{mode}:{total}:{aspect}    AV1 still image (VOX only)
+//   then, after a space, a plain word for people on other clients: IMAGE
+//   after VI1, VOICE after VM1 (none after VE3: MeshCore SAR, where VE3 comes
+//   from, can't play one with anything after it; a talk's is "PTT"), then
+//   any caption: "VI1:79e6a5:14:10:46 IMAGE Look at this".
 //       sid    32-bit session id
 //       mode   VE3: Codec2 mode 0..6 (700C, 1200, 2400, 1300, 1400, 1600, 3200);
 //              VM1: 32 ("w"); VI1: 40 ("14")
@@ -170,9 +174,15 @@ inline bool parseEnvelope(const char* text, Envelope* env) {
   return true;
 }
 
-// The caption sent with a photo or clip: where it starts in `text` and, in
-// `len`, how long it is without trailing whitespace. Null when `text` isn't an
-// envelope; an empty string (len 0) when it has no caption.
+// The plain word after an envelope of `kind` (above); null for Codec2.
+inline const char* kindLabel(Kind kind) {
+  return kind == kImage ? "IMAGE" : kind == kMimi ? "VOICE" : nullptr;
+}
+
+// The caption sent with a photo or clip, past its kind's plain label: where it
+// starts in `text` and, in `len`, how long it is without trailing whitespace.
+// Null when `text` isn't an envelope; an empty string (len 0) when it has no
+// caption.
 inline const char* envelopeCaption(const char* text, size_t* len) {
   Envelope e;
   if (len) *len = 0;
@@ -181,6 +191,13 @@ inline const char* envelopeCaption(const char* text, size_t* len) {
   while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
   while (*p && *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r') p++;
   while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+  if (const char* label = kindLabel(e.kind)) {   // "IMAGE" / "VOICE": not part of the caption
+    const size_t ln = strlen(label);
+    if (strncmp(p, label, ln) == 0 && (!p[ln] || p[ln] == ' ' || p[ln] == '\t' || p[ln] == '\n' || p[ln] == '\r')) {
+      p += ln;
+      while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+    }
+  }
   size_t n = strlen(p);
   while (n && (p[n - 1] == ' ' || p[n - 1] == '\t' || p[n - 1] == '\n' || p[n - 1] == '\r')) n--;
   if (len) *len = n;

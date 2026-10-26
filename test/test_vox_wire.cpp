@@ -55,6 +55,19 @@ int main() {
   assert(cap && cl == 9 && strncmp(cap, "two\nlines", cl) == 0);
   assert(!parseEnvelope("VE3:79e6a5:1:6:7X hi", &env));        // a caption doesn't rescue a bad field
   assert(!envelopeCaption("hello there", &cl) && cl == 0);
+  // The plain word for its kind isn't part of the caption; another one is.
+  cap = envelopeCaption("VI1:79e6a5:14:10:46 IMAGE", &cl);
+  assert(cap && cl == 0);
+  cap = envelopeCaption("VI1:79e6a5:14:10:46 IMAGE Look", &cl);
+  assert(cap && cl == 4 && strncmp(cap, "Look", cl) == 0);
+  cap = envelopeCaption("VI1:79e6a5:14:10:46 IMAGES", &cl);
+  assert(cap && cl == 6);
+  cap = envelopeCaption("VM1:79e6a5:w:5:5 VOICE", &cl);
+  assert(cap && cl == 0);
+  cap = envelopeCaption("VE3:79e6a5:1:6:7 VOICE", &cl);   // VE3 has none: kept
+  assert(cap && cl == 5);
+  cap = envelopeCaption("VE3:79e6a5:1:6:7 PTT", &cl);
+  assert(cap && cl == 3 && strncmp(cap, "PTT", 3) == 0);
   assert(!parseImageEnvelope("VI1:zzzzzzzz:14:10:46", &env));     // sid too long
   assert(!parseImageEnvelope(nullptr, &env));
 
