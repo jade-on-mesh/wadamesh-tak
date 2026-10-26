@@ -13,6 +13,11 @@
 // voice message with the same session id and the "PTT" caption, which the chat
 // shows as a talk with a waveform; a talk heard in full is kept, so its message
 // plays with nothing to fetch.
+//
+// In a DM a talk goes to that one contact alone: raw packets along the route
+// to them (zero-hop when there's none), addressed by key (WalkieWire.h, "DMs"),
+// then the same voice message as a DM. It plays live while that DM's chat or
+// its walkie-talkie is open.
 // Everything here runs on the loop task except the playback job.
 
 #include "WalkieWire.h"
@@ -20,6 +25,7 @@
 namespace walkie {
 
 constexpr int kHeardSlots = 4;
+constexpr int kDmCh = -2;   // Heard::ch, s_tx_ch, s_card_ch: a DM's talk (-1: none)
 constexpr int kPktBytes = VoxWire::kBytesPerPacket;   // 156: 26 Codec2 1200 frames
 // A GRP_DATA packet on air: header, path length, channel hash, MAC, and the
 // type/length/payload block padded to the cipher's 16 bytes.
@@ -28,11 +34,13 @@ constexpr int kAirBytes = 1 + 1 + 1 + 2 + ((3 + WalkieWire::kAudioHeaderLen + kP
 // ---- talks heard -------------------------------------------------------------
 struct Heard {
   uint32_t sid;
-  int      ch;
+  int      ch;                                      // kDmCh: a DM's, from `peer`
+  uint8_t  peer[WalkieWire::kDmKeyBytes];           // a DM talk's sender (key prefix)
   char     name[WalkieWire::kMaxNameBytes + 1];
   uint32_t first_ms, last_ms;
   bool     end;
   bool     played;
+  bool     told;                                    // a DM's: "is talking to you" shown
   bool     stored;
   int      total;                                   // -1 until the last packet
   uint8_t  lens[WalkieWire::kMaxPacketsTalk];
@@ -71,13 +79,15 @@ static bool heardActive(const Heard& h, uint32_t now) {
   return h.sid && !h.end && now - h.last_ms <= WalkieWire::kTalkTimeoutMs;
 }
 
-// The talk on the air on channel `ch`, if anyone's talking.
-static Heard* activeOn(int ch, uint32_t now) {
+// The talk on the air on channel `ch` (kDmCh: from the contact whose key
+// starts `peer`), if anyone's talking.
+static Heard* activeOn(int ch, uint32_t now, const uint8_t* peer = nullptr) {
   if (!s_heard) return nullptr;
   Heard* best = nullptr;
   for (int i = 0; i < kHeardSlots; i++) {
     Heard& h = s_heard[i];
-    if (h.ch == ch && heardActive(h, now) && (!best || (int32_t)(h.last_ms - best->last_ms) > 0)) best = &h;
+    if (h.ch != ch || (ch == kDmCh && (!peer || memcmp(h.peer, peer, sizeof h.peer) != 0))) continue;
+    if (heardActive(h, now) && (!best || (int32_t)(h.last_ms - best->last_ms) > 0)) best = &h;
   }
   return best;
 }
@@ -182,7 +192,9 @@ static void setLiveAll(bool on) {
 }
 
 // ---- live playback -----------------------------------------------------------
-static int s_card_ch = -1;   // the channel whose walkie-talkie is open
+static int s_card_ch = -1;   // the channel whose walkie-talkie is open (kDmCh: a DM's)
+static uint8_t s_card_pub[PUB_KEY_SIZE];   // kDmCh: the contact
+static char s_card_name[33] = "";          // kDmCh: their name
 
 // The channel whose chat is open, or -1 (none, or a DM's).
 static int openChannel() {
@@ -197,9 +209,30 @@ static int openChannel() {
   return -1;
 }
 
+// The contact whose DM is open (not a room), or false.
+static bool openDm(uint8_t pub[PUB_KEY_SIZE]) {
+  if ((!g_lv.dm.detail_open && !g_lv.ch.detail_open) || !g_lv.task) return false;
+  bool ch = false; uint16_t unread; uint32_t ts;
+  char tname[UITask::MAX_THREAD_NAME + 1];
+  const int t = g_lv.task->activeThreadIdx();
+  if (t < 0 || !g_lv.task->getThreadInfo(t, ch, unread, ts, tname, sizeof tname) || ch) return false;
+  if (!g_lv.task->getThreadContactPub(t, pub)) return false;
+  ContactInfo* c = the_mesh.lookupContactByPubKey(pub, PUB_KEY_SIZE);
+  return c && c->type != ADV_TYPE_ROOM && c->type != ADV_TYPE_REPEATER;
+}
+
+// A DM talk from the contact whose key starts `peer` plays live while their
+// walkie-talkie or their chat is open.
+static bool listensToDm(const uint8_t* peer) {
+  if (s_card_ch == kDmCh && memcmp(s_card_pub, peer, WalkieWire::kDmKeyBytes) == 0) return true;
+  uint8_t pub[PUB_KEY_SIZE];
+  return openDm(pub) && memcmp(pub, peer, WalkieWire::kDmKeyBytes) == 0;
+}
+
 // A talk on `ch` plays live: its walkie-talkie is open; or voice isn't muted
 // there and its chat is open, or "Play talks on every channel" is on.
 static bool listensTo(int ch) {
+  if (ch < 0) return false;
   if (ch == s_card_ch) return true;
   prefsLoad();
   return channelLive(ch) && (openChannel() == ch || liveAll());
@@ -389,8 +422,18 @@ static uint32_t s_tx_ms = 0;
 static uint8_t  s_tx_mode = WalkieWire::kMode;
 static bool     s_tx_owns_audio = false;
 static lv_indev_t* s_tx_indev = nullptr;
+// A DM talk (s_tx_ch == kDmCh): to whom, and the route (empty: zero-hop).
+static uint8_t  s_tx_pub[PUB_KEY_SIZE];
+static uint8_t  s_tx_path[MAX_PATH_SIZE];
+static uint8_t  s_tx_path_len = 0;
 
-static bool talking() { return s_tx_ch >= 0; }
+static bool talking() { return s_tx_ch != -1; }
+static bool talkingDm() { return s_tx_ch == kDmCh; }
+// Talking from the walkie-talkie that's open.
+static bool talkingHere() {
+  return talking() && s_tx_ch == s_card_ch &&
+         (!talkingDm() || memcmp(s_tx_pub, s_card_pub, PUB_KEY_SIZE) == 0);
+}
 
 // Pause between packets, as the app spaces them: through repeaters a packet
 // must not talk over the relays of the one before; direct, just its airtime.
@@ -401,7 +444,20 @@ static uint32_t gapMs(bool direct) {
 }
 
 static bool sendData(const uint8_t* b, int n) {
-  return n > 0 && the_mesh.voxSendChannelData(s_tx_ch, VoxWire::kChannelDataType, b, (size_t)n, s_tx_direct);
+  if (n <= 0) return false;
+  if (talkingDm()) return the_mesh.voxSendRaw(s_tx_path, s_tx_path_len, b, (size_t)n);
+  return the_mesh.voxSendChannelData(s_tx_ch, VoxWire::kChannelDataType, b, (size_t)n, s_tx_direct);
+}
+
+// One audio packet of the talk going out: a channel's, or a DM's (to and from).
+constexpr size_t kTxPktCap = (WalkieWire::kDmHeaderLen > WalkieWire::kAudioHeaderLen ? WalkieWire::kDmHeaderLen
+                                                                                     : WalkieWire::kAudioHeaderLen) +
+                             kPktBytes;
+static int encodeTx(uint8_t index, bool last, const uint8_t* data, int len, uint8_t* out, size_t cap) {
+  if (talkingDm())
+    return WalkieWire::encodeDmAudio(s_tx_sid, index, s_tx_mode, last, s_tx_pub, the_mesh.getSelfPubKey(), data, len,
+                                     out, cap);
+  return WalkieWire::encodeAudio(s_tx_sid, index, s_tx_mode, last, data, len, out, cap);
 }
 
 static void txEnd() {
@@ -417,14 +473,12 @@ static void txEnd() {
   }
 }
 
-// Starts talking on channel `ch`. False with `why` set when it can't.
-static bool txStart(int ch, const char** why) {
+// Takes the mic for a talk. False with `why` set when it can't.
+static bool txBegin(const char** why) {
 #if WALKIE_CAN_TALK
-  const uint32_t now = millis();
   if (talking()) { *why = "Already talking"; return false; }
   if (!VoxMic::available()) { *why = "This radio has no microphone"; return false; }
   if (!mediamesh::mediaSendable()) { *why = "Talking needs MediaMesh: radio2 on rx+tx"; return false; }
-  if (activeOn(ch, now)) { *why = "Someone is talking"; return false; }
   playStop();
 #if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
   if (s_job_running) { *why = "Audio is busy"; return false; }
@@ -437,23 +491,59 @@ static bool txStart(int ch, const char** why) {
     if (!*why) *why = "Recording failed";
     return false;
   }
-  s_tx_ch = ch;
   s_tx_sid = 0;
   while (!s_tx_sid) s_tx_sid = esp_random();
-  s_tx_direct = isDirect(ch);
   s_tx_sent = 0;
   s_tx_released = s_tx_mic_done = s_tx_failed = false;
   s_tx_mode = WalkieWire::kMode;
   s_tx_ms = 0;
+  s_tx_last_ms = millis();
+  return true;
+#else
+  *why = "This radio has no microphone";
+  return false;
+#endif
+}
+
+// Starts talking on channel `ch`. False with `why` set when it can't.
+static bool txStart(int ch, const char** why) {
+#if WALKIE_CAN_TALK
+  if (!talking() && activeOn(ch, millis())) { *why = "Someone is talking"; return false; }
+  if (!txBegin(why)) return false;
+  s_tx_ch = ch;
+  s_tx_direct = isDirect(ch);
   uint8_t b[WalkieWire::kStartHeaderLen + WalkieWire::kMaxNameBytes];
   const int n = WalkieWire::encodeStart(s_tx_sid, s_tx_mode, the_mesh.getNodePrefs()->node_name, b, sizeof b);
   sendData(b, n);
-  s_tx_last_ms = now;
   Serial.printf("[WALKIE] talking on channel %d (%s), sid %08lx\n", ch, s_tx_direct ? "direct" : "repeaters",
                 (unsigned long)s_tx_sid);
   return true;
 #else
   (void)ch;
+  *why = "This radio has no microphone";
+  return false;
+#endif
+}
+
+// Starts a talk to the contact `pub` alone, along the route to them (raw
+// data takes 1-byte hashes; otherwise, or with none, zero-hop).
+static bool txStartDm(const uint8_t pub[PUB_KEY_SIZE], const char** why) {
+#if WALKIE_CAN_TALK
+  ContactInfo* c = the_mesh.lookupContactByPubKey(pub, PUB_KEY_SIZE);
+  if (!c) { *why = "Contact not found"; return false; }
+  if (!talking() && activeOn(kDmCh, millis(), pub)) { *why = "They're talking"; return false; }
+  if (!txBegin(why)) return false;
+  s_tx_ch = kDmCh;
+  memcpy(s_tx_pub, pub, PUB_KEY_SIZE);
+  uint8_t packed = 0;
+  s_tx_path_len = 0;
+  if (the_mesh.voxContactRoute(pub, s_tx_path, &packed) && (packed >> 6) == 0) s_tx_path_len = packed & 0x3F;
+  s_tx_direct = s_tx_path_len == 0;   // zero-hop: just its airtime between packets
+  Serial.printf("[WALKIE] talking to %s (%d hops), sid %08lx\n", c->name, (int)s_tx_path_len,
+                (unsigned long)s_tx_sid);
+  return true;
+#else
+  (void)pub;
   *why = "This radio has no microphone";
   return false;
 #endif
@@ -480,6 +570,22 @@ static void txAnnounce() {
   const size_t used = strlen(env);
   if (used + 4 < sizeof env) memcpy(env + used, " PTT", 5);
   noteTalk(sid);
+  if (talkingDm()) {   // a DM, flooded as the composer sends them
+    ContactInfo* by = the_mesh.lookupContactByPubKey(s_tx_pub, PUB_KEY_SIZE);
+    if (!by) return;
+    ContactInfo rcpt = *by;
+    rcpt.out_path_len = OUT_PATH_UNKNOWN;
+    const uint32_t ts = the_mesh.getRTCClock()->getCurrentTimeUnique();
+    uint32_t expected_ack = 0, est_timeout = 0;
+    if (the_mesh.sendMessage(rcpt, ts, 0, env, expected_ack, est_timeout) == MSG_SEND_FAILED) {
+      if (g_lv.task) g_lv.task->showAlert(TR("Couldn't send the talk"), 1800);
+      return;
+    }
+    the_mesh.uiRegisterExpectedAck(expected_ack, by->id.pub_key);
+    if (g_lv.task) g_lv.task->appSentMsgToContact(by->id.pub_key, by->name, env, expected_ack, the_mesh.uiLastSentFp());
+    g_lv.dirty_threads = true;
+    return;
+  }
   ChannelDetails cd;
   if (!the_mesh.getChannel(s_tx_ch, cd) || !cd.name[0]) return;
   const uint32_t ts = the_mesh.getRTCClock()->getCurrentTimeUnique();
@@ -522,10 +628,9 @@ static void txTick(uint32_t now) {
   size_t len = 0;
   if (s_tx_bits) { bits = s_tx_bits; len = s_tx_len; }
   else if (!s_tx_mic_done) VoxMic::liveBits(&bits, &len);
-  uint8_t b[WalkieWire::kAudioHeaderLen + kPktBytes];
+  uint8_t b[kTxPktCap];
   if (bits && len >= (size_t)(s_tx_sent + 1) * kPktBytes && s_tx_sent < WalkieWire::kMaxPacketsTalk - 1) {
-    const int n = WalkieWire::encodeAudio(s_tx_sid, (uint8_t)s_tx_sent, s_tx_mode, false,
-                                          bits + (size_t)s_tx_sent * kPktBytes, kPktBytes, b, sizeof b);
+    const int n = encodeTx((uint8_t)s_tx_sent, false, bits + (size_t)s_tx_sent * kPktBytes, kPktBytes, b, sizeof b);
     sendData(b, n);
     s_tx_sent++;
     s_tx_last_ms = now;
@@ -535,8 +640,7 @@ static void txTick(uint32_t now) {
   // Everything full is out: the rest, marked last (possibly with no audio).
   const size_t done = (size_t)s_tx_sent * kPktBytes;
   const int rest = bits && len > done ? (int)(len - done) : 0;
-  const int n = WalkieWire::encodeAudio(s_tx_sid, (uint8_t)s_tx_sent, s_tx_mode, true,
-                                        rest ? bits + done : nullptr, rest, b, sizeof b);
+  const int n = encodeTx((uint8_t)s_tx_sent, true, rest ? bits + done : nullptr, rest, b, sizeof b);
   sendData(b, n);
   Serial.printf("[WALKIE] talk %08lx done: %d packets, %lu ms\n", (unsigned long)s_tx_sid,
                 s_tx_sent + (rest ? 1 : 0), (unsigned long)s_tx_ms);
@@ -561,9 +665,9 @@ static void cardClose();
 static void refreshCard(uint32_t now) {
   if (!s_card) return;
   char line[80];
-  Heard* h = activeOn(s_card_ch, now);
+  Heard* h = activeOn(s_card_ch, now, s_card_ch == kDmCh ? s_card_pub : nullptr);
   int style = 0;
-  if (talking() && s_tx_ch == s_card_ch) {
+  if (talkingHere()) {
     const uint32_t ms = s_tx_mic_done ? s_tx_ms : VoxMic::elapsedMs();
     if (s_tx_released) snprintf(line, sizeof line, "%s", TR("Finishing..."));
     else snprintf(line, sizeof line, "%s  %lu:%02lu / 0:%02lu", TR("On air"), (unsigned long)(ms / 60000),
@@ -581,7 +685,7 @@ static void refreshCard(uint32_t now) {
       if (playing(h->sid)) strncat(line, "  " LV_SYMBOL_VOLUME_MAX, sizeof line - strlen(line) - 1);
       style = 2;
     } else {
-      snprintf(line, sizeof line, "%s", TR("Channel clear"));
+      snprintf(line, sizeof line, "%s", s_card_ch == kDmCh ? TR("Nobody's talking") : TR("Channel clear"));
     }
   }
   if (strcmp(lv_label_get_text(s_status), line) != 0) lv_label_set_text(s_status, line);
@@ -600,14 +704,14 @@ static void talkBtnCb(lv_event_t* e) {
   if (code == LV_EVENT_PRESSED) {
     if (talking()) return;
     const char* why = nullptr;
-    if (!txStart(s_card_ch, &why)) {
+    if (s_card_ch == kDmCh ? !txStartDm(s_card_pub, &why) : !txStart(s_card_ch, &why)) {
       if (g_lv.task) g_lv.task->showAlert(TR(why ? why : "Can't talk now"), 1800);
       return;
     }
     s_tx_indev = lv_indev_get_act();
     refreshCard(millis());
   } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
-    if (talking() && s_tx_ch == s_card_ch) txRelease();
+    if (talkingHere()) txRelease();
   }
 }
 
@@ -676,6 +780,8 @@ static lv_obj_t* rowButton(lv_obj_t* parent, lv_event_cb_t cb, lv_obj_t** label)
 static void tick(uint32_t now);
 static void timerCb(lv_timer_t*) { tick(millis()); }
 
+static void cardBuild(const char* name);
+
 static void cardOpen(int ch) {
   if (s_card) cardClose();
   char name[33];
@@ -686,6 +792,22 @@ static void cardOpen(int ch) {
     prefsSave();
   }
   s_card_ch = ch;
+  cardBuild(name);
+}
+
+// The walkie-talkie of a DM: talks to that contact alone.
+static void cardOpenDm(const uint8_t pub[PUB_KEY_SIZE]) {
+  if (s_card) cardClose();
+  ContactInfo* c = the_mesh.lookupContactByPubKey(pub, PUB_KEY_SIZE);
+  if (!c) return;
+  memcpy(s_card_pub, pub, PUB_KEY_SIZE);
+  snprintf(s_card_name, sizeof s_card_name, "%s", c->name);
+  s_card_ch = kDmCh;
+  cardBuild(s_card_name);
+}
+
+static void cardBuild(const char* name) {
+  const bool dm = s_card_ch == kDmCh;
   s_talk_style = -1;
   s_card = lv_obj_create(lv_layer_top());
   lv_obj_t* card = s_card;
@@ -755,12 +877,26 @@ static void cardOpen(int ch) {
 #endif
 
   lv_obj_t* tmp = nullptr;
-  rowButton(card, reachCb, &tmp);
-  s_reach_lbl = tmp;
-  rowButton(card, liveAllCb, &tmp);
-  s_live_all_lbl = tmp;
-  rowButton(card, listenCb, &tmp);
-  s_listen_lbl = tmp;
+  if (dm) {   // where it goes: along the route to them, or only in range
+    ContactInfo* c = the_mesh.lookupContactByPubKey(s_card_pub, PUB_KEY_SIZE);
+    uint8_t path[MAX_PATH_SIZE], packed = 0;
+    const bool routed = c && the_mesh.voxContactRoute(s_card_pub, path, &packed) && (packed >> 6) == 0;
+    lv_obj_t* to = lv_label_create(card);
+    lv_obj_set_width(to, lv_pct(100));
+    lv_label_set_long_mode(to, LV_LABEL_LONG_WRAP);
+    lv_label_set_text_fmt(to, "%s %s", LV_SYMBOL_SHUFFLE,
+                          routed ? TR("Goes to them alone, along the route to them. They hear it as you speak.")
+                                 : TR("No route to them yet: they hear it live only in range of your radio."));
+    lv_obj_set_style_text_font(to, &g_font_14, LV_PART_MAIN);
+    lv_obj_set_style_text_color(to, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+  } else {
+    rowButton(card, reachCb, &tmp);
+    s_reach_lbl = tmp;
+    rowButton(card, liveAllCb, &tmp);
+    s_live_all_lbl = tmp;
+    rowButton(card, listenCb, &tmp);
+    s_listen_lbl = tmp;
+  }
 #if CAP_TRACKBALL && WALKIE_CAN_TALK
   rowButton(card, ballCb, &tmp);
   s_ball_lbl = tmp;
@@ -794,18 +930,18 @@ static void cardOpen(int ch) {
 }
 
 static void cardClose() {
-  if (talking() && s_tx_ch == s_card_ch) txRelease();   // the talk still finishes
+  if (talkingHere()) txRelease();   // the talk still finishes
   if (s_card) lv_obj_del(s_card);
   s_card = s_status = s_bar = s_talk_btn = s_talk_lbl = s_reach_lbl = s_listen_lbl = s_live_all_lbl = nullptr;
 #if CAP_TRACKBALL && WALKIE_CAN_TALK
   s_ball_lbl = nullptr;
 #endif
-  const int was = s_card_ch;
   s_card_ch = -1;
 #if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
-  if (s_play_sid && !listensTo(was)) playStop();
-#else
-  (void)was;
+  if (s_play_sid) {   // still heard without the card?
+    Heard* h = heardFind(s_play_sid);
+    if (!h || !(h->ch == kDmCh ? listensToDm(h->peer) : listensTo(h->ch))) playStop();
+  }
 #endif
 }
 
@@ -835,15 +971,17 @@ static void ensureTimer() {
 }
 
 // ---- the Mic key (T-Deck keyboard): hold to talk from any screen ----------------------
-// Held 0.3 s (so Sym + Mic, typing a 0, doesn't start a talk): talks on the
-// channel whose chat is open, else the walkie-talkie opened last, with its card
-// up so you see it's on the air. Let go: the talk ends. Works locked too.
+// Held 0.3 s (so Sym + Mic, typing a 0, doesn't start a talk): talks to the
+// contact whose DM (or DM walkie-talkie) is open, or on the channel whose chat
+// is open, else on the walkie-talkie opened last, with its card up so you see
+// it's on the air. Let go: the talk ends. Works locked too.
 static bool s_key_down = false, s_key_talking = false, s_key_tried = false;
 static uint32_t s_key_since = 0;
 
 // The open channel chat's channel, else the last walkie-talkie's; -1 if neither,
-// and always -1 in a DM: a talk goes to everyone on a channel, so it must never
-// go out from a private chat to whichever channel was talked on last.
+// and always -1 in a DM: a channel talk goes to everyone on it, so it must never
+// go out from a private chat to whichever channel was talked on last (a DM's
+// talks go to its contact alone: keyTick).
 static int keyChannel() {
   if (g_lv.dm.detail_open) return -1;
   const int open = openChannel();
@@ -887,12 +1025,26 @@ static void keyTick(bool held, uint32_t now, bool at_once = false) {
   if (!s_key_down || s_key_tried || (!at_once && now - s_key_since < 300)) return;
   s_key_tried = true;
   if (talking()) return;
-  const int ch = keyChannel();
+  uint8_t pub[PUB_KEY_SIZE];
+  const bool dm = s_card ? s_card_ch == kDmCh : openDm(pub);
+  if (dm) {   // to that contact alone
+    if (s_card) memcpy(pub, s_card_pub, PUB_KEY_SIZE);
+    else cardOpenDm(pub);
+    const char* why = nullptr;
+    if (!txStartDm(pub, &why)) {
+      if (g_lv.task) g_lv.task->showAlert(TR(why ? why : "Can't talk now"), 1800);
+      return;
+    }
+    s_key_talking = true;
+    ensureTimer();
+    refreshCard(now);
+    return;
+  }
+  const int ch = s_card ? s_card_ch : keyChannel();
   if (ch < 0) {
     if (g_lv.task)
-      g_lv.task->showAlert(g_lv.dm.detail_open
-                               ? TR("Push-to-talk is for channels. Record a voice message here instead")
-                               : TR("Open a channel, or its walkie-talkie once, then hold Mic to talk"),
+      g_lv.task->showAlert(g_lv.dm.detail_open ? TR("Push-to-talk can't go to this chat")
+                                               : TR("Open a channel, or its walkie-talkie once, then hold Mic to talk"),
                            2400);
     return;
   }
@@ -911,6 +1063,26 @@ static void keyTick(bool held, uint32_t now, bool at_once = false) {
 }
 
 // ---- packets from the mesh -------------------------------------------------------
+// One audio packet of a talk heard: kept, played if `listen` (and the speaker's
+// free), and the whole talk kept as its voice message's clip once it's in.
+static void heardAudio(Heard& h, const WalkieWire::Audio& a, uint32_t now, bool listen) {
+  h.last_ms = now;
+  if (a.last) {
+    h.end = true;
+    h.total = a.totalIfLast();
+  }
+  if (a.len > 0 && a.index < WalkieWire::kMaxPacketsTalk) {
+    memcpy(h.bits + (size_t)a.index * kPktBytes, a.data, (size_t)a.len);
+    h.lens[a.index] = (uint8_t)a.len;
+    h.have[a.index] = true;
+  }
+  playFeed(a, now);
+  if (!h.played && !talking() && listen) {
+    if (playStart(h)) ensureTimer();
+  }
+  heardMaybeStore(h);
+}
+
 static void onPayload(const uint8_t* data, size_t len, int ch) {
 #if !(CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE)
   (void)data; (void)len; (void)ch;
@@ -932,24 +1104,47 @@ static void onPayload(const uint8_t* data, size_t len, int ch) {
   noteTalk(a.sid);
   Heard* h = heardGet(a.sid, ch, now);
   if (!h) return;
-  h->last_ms = now;
-  if (a.last) {
-    h->end = true;
-    h->total = a.totalIfLast();
+  heardAudio(*h, a, now, listensTo(ch));
+}
+
+// A raw packet: true when it's a DM talk to us from a contact (WalkieWire.h, "DMs").
+static bool onRaw(const uint8_t* data, size_t len) {
+  WalkieWire::DmAudio d;
+  if (!WalkieWire::parseDmAudio(data, len, the_mesh.getSelfPubKey(), &d)) return false;
+  ContactInfo* c = the_mesh.lookupContactByPubKey(d.from, WalkieWire::kDmKeyBytes);
+  if (!c) return false;   // not from a contact: whatever it is, it isn't ours
+#if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
+  const uint32_t now = millis();
+  if (d.audio.sid == s_tx_sid) return true;
+  noteTalk(d.audio.sid);
+  Heard* h = heardGet(d.audio.sid, kDmCh, now);
+  if (!h) return true;
+  memcpy(h->peer, d.from, sizeof h->peer);
+  if (!h->name[0]) snprintf(h->name, sizeof h->name, "%s", c->name);
+  const bool listen = listensToDm(d.from);
+  if (!listen && !h->told && !h->end && g_lv.task) {   // their chat isn't open: say who's calling
+    h->told = true;
+    char msg[64];
+    snprintf(msg, sizeof msg, TR("%s is talking to you"), c->name);
+    g_lv.task->showAlert(msg, 2000);
   }
-  if (a.len > 0 && a.index < WalkieWire::kMaxPacketsTalk) {
-    memcpy(h->bits + (size_t)a.index * kPktBytes, a.data, (size_t)a.len);
-    h->lens[a.index] = (uint8_t)a.len;
-    h->have[a.index] = true;
-  }
-  playFeed(a, now);
-  if (!h->played && !talking() && listensTo(ch)) {
-    if (playStart(*h)) ensureTimer();
-  }
-  heardMaybeStore(*h);
+  heardAudio(*h, d.audio, now, listen);
+#else
+  noteTalk(d.audio.sid);   // no speaker or no Codec2 here: it arrives as a voice message
+#endif
+  return true;
 }
 
 }  // namespace walkie
+
+// MyMesh::onRawDataRecv: true when the packet was a DM talk to us.
+bool walkieOnRawData(const uint8_t* data, size_t len) {
+  if (!data || len < (size_t)WalkieWire::kDmHeaderLen || data[0] != VoxWire::kPacketMagic) return false;
+  return walkie::onRaw(data, len);
+}
+
+// A DM's walkie-talkie (the chat's long-press sheet).
+void walkieOpenDm(const uint8_t pub[32]) { walkie::cardOpenDm(pub); }
 
 // MyMesh::onChannelDataRecv: GRP_DATA 0x5643 (WalkieWire.h).
 void walkieOnChannelData(int channel_idx, const uint8_t* data, size_t len) {

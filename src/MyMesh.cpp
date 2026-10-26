@@ -4048,7 +4048,9 @@ void MyMesh::discoverUpsert(const uint8_t* pk, uint8_t pklen, uint8_t node_type,
 void MyMesh::onRawDataRecv(mesh::Packet *packet) {
   noteFetchRequest(packet->payload, packet->payload_len);   // which radio asked (mediamesh.share)
 #ifdef DISPLAY_CLASS
-  VoxPhotos::onPayload(packet->payload, packet->payload_len, -1, rxVia());   // photo packets for this radio
+  // A DM talk to us (WALKIE.md) plays here; it still goes to the app below.
+  if (!walkieOnRawData(packet->payload, packet->payload_len))
+    VoxPhotos::onPayload(packet->payload, packet->payload_len, -1, rxVia());   // photo packets for this radio
 #endif
   if (packet->payload_len + 4 > sizeof(out_frame)) {
     MESH_DEBUG_PRINTLN("onRawDataRecv(), payload_len too long: %d", packet->payload_len);

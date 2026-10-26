@@ -119,6 +119,62 @@ inline int encodeAudio(uint32_t sid, uint8_t index, uint8_t mode, bool last, con
   return kAudioHeaderLen + len;
 }
 
+// ---- DMs ------------------------------------------------------------------------
+// Push-to-talk in a DM goes to the one contact, as raw data along the route to
+// them (zero-hop with none), like a DM voice message's packets. VE3-framed, so
+// companions send it on radio2:
+//
+//   [0x56][sid ^ 0xD7A1C0DE : 4 BE][index][flags][to: 4][from: 4][Codec2 frames]
+//
+// flags as a channel talk's; `to` and `from` are the first 4 bytes of the
+// receiver's and the sender's public keys. Taken only when `to` is our key and
+// `from` a contact. Older radios see a VE3 packet of a clip nobody announced
+// (the sid is scrambled) and drop it. At the end the talk is sent to them as a
+// VE3 voice message (a DM) with the real sid. Shared with MeshCore Open TAK
+// (lib/vox/walkie_wire.dart WalkieDmAudio).
+constexpr uint32_t kDmSidXor    = 0xD7A1C0DEu;
+constexpr int      kDmHeaderLen = 15;
+constexpr int      kDmKeyBytes  = 4;
+
+struct DmAudio {
+  Audio   audio;              // sid unscrambled; data points into the packet
+  uint8_t to[kDmKeyBytes];
+  uint8_t from[kDmKeyBytes];
+};
+
+// A DM talk packet addressed to `self` (our public key), or false.
+inline bool parseDmAudio(const uint8_t* p, size_t n, const uint8_t* self, DmAudio* out) {
+  if (!p || !out || !self || n < (size_t)kDmHeaderLen || p[0] != VoxWire::kPacketMagic) return false;
+  if (memcmp(p + 7, self, kDmKeyBytes) != 0) return false;
+  const int mode = p[6] & kModeMask;
+  if (!codec2Mode(mode) || p[5] >= VoxWire::kMaxPackets) return false;
+  const int len = (int)n - kDmHeaderLen;
+  const int bpf = VoxWire::bytesPerFrame(mode);
+  if (bpf <= 0 || len % bpf != 0 || len > VoxWire::packetBytes(mode)) return false;
+  out->audio.sid = VoxWire::readSid(p + 1) ^ kDmSidXor;
+  out->audio.index = p[5];
+  out->audio.mode = (uint8_t)mode;
+  out->audio.last = (p[6] & kLastFlag) != 0;
+  out->audio.data = p + kDmHeaderLen;
+  out->audio.len = len;
+  memcpy(out->to, p + 7, kDmKeyBytes);
+  memcpy(out->from, p + 11, kDmKeyBytes);
+  return true;
+}
+
+inline int encodeDmAudio(uint32_t sid, uint8_t index, uint8_t mode, bool last, const uint8_t* to,
+                         const uint8_t* from, const uint8_t* data, int len, uint8_t* out, size_t cap) {
+  if (!out || !to || !from || len < 0 || cap < (size_t)(kDmHeaderLen + len)) return 0;
+  out[0] = VoxWire::kPacketMagic;
+  VoxWire::writeSid(sid ^ kDmSidXor, out + 1);
+  out[5] = index;
+  out[6] = (uint8_t)((mode & kModeMask) | (last ? kLastFlag : 0));
+  memcpy(out + 7, to, kDmKeyBytes);
+  memcpy(out + 11, from, kDmKeyBytes);
+  if (len) memcpy(out + kDmHeaderLen, data, (size_t)len);
+  return kDmHeaderLen + len;
+}
+
 // Decides when each packet of a talk being heard is played, as the app's
 // WalkieJitter does: waits a little after the first, plays packets in order,
 // and skips one that hasn't come by the time it's needed. Holds the packets
@@ -213,3 +269,7 @@ class Jitter {
 // The touch UI's hook (WalkieUI.inc), called from MyMesh::onChannelDataRecv
 // for GRP_DATA 0x5643 on one of our channels.
 void walkieOnChannelData(int channel_idx, const uint8_t* data, size_t len);
+// From MyMesh::onRawDataRecv: true when the packet was a DM talk to us.
+bool walkieOnRawData(const uint8_t* data, size_t len);
+// Opens a DM's walkie-talkie (the contact's full public key).
+void walkieOpenDm(const uint8_t pub[32]);
