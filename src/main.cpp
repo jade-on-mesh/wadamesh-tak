@@ -1617,12 +1617,11 @@ void setup() {
         else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP)    wifi_needs_reconnect = false;
     });
 #if defined(TLORA_PAGER) && defined(HAS_TOUCH_UI)
-    // Take the two task stacks that must be one piece of internal RAM before
-    // Wi-Fi does: the 16 KB worker (voice playback, Wi-Fi updates, the Reader)
-    // and the 8 KB net worker (map tiles, update check). UITask::begin() made
-    // them after Wi-Fi had taken 36 KB, and on the Pager the worker didn't fit:
-    // updates said "out of memory (need 16K)" and voice made its own task.
-    reserveTileFetchStack();
+    // Take the 16 KB shared worker's stack (voice, Wi-Fi updates, the Reader,
+    // and on the Pager also map tiles, settings saves and notification sounds)
+    // before Wi-Fi does: it must be one piece of internal RAM, and UITask::begin()
+    // made it after Wi-Fi had taken 36 KB, where on the Pager it didn't fit.
+    reserveTileFetchStack();   // a no-op on the Pager (the net worker shares it)
     VoxAudioTask::begin();
     bootmem::mark("worker stacks taken");
 #endif

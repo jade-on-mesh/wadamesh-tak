@@ -2208,8 +2208,7 @@ static bool pagerPlayWavFile(const char* prefpath, int volPct) {
 
 // Mirrors tdeckNotifyTaskFn, bracketed with the amp's AMP_EN toggle (muted/
 // off at idle to save battery -- see TLoraPagerBoard::setAmpEnabled()).
-static void pagerNotifyTaskFn(void* arg) {
-  (void)arg;
+static void pagerNotifyBody() {
   const int volPct = s_notify_vol;
   board.setAmpEnabled(true);
   bool played = (s_notify_path[0] && pagerPlayWavFile(s_notify_path, volPct));
@@ -2231,7 +2230,19 @@ static void pagerNotifyTaskFn(void* arg) {
   }
   board.setAmpEnabled(false);
   s_notify_playing = false;
+}
+static void pagerNotifyTaskFn(void*) {
+  pagerNotifyBody();
   vTaskDelete(nullptr);
+}
+// On the shared worker (VoxAudioTask) when it can take it, so a notification
+// doesn't need a free 8 KB block for a task of its own; it goes ahead of
+// background work (map tiles) and is skipped while voice plays.
+static void pagerNotifyJob(void*) { pagerNotifyBody(); }
+static bool pagerStartNotify() {
+  if (VoxAudioTask::available() && VoxAudioTask::run(pagerNotifyJob, nullptr)) return true;
+  if (VoxAudioTask::exists()) return false;   // busy with audio: no chime over it
+  return xTaskCreate(pagerNotifyTaskFn, "notify", 8192, nullptr, 3, nullptr) == pdPASS;
 }
 
 static void pagerPlayNotifySlot(int slot) {
@@ -2241,9 +2252,7 @@ static void pagerPlayNotifySlot(int slot) {
   s_notify_vol = (int)touchPrefsGetSoundVolume();   // 0..100 -> the codec's hw volume register
   touchPrefsGetSoundFile(slot, s_notify_path, sizeof s_notify_path);
   s_notify_playing = true;
-  if (xTaskCreate(pagerNotifyTaskFn, "notify", 8192, nullptr, 3, nullptr) != pdPASS) {
-    s_notify_playing = false;
-  }
+  if (!pagerStartNotify()) s_notify_playing = false;
 }
 static void pagerPreviewWavFile(const char* prefpath) {
   if (tileFetchPendingLoad() > 0 || s_notify_playing) return;
@@ -2252,8 +2261,7 @@ static void pagerPreviewWavFile(const char* prefpath) {
   s_notify_slot = TOUCH_SND_MSG;
   s_notify_vol  = (int)touchPrefsGetSoundVolume();
   s_notify_playing = true;
-  if (xTaskCreate(pagerNotifyTaskFn, "notify", 8192, nullptr, 3, nullptr) != pdPASS)
-    s_notify_playing = false;
+  if (!pagerStartNotify()) s_notify_playing = false;
 }
 #endif  // TLORA_PAGER
 
@@ -37695,8 +37703,67 @@ static void sdFwWorkerRun(WiFiClient& client, HTTPClient& http) {
 #endif
 #endif
 
+// T-LoRa Pager: the net worker is a job on the shared 16 KB worker
+// (VoxAudioTask::post) instead of a task with its own 8 KB stack, which the
+// Pager can't spare beside Wi-Fi and Bluetooth. It gives way to voice, the mic
+// and the rest between steps (VoxAudioTask::waiting) and ends after 3 s with
+// nothing to do; ensureTileFetchTaskRunning() posts it again.
+#if defined(TLORA_PAGER)
+#define TILE_ON_SHARED_WORKER 1
+#else
+#define TILE_ON_SHARED_WORKER 0
+#endif
+static volatile bool s_tile_job_active = false;   // posted or running (shared worker)
+static void tileFetchJob(void*);
+static bool ensureTileFetchTaskRunning();
+
+// Something for the net worker to do: a queued tile or a request flag (the
+// same list, under the same conditions, as tileFetchTaskFn serves). Not every
+// requester wakes the worker (the task form polls forever), so on the shared
+// worker the UI loop checks this and posts the job (tileWorkerKick).
+#if TILE_ON_SHARED_WORKER
+#if CAP_LUA_APPS
+extern bool luaNetWorkerPending();
+#endif
+static bool tileWorkerHasWork() {
+  if (s_tile_fetch_queue && uxQueueMessagesWaiting(s_tile_fetch_queue) > 0) return true;
+  if (s_los_request || s_verchk_request || s_report_request || s_ping_request) return true;
+#if CAP_LUA_APPS
+  if (s_luacat_request || s_luainst_request || s_luascan_request || s_langcat_request ||
+      s_langdl_request || luaNetWorkerPending()) return true;
+#endif
+#if CAP_SD
+  if (s_sdinfo_request) return true;
+#endif
+#if defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION) && CAP_OTA
+  if (s_ota_request) return true;
+#if CAP_SD
+  if (s_sdfw_request) return true;
+#endif
+#endif
+#if CAP_PREDICT_TEXT && !PREDICT_BUILTIN_WORDS && defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION) && WADA_FORK_RELEASES
+  if (s_pwd_request) return true;
+#endif
+  if (__atomic_load_n(&s_wifiscan_request, __ATOMIC_ACQUIRE)) return true;
+  return false;
+}
+static void tileWorkerKick() {
+  static uint32_t last_ms = 0;
+  const uint32_t now = millis();
+  if ((uint32_t)(now - last_ms) < 200) return;
+  last_ms = now;
+  if (!s_tile_job_active && tileWorkerHasWork()) ensureTileFetchTaskRunning();
+}
+#else
+static void tileWorkerKick() {}
+#endif
+
 static void tileFetchTaskFn(void* arg) {
-  (void)arg;
+  // arg != nullptr: running as a job on the shared worker (returns when idle).
+  const bool as_job = arg != nullptr;
+  int idle_polls = 0;
+  bool last_timed_out = false;
+  if (as_job) vTaskPrioritySet(nullptr, 1);   // the old task's priority
   // Plain HTTP, not HTTPS. We can't do HTTPS on this device: mbedTLS
   // wants ~30 KB internal heap during the handshake and after Wi-Fi
   // associates only ~5 KB is free. OSM itself only serves HTTPS, but a
@@ -37721,6 +37788,13 @@ static void tileFetchTaskFn(void* arg) {
 
   TileFetchReq req;
   for (;;) {
+    if (as_job) {
+      if (!last_timed_out) idle_polls = 0;
+      last_timed_out = false;
+      // Someone is waiting for the shared worker (voice, the mic, a decode,
+      // a settings save): let them go first, and come back after.
+      if (VoxAudioTask::waiting() && VoxAudioTask::post(tileFetchJob, nullptr)) return;
+    }
     // User-initiated line-of-sight comes FIRST — it must never wait behind a
     // background history write. Reuses this worker's stack (no second task).
     if (s_los_request) {
@@ -37938,6 +38012,16 @@ static void tileFetchTaskFn(void* arg) {
     // Finite timeout (not portMAX_DELAY) so the loop wakes periodically to
     // pick up LOS requests even when no tiles are queued.
     if (xQueueReceive(s_tile_fetch_queue, &req, pdMS_TO_TICKS(250)) != pdTRUE) {
+      if (as_job) {
+        last_timed_out = true;
+        if (++idle_polls >= 12) {   // 3 s with nothing to do
+          s_tile_job_active = false;
+          // A tile queued in the gap: go round again rather than strand it.
+          if (uxQueueMessagesWaiting(s_tile_fetch_queue) == 0) return;
+          s_tile_job_active = true;
+          idle_polls = 0;
+        }
+      }
       continue;
     }
     ++s_tile_fetch_iters;
@@ -38221,7 +38305,7 @@ static void tileFetchTaskFn(void* arg) {
     // hits are served from the proxy's cache so this rarely reaches OSM).
     vTaskDelay(pdMS_TO_TICKS(500));
   }
-  // Never exit. The task sits forever on xQueueReceive; idle sleep on a
+  // Never exit (as a task). The task sits forever on xQueueReceive; idle sleep on a
   // FreeRTOS queue is free, and re-creating a STATIC task is risky —
   // the FreeRTOS idle reaper may still hold a reference to the TCB
   // when we try to recreate it, and the stack alloc is the bottleneck
@@ -38238,7 +38322,15 @@ static size_t            s_tile_fetch_stack_bytes = 0;
 static StackType_t*      s_tile_fetch_stack       = nullptr;
 static StaticTask_t      s_tile_fetch_tcb;
 
+static void tileFetchJob(void*) {
+  static int marker;
+  tileFetchTaskFn(&marker);
+}
+
 void reserveTileFetchStack() {
+#if TILE_ON_SHARED_WORKER
+  return;   // runs on the shared worker's stack (tileFetchJob)
+#endif
   if (s_tile_fetch_stack) return;
   // Plain-HTTP tile fetcher (mbedTLS gone) needs only ~5 KB, but this worker
   // also runs the version check and the Wi-Fi scan (deep scanNetworks path).
@@ -38260,6 +38352,17 @@ static bool ensureTileFetchTaskRunning() {
     s_tile_fetch_queue = xQueueCreate(k_tile_fetch_queue_size, sizeof(TileFetchReq));
     if (!s_tile_fetch_queue) return false;
   }
+#if TILE_ON_SHARED_WORKER
+  if (s_tile_job_active) return true;
+  s_tile_job_active = true;
+  if (VoxAudioTask::post(tileFetchJob, nullptr)) {
+    s_tile_fetch_spawn_ok = true;
+    return true;
+  }
+  s_tile_job_active = false;
+  s_tile_fetch_spawn_ok = false;
+  return false;
+#endif
   if (s_tile_fetch_task != nullptr) return true;
   // Stack was reserved early (begin()); if that failed, give up cleanly
   // rather than crash inside xTaskCreateStatic.
@@ -58672,7 +58775,7 @@ static void luaStoreRebuildList() {
     lv_obj_set_pos(t, 0, 0);
     lv_obj_t* h = lv_label_create(card);
     useChainedFont(h);
-    if (s_lua_cat_n < 0 && s_tile_fetch_task == nullptr) {
+    if (s_lua_cat_n < 0 && s_tile_fetch_task == nullptr && !s_tile_job_active) {
       // The network worker could not start: report the numbers that decide it
       // (it needs one contiguous 8 KB internal block) right on screen, so this
       // is diagnosable from the device instead of a serial cable.
@@ -83227,6 +83330,9 @@ static void sdHealthTick() {
 
 void UITask::loop() {
   unsigned long now = millis();
+#if defined(HAS_TOUCH_UI)
+  tileWorkerKick();   // Pager: the net worker is a job; post it when there's work
+#endif
 #if defined(HAS_WIO_TRACKER_L2)
   wioL2AudioService();   // amp + codec off once a chime has finished (before any early return)
 #endif
