@@ -148,7 +148,8 @@ class VoxFetch {
     return relayed ? packet_gap + 1000 : zero_hop_gap + 400;
   }
   // Packets were flowing and stopped: the tail was lost.
-  static uint32_t stallWait(uint32_t packet_gap) { return packet_gap * 3 + 2500; }
+  // Three gaps and 1 s (was 2.5 s). Same as voxStallWait.
+  static uint32_t stallWait(uint32_t packet_gap) { return packet_gap * 3 + 1000; }
   // Unasked packets (a push) stopped with some missing: ask for the rest when
   // at least half is here.
   static bool shouldFinishPassive(int received, int total) {

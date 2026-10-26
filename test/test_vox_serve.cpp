@@ -263,10 +263,10 @@ void testChannelOwnOnly() {
   sim.run(s, 20000);
   CHECK(sim.sent.size() == 2, "sent %zu", sim.sent.size());
   CHECK(!sim.sent.empty() && sim.sent[0].channel == 3, "answer on the request's channel");
-  // 0.5-1 s gathering listeners' requests, plus one relay of the request
+  // 0.15-0.4 s gathering listeners' requests, plus one relay of the request
   // (500 + 2.5 * 500 * 1.15 = 1938 ms) for its flood to clear.
-  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 500 + 1938 && sim.sent[0].at - t0 < 1100 + 1938,
-        "author answers 0.5-1 s plus a relay after the request (%u)", sim.sent.empty() ? 0u : sim.sent[0].at - t0);
+  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 150 + 1938 && sim.sent[0].at - t0 < 400 + 1938 + 20,
+        "author answers 0.15-0.4 s plus a relay after the request (%u)", sim.sent.empty() ? 0u : sim.sent[0].at - t0);
   CHECK(sim.parity.empty(), "missing packets only: no parity");
   const uint32_t gap = sim.sent.size() == 2 ? sim.sent[1].at - sim.sent[0].at : 0;
   CHECK(gap >= 2150 && gap <= 2170, "flood gap %u (4 * air + 150)", gap);
@@ -287,7 +287,7 @@ void testChannelFarListener() {
   s.onPayload(req.data(), req.size(), 3, 4);
   sim.run(s, 30000);
   CHECK(sim.sent.size() == 2, "sent %zu", sim.sent.size());
-  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 500 + 2 * 1938 && sim.sent[0].at - t0 < 1100 + 2 * 1938 + 20,
+  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 150 + 2 * 1938 && sim.sent[0].at - t0 < 400 + 2 * 1938 + 20,
         "waits out a 4-hop request's flood (%u)", sim.sent.empty() ? 0u : sim.sent[0].at - t0);
   const uint32_t gap = sim.sent.size() == 2 ? sim.sent[1].at - sim.sent[0].at : 0;
   CHECK(gap >= 2938 && gap < 2960, "4-hop flood gap %u (2 relays to clear)", gap);
@@ -309,7 +309,7 @@ void testFloodPace() {
   using namespace floodpace;
   CHECK(relayMs(157) == 608, "relay %u", relayMs(157));
   Pace p(157);
-  CHECK(p.gapMs(0) == 800 && p.gapMs(1) == 800 && p.gapMs(20) == 922, "start %u %u", p.gapMs(1), p.gapMs(20));
+  CHECK(p.gapMs(0) == 778 && p.gapMs(1) == 778 && p.gapMs(20) == 922, "start %u %u", p.gapMs(1), p.gapMs(20));
   CHECK(p.settleMs(0) == 0 && p.settleMs(1) == 608 && p.settleMs(20) == 2 * 608, "settle %u", p.settleMs(20));
   auto ans = [](std::initializer_list<int> v) { Answer a; for (int i : v) a.add(i); return a; };
   auto bits = [](std::initializer_list<int> v) {
@@ -319,15 +319,15 @@ void testFloodPace() {
   };
   Answer a = ans({1, 4, 5, 7, 8, 9});
   p.feedback(a, bits({1, 4, 5, 8, 9}).data());
-  CHECK(p.gapMs(4) == 1200 && p.settleMs(4) == 3 * 608, "lossy %u %u", p.gapMs(4), p.settleMs(4));
+  CHECK(p.gapMs(4) == 1167 && p.settleMs(4) == 3 * 608, "lossy %u %u", p.gapMs(4), p.settleMs(4));
   p.feedback(a, bits({1, 4, 5, 8, 9}).data());
-  CHECK(p.gapMs(4) == 1200 && p.settleMs(4) == 3 * 608, "a second report on it moved the pace");
+  CHECK(p.gapMs(4) == 1167 && p.settleMs(4) == 3 * 608, "a second report on it moved the pace");
   p.feedback(a, bits({}).data());
-  CHECK(p.gapMs(4) == 922 && p.gapMs(0) == 800 && p.settleMs(4) == 2 * 608, "clean report %u %u", p.gapMs(4), p.settleMs(4));
+  CHECK(p.gapMs(4) == 922 && p.gapMs(0) == 778 && p.settleMs(4) == 2 * 608, "clean report %u %u", p.gapMs(4), p.settleMs(4));
   p.feedback(a, bits({1, 4, 5, 7, 8, 9}).data());
   CHECK(p.gapMs(4) == 922, "slowed after a clean report");
   for (int k = 0; k < 6; k++) { Answer c = ans({0, 1, 2, 3}); p.feedback(c, bits({0, 2, 3}).data()); }
-  CHECK(p.gapMs(4) == 1600 && p.settleMs(4) == 4 * 608, "congested %u %u", p.gapMs(4), p.settleMs(4));
+  CHECK(p.gapMs(4) == 1556 && p.settleMs(4) == 4 * 608, "congested %u %u", p.gapMs(4), p.settleMs(4));
   for (int k = 0; k < 6; k++) { Answer c = ans({0, 1, 2, 3}); p.feedback(c, bits({}).data()); }
   CHECK(p.gapMs(4) == 922 && p.settleMs(4) == 2 * 608, "cleared %u %u", p.gapMs(4), p.settleMs(4));
   Pace m(500);
@@ -359,7 +359,7 @@ void testChannelPaceLearns() {
   if (sim.sent.size() > first + 1) {
     const uint32_t g2 = sim.sent[first + 1].at - sim.sent[first].at;
     CHECK(g2 > g1 + 200, "slower after a lossy answer: %u then %u", g1, g2);
-    CHECK(sim.sent[first].at - t1 >= 500 + 3 * 608, "waited a relay more (%u)", sim.sent[first].at - t1);
+    CHECK(sim.sent[first].at - t1 >= 150 + 3 * 608, "waited a relay more (%u)", sim.sent[first].at - t1);
   }
 }
 

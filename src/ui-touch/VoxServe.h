@@ -15,7 +15,7 @@
 //                  we wait up to 25 s for it, then answer as raw data.
 //   channel        0x72 as GRP_DATA 0x5643 on the channel the clip was posted in;
 //                  answered on that channel. The clip's author answers after
-//                  0.5-1 s, so listeners' requests that come close together are
+//                  0.15-0.4 s, so listeners' requests that come close together are
 //                  answered in one burst, plus a relay's time for each hop the
 //                  request came so its flood has cleared, paced by FloodPace.h
 //                  (learnt from the requests after each answer); this radio
@@ -71,7 +71,7 @@ class VoxServe {
   static constexpr uint32_t kDupWindowMs = 6000;
   static constexpr uint32_t kRouteWaitMs = 3000;
   static constexpr uint32_t kRouteWaitDmMs = 25000;
-  static constexpr uint32_t kOwnChannelDelayMs = 500;    // plus up to 0.5 s at random
+  static constexpr uint32_t kOwnChannelDelayMs = 150;    // plus up to 0.25 s at random (gathering)
   static constexpr uint32_t kZeroHopWaitMs = 1000;       // not the author: plus up to 2 s
 
   explicit VoxServe(VoxServeIo& io) : io_(io) {}

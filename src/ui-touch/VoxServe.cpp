@@ -187,7 +187,7 @@ void VoxServe::enqueue(const VoxWire::FetchRequest& r, int channel, bool from_dm
   // relays (hidden from us, heard by our next repeater) took out the first
   // packets of every answer to a listener 4 hops away (#177 cut the wait to
   // 0.5-1 s). FloodPace: a relay per hop it came, learnt up or down from there.
-  t.not_before = channel >= 0 ? now + kOwnChannelDelayMs + io_.random32() % 500 +
+  t.not_before = channel >= 0 ? now + kOwnChannelDelayMs + io_.random32() % 250 +
                                     paceFor(channel).settleMs(hops < 0 ? 3 : hops)
                : t.zero_hop_req && !isOwn(r.sid) ? now + kZeroHopWaitMs + io_.random32() % 2000
                : now;

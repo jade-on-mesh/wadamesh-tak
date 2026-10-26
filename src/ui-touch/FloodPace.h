@@ -8,7 +8,7 @@
 // number for number; test/test_vox_serve.cpp checks the same cases.
 //
 // - The gap between packets starts at the base gap (4 airtimes + 150 ms, at
-//   least 800 ms; for a listener 2+ hops away at least the average time for
+//   least 400 ms; for a listener 2+ hops away at least the average time for
 //   our packet to clear the next two repeaters), grows by half when an answer
 //   lost a third or more, shrinks by a fifth when it lost almost none, between
 //   the base gap and twice it.
@@ -27,7 +27,10 @@
 namespace floodpace {
 
 inline uint32_t relayMs(uint32_t air) { return (uint32_t)(air + 2.5 * air * 1.15 + 0.5); }
-inline uint32_t baseGapMs(uint32_t air) { return air * 4 + 150 > 800 ? air * 4 + 150 : 800; }
+// At least 400 ms (it was 800, from the main mesh's slow packets).
+inline uint32_t baseGapMs(uint32_t air) { return air * 4 + 150 > 400 ? air * 4 + 150 : 400; }
+// The longest wait before answering a request that came `hops` repeaters.
+inline uint32_t settleMaxMs(uint32_t air, int hops) { return hops <= 0 ? 0 : 4 * relayMs(air); }
 inline uint32_t slowGapMs(uint32_t air) { return 2 * baseGapMs(air); }
 
 // One answer: the data packets it sent (bit i: packet i), the first of them,
