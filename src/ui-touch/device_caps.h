@@ -611,6 +611,16 @@
   #endif
 #endif
 
+// Linked pictures in chat (LinkImages.inc): a picture's link downloaded over Wi-Fi and
+// shown in its bubble. The same download (TLS) and memory as the web reader.
+#ifndef CAP_LINK_IMAGES
+  #if defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION) && CAP_WEB_BROWSER
+    #define CAP_LINK_IMAGES 1
+  #else
+    #define CAP_LINK_IMAGES 0
+  #endif
+#endif
+
 // ---- Radio tools + screen mirror ----------------------------------------------
 // The drawer's Signal / Discover / Spectrum tiles drive the board's OWN LoRa radio,
 // and Remote / VNC serve this screen to a browser. Every radio board has both; a
