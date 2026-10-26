@@ -258,16 +258,49 @@ void testChannelOwnOnly() {
   const uint32_t t0 = sim.now;
   // A fresh request (a different listener, so not a repeat).
   const auto req2 = dartFetch(kSid, kKeyB, &miss, true, nullptr);
-  s.onPayload(req2.data(), req2.size(), 3);
+  s.onPayload(req2.data(), req2.size(), 3, 1);   // came through one repeater
   sim.run(s, 20000);
   CHECK(sim.sent.size() == 2, "sent %zu", sim.sent.size());
   CHECK(!sim.sent.empty() && sim.sent[0].channel == 3, "answer on the request's channel");
-  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 500 && sim.sent[0].at - t0 < 1100,
-        "author answers after 0.5-1 s (gathering listeners' requests)");
+  // 0.5-1 s gathering listeners' requests, plus one relay of the request
+  // (500 + 2.5 * 500 * 1.15 = 1938 ms) for its flood to clear.
+  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 500 + 1938 && sim.sent[0].at - t0 < 1100 + 1938,
+        "author answers 0.5-1 s plus a relay after the request (%u)", sim.sent.empty() ? 0u : sim.sent[0].at - t0);
   CHECK(sim.parity.empty(), "missing packets only: no parity");
   const uint32_t gap = sim.sent.size() == 2 ? sim.sent[1].at - sim.sent[0].at : 0;
   CHECK(gap >= 2150 && gap <= 2170, "flood gap %u (4 * air + 150)", gap);
   for (auto& p : sim.sent) CHECK(p.data.size() <= 163, "GRP_DATA limit");
+}
+
+// A listener 4 hops away (the stalled MediaMesh photo, 26 Oct): wait out the
+// request's flood (a relay per hop) and space the flooded answers for the
+// relays (three hops' worth, at most twice the 1-hop gap).
+void testChannelFarListener() {
+  Sim sim;
+  VoxServe s(sim);
+  sim.clips[kSid] = {1, clip1200(400)};   // 3 packets
+  s.markOwn(kSid);
+  const std::vector<int> miss = {0, 2};
+  const auto req = dartFetch(kSid, kKeyA, &miss, true, nullptr);
+  const uint32_t t0 = sim.now;
+  s.onPayload(req.data(), req.size(), 3, 4);
+  sim.run(s, 30000);
+  CHECK(sim.sent.size() == 2, "sent %zu", sim.sent.size());
+  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 500 + 4 * 1938 && sim.sent[0].at - t0 < 1100 + 4 * 1938,
+        "waits out a 4-hop request's flood (%u)", sim.sent.empty() ? 0u : sim.sent[0].at - t0);
+  const uint32_t gap = sim.sent.size() == 2 ? sim.sent[1].at - sim.sent[0].at : 0;
+  CHECK(gap == 4300, "4-hop flood gap %u (capped at twice 4 * air + 150)", gap);
+
+  // MediaMesh's 250 kHz: 157 ms a packet.
+  Sim fast;
+  fast.air = 157;
+  VoxServe f(fast);
+  fast.clips[kSid] = {1, clip1200(400)};
+  f.markOwn(kSid);
+  f.onPayload(req.data(), req.size(), 3, 4);
+  fast.run(f, 30000);
+  const uint32_t g2 = fast.sent.size() == 2 ? fast.sent[1].at - fast.sent[0].at : 0;
+  CHECK(g2 == 1600, "radio2 4-hop flood gap %u (800 doubled)", g2);
 }
 
 void testDuplicateIgnored() {
@@ -551,6 +584,7 @@ int main(int argc, char** argv) {
   testVr3TimesOut();
   testChannelMergeAndZeroHop();
   testChannelOwnOnly();
+  testChannelFarListener();
   testDuplicateIgnored();
   testNewerRequestReplaces();
   testQueuedListeners();

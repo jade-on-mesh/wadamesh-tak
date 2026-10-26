@@ -15,9 +15,10 @@
 //                  we wait up to 25 s for it, then answer as raw data.
 //   channel        0x72 as GRP_DATA 0x5643 on the channel the clip was posted in;
 //                  answered on that channel. The clip's author answers after
-//                  2-3 s, so listeners' requests that come close together are
-//                  answered in one burst; this radio doesn't stand in for
-//                  other authors.
+//                  0.5-1 s, so listeners' requests that come close together are
+//                  answered in one burst, plus a relay's time for each hop the
+//                  request came (up to four) so its flood has cleared; this
+//                  radio doesn't stand in for other authors.
 //
 // A request for the whole clip is answered with its parity packets after the
 // data (VoxFec.h), so a listener mends what that pass loses by itself. A
@@ -25,7 +26,8 @@
 // that isn't the clip's author waits 1-3 s and leaves out packets it hears
 // another node send meanwhile.
 //
-// Packets are paced so we never talk over our own repeaters (same formula as
+// Packets are paced so we never talk over our own repeaters, flooded ones by
+// the hops to the farthest listener asking (same formula as
 // the app), salted (0x57) when the requester says it takes them, one request
 // served at a time, a repeat of the same request inside 6 s is ignored, and a
 // newer request from the same listener for the same clip replaces one in progress.
@@ -140,6 +142,8 @@ class VoxServe {
   int  packetCount(const Job& j) const;
   int  packetIndex(const Job& j, int k) const;
   uint32_t packetGap(bool flood, int hops);
+  // How long a flooded request keeps being relayed near us after we hear it.
+  uint32_t floodSettleMs(int hops);
   uint32_t zeroHopGap();
   bool mergeChannel(const VoxWire::FetchRequest& r, int channel, int hops);
   static int nextPending(const Job& j);

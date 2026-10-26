@@ -175,7 +175,11 @@ void VoxServe::enqueue(const VoxWire::FetchRequest& r, int channel, bool from_dm
   // together share one burst; a later tap gets its own. Short, as in the app:
   // the one asking is watching a spinner.
   // A zero-hop raw request reached everyone in range: the author goes first.
-  t.not_before = channel >= 0 ? now + kOwnChannelDelayMs + io_.random32() % 500
+  // On a channel, not before the request's own flood has died down near us: its
+  // relays (hidden from us, heard by our next repeater) took out the first
+  // packets of every answer to a listener 4 hops away (#177 cut the wait to
+  // 0.5-1 s). A relay per hop it came, up to four; nothing for one heard direct.
+  t.not_before = channel >= 0 ? now + kOwnChannelDelayMs + io_.random32() % 500 + floodSettleMs(hops)
                : t.zero_hop_req && !isOwn(r.sid) ? now + kZeroHopWaitMs + io_.random32() % 2000
                : now;
   t.route_deadline = now + (from_dm ? kRouteWaitDmMs : kRouteWaitMs);
@@ -258,9 +262,30 @@ uint32_t VoxServe::zeroHopGap() {
   return g > 150 ? g : 150;
 }
 
+// One repeater's relay of a flooded packet: its random wait (up to 2.5 airtimes
+// at a slower coding rate, 1.15) and the airtime itself.
+static uint32_t relayMs(uint32_t air) { return (uint32_t)(air + 2.5 * air * 1.15 + 0.5); }
+
+uint32_t VoxServe::floodSettleMs(int hops) {
+  const int h = hops < 0 ? 3 : hops > 4 ? 4 : hops;
+  return (uint32_t)h * relayMs(io_.packetAirMs());
+}
+
+// A flooded answer to a listener `hops` repeaters away: each packet floods out
+// through every repeater on the way, so the next must wait for the last one's
+// relays near us to clear or the two collide (a 4-hop photo over MediaMesh had
+// all but one packet of each answer lost at 800 ms apart). Up to three relays
+// matter (farther ones reuse the channel), and at most twice the old gap.
 uint32_t VoxServe::packetGap(bool flood, int hops) {
   const uint32_t air = io_.packetAirMs();
-  if (flood) return air * 4 + 150 > 800 ? air * 4 + 150 : 800;
+  if (flood) {
+    const uint32_t base = air * 4 + 150 > 800 ? air * 4 + 150 : 800;
+    if (hops < 2) return base;
+    const uint32_t h = (uint32_t)(hops < 3 ? hops : 3);
+    uint32_t g = air + h * relayMs(air);
+    if (g > 2 * base) g = 2 * base;
+    return g > base ? g : base;
+  }
   if (hops <= 0) return air * 2 + 150 > 400 ? air * 2 + 150 : 400;
   const int h = hops < 2 ? hops : 2;
   return (uint32_t)(air + h * 2.5 * (air * 1.15) + 400 + 0.5);
@@ -361,7 +386,7 @@ void VoxServe::tick() {
     }
   }
   if (!j.gap) {
-    j.gap = j.channel >= 0 ? (j.max_hops == 0 ? zeroHopGap() : packetGap(true, 0)) : packetGap(false, j.route_len);
+    j.gap = j.channel >= 0 ? (j.max_hops == 0 ? zeroHopGap() : packetGap(true, j.max_hops)) : packetGap(false, j.route_len);
     j.next_at = now;
     logf("[VOX] serve %08lx: sending %d packets %s, %lu ms apart", (unsigned long)j.sid, packetCount(j),
          j.channel < 0 ? "direct" : j.max_hops == 0 ? "zero-hop on the channel" : "on the channel",
@@ -409,7 +434,7 @@ void VoxServe::tick() {
   if (j.channel >= 0) {
     j.pend[idx >> 3] &= (uint8_t)~(1u << (idx & 7));
     // A farther listener may have joined: flood from here on, spaced for relays.
-    j.gap = j.max_hops == 0 ? zeroHopGap() : packetGap(true, 0);
+    j.gap = j.max_hops == 0 ? zeroHopGap() : packetGap(true, j.max_hops);
     j.next_at = now + j.gap;
     if (nextPending(j) < 0 && j.par_next >= j.par_total) finish(j, "served");
     return;
