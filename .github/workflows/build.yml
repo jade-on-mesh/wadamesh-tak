@@ -43,7 +43,7 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_vox_wire test/test_vox_wire.cpp
           /tmp/test_vox_wire
-      - name: Linked pictures (LinkImage: links, JPEG/PNG/GIF/BMP/WebP decode)
+      - name: "Linked pictures (LinkImage: links, JPEG/PNG/GIF/BMP/WebP decode)"
         run: |
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -I test \
               -o /tmp/test_link_image test/test_link_image.cpp src/helpers/LinkImage.cpp
