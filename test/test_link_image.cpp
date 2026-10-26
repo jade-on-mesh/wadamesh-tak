@@ -1,0 +1,126 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// LinkImage: finding a picture's link in a message, and decoding each kind
+// (JPEG, progressive JPEG, PNG with alpha, GIF, BMP, WebP lossy and lossless)
+// to RGB565 at the size asked for.
+//   g++ -std=c++17 -I src test/test_link_image.cpp src/helpers/LinkImage.cpp
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <initializer_list>
+
+#include "helpers/LinkImage.h"
+#include "link_image_fixtures.h"
+
+static int s_fail = 0;
+#define CHECK(c)                                                  \
+  do {                                                            \
+    if (!(c)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #c); s_fail++; } \
+  } while (0)
+
+static void* outAlloc(size_t n) { return malloc(n); }
+
+static int r5(uint16_t p) { return p >> 11; }
+static int g6(uint16_t p) { return (p >> 5) & 63; }
+static int b5(uint16_t p) { return p & 31; }
+
+static void url(const char* text, const char* want) {
+  char out[200];
+  const bool found = linkimg::findUrl(text, out, sizeof out);
+  if (!want) {
+    if (found) { fprintf(stderr, "found %s in \"%s\"\n", out, text); s_fail++; }
+    return;
+  }
+  if (!found || strcmp(out, want)) {
+    fprintf(stderr, "in \"%s\": got %s, want %s\n", text, found ? out : "(none)", want);
+    s_fail++;
+  }
+}
+
+// Decodes a fixture; left is red, right blue, and where the format keeps
+// alpha the bottom-right quarter shows the background (white here).
+static void picture(const char* name, const uint8_t* d, size_t n, linkimg::Kind kind, bool alpha, bool lossy) {
+  CHECK(linkimg::sniff(d, n) == kind);
+  int w = 0, h = 0;
+  CHECK(linkimg::size(d, n, &w, &h) && w == 40 && h == 30);
+  CHECK(linkimg::workBytes(d, n) > 40 * 30 * 4);
+
+  uint16_t* px = nullptr;
+  int ow = 0, oh = 0;
+  // Full size, then scaled to 20 px wide (15 high).
+  for (int side : {64, 20}) {
+    const linkimg::Result r = linkimg::decode(d, n, side, 8u << 20, 0xFFFF, outAlloc, &px, &ow, &oh);
+    if (r != linkimg::kOk) { fprintf(stderr, "%s: %s\n", name, linkimg::resultText(r)); s_fail++; continue; }
+    const int ew = side >= 40 ? 40 : 20, eh = side >= 40 ? 30 : 15;
+    CHECK(ow == ew && oh == eh);
+    const int tol = lossy ? 4 : 1;
+    const uint16_t left = px[(oh / 4) * ow + ow / 8];
+    const uint16_t right_top = px[(oh / 4) * ow + ow - 1 - ow / 8];
+    const uint16_t right_bottom = px[(oh - 1 - oh / 8) * ow + ow - 1 - ow / 8];
+    if (!(r5(left) >= 31 - tol && g6(left) <= 2 * tol && b5(left) <= tol)) {
+      fprintf(stderr, "%s @%d: left %04x not red\n", name, side, left); s_fail++;
+    }
+    if (!(b5(right_top) >= 31 - tol && r5(right_top) <= tol && g6(right_top) <= 2 * tol)) {
+      fprintf(stderr, "%s @%d: right %04x not blue\n", name, side, right_top); s_fail++;
+    }
+    if (alpha && !(r5(right_bottom) >= 31 - tol && g6(right_bottom) >= 63 - 2 * tol && b5(right_bottom) >= 31 - tol)) {
+      fprintf(stderr, "%s @%d: see-through %04x not the background\n", name, side, right_bottom); s_fail++;
+    }
+    free(px);
+  }
+  // Too little memory to decode: refused before trying.
+  CHECK(linkimg::decode(d, n, 64, 1000, 0, outAlloc, &px, &ow, &oh) == linkimg::kTooLarge);
+  // Cut short: refused, nothing left allocated (the sanitizer checks).
+  if (n > 40) {
+    const linkimg::Result r = linkimg::decode(d, n / 2, 64, 8u << 20, 0, outAlloc, &px, &ow, &oh);
+    if (r == linkimg::kOk) free(px);
+  }
+}
+
+int main() {
+  // ---- links
+  url("look https://i.imgur.com/AbC123.jpg nice", "https://i.imgur.com/AbC123.jpg");
+  url("HTTP://Example.COM/a/B.JPEG", "HTTP://Example.COM/a/B.JPEG");
+  url("(https://x.org/p.png).", "https://x.org/p.png");
+  url("https://cdn.x.org/cat.webp?w=640&h=480 wow", "https://cdn.x.org/cat.webp?w=640&h=480");
+  url("gif: https://media.site.net/a/b/c.gif#frag", "https://media.site.net/a/b/c.gif#frag");
+  url("old https://x.org/scan.bmp!", "https://x.org/scan.bmp");
+  url("page https://x.org/index.html then https://x.org/pic.jpg", "https://x.org/pic.jpg");
+  url("https://x.org/jpg", nullptr);                 // no extension, just the word
+  url("https://x.org/photo.jpg.html", nullptr);
+  url("https://localhost/a.png", nullptr);           // host without a dot
+  url("ftp://x.org/a.png", nullptr);
+  url("www.x.org/a.png", nullptr);                   // a bare host isn't fetched
+  url("https://x.org/?file=a.png", nullptr);         // the extension is in the query
+  url("", nullptr);
+  {
+    char small[10];
+    CHECK(!linkimg::findUrl("https://x.org/long.png", small, sizeof small));
+  }
+  CHECK(linkimg::urlId("https://x.org/a.png") == linkimg::urlId("https://x.org/a.png"));
+  CHECK(linkimg::urlId("https://x.org/a.png") != linkimg::urlId("https://x.org/b.png"));
+  CHECK(linkimg::urlId("") != 0);
+
+  // ---- pictures
+  picture("jpeg", k_jpeg, sizeof k_jpeg, linkimg::kJpeg, false, true);
+  picture("progressive jpeg", k_jpeg_prog, sizeof k_jpeg_prog, linkimg::kJpeg, false, true);
+  picture("png", k_png_alpha, sizeof k_png_alpha, linkimg::kPng, true, false);
+  picture("gif", k_gif, sizeof k_gif, linkimg::kGif, false, false);
+  picture("bmp", k_bmp, sizeof k_bmp, linkimg::kBmp, false, false);
+  picture("webp lossy", k_webp_lossy, sizeof k_webp_lossy, linkimg::kWebp, false, true);
+  picture("webp lossless", k_webp_lossless, sizeof k_webp_lossless, linkimg::kWebp, true, false);
+
+  // ---- not pictures
+  static const uint8_t html[] = "<!doctype html><html></html>";
+  uint16_t* px = nullptr;
+  int w = 0, h = 0;
+  CHECK(linkimg::sniff(html, sizeof html) == linkimg::kUnknown);
+  CHECK(linkimg::decode(html, sizeof html, 64, 1u << 20, 0, outAlloc, &px, &w, &h) == linkimg::kNotPicture);
+  CHECK(!linkimg::size(html, sizeof html, &w, &h));
+  CHECK(linkimg::workBytes(html, sizeof html) == 0);
+
+  if (s_fail) { fprintf(stderr, "link_image: %d failed\n", s_fail); return 1; }
+  printf("link_image: all passed\n");
+  return 0;
+}

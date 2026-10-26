@@ -20542,6 +20542,10 @@ static void histSyncPickCb(lv_event_t* e) {
   setChoicePick(lv_obj_get_parent(lv_event_get_current_target(e)), i);
 }
 
+#if CAP_LINK_IMAGES
+static bool linkImgOn();                   // LinkImages.inc
+static void linkImgToggleCb(lv_event_t* e);
+#endif
 static void buildGeneralPage() {
   {
     lv_obj_t* c = setCard("Mesh");
@@ -20563,6 +20567,15 @@ static void buildGeneralPage() {
     setChoiceRow(c, "Save in the foreground after", "After this many failed background saves the chat is saved straight away, which can stutter the screen for a moment. Off keeps retrying in the background.",
                  tries, 6, sel, histSyncPickCb);
   }
+#if CAP_LINK_IMAGES
+  {
+    lv_obj_t* c = setCard("Linked images");
+    setSwitchRow(c, "Download over Wi-Fi", "A link to a picture (.jpg, .png, .gif, .webp, .bmp) in a channel or a DM "
+                 "is downloaded while Wi-Fi is on and shown in its bubble; tap it to see it full size. The picture's "
+                 "server sees this radio's address. Kept on the SD card when there is one.",
+                 linkImgOn(), linkImgToggleCb);
+  }
+#endif
 #if CAP_SD || defined(TLORA_PAGER)
   {
     // Everything (identity, settings, contacts, channels) on the card under /meshcomod
@@ -47539,9 +47552,13 @@ struct ChatBubbleDisplay {
   uint32_t talk_sid = 0;   // a push-to-talk: its waveform goes on the second line
   uint32_t thumb_sid = 0;  // a received photo with a thumbnail: drawn above its text
   lv_coord_t thumb_w = 0, thumb_h = 0;
+  bool thumb_link = false; // the thumbnail is a linked picture's (LinkImages.inc), at thumb_url
+  char thumb_url[240] = "";
 };
 // Between a photo's thumbnail and the line under it.
 static constexpr lv_coord_t kChatThumbGap = 4;
+
+#include "LinkImages.inc"   // pictures linked in messages, downloaded over Wi-Fi
 
 struct ChatVirtLayout {
   LvChatPanel* panel         = nullptr;
@@ -48178,6 +48195,9 @@ static void chatParseMessageDisplay(const UITask::UIMessage& m, bool channel_mod
       d.thumb_h = (lv_coord_t)th;
     }
   }
+#if CAP_LINK_IMAGES
+  else linkImgBubble(d.show_text, d);   // a picture's link: shown when it's here, asked for when not
+#endif
   // The label is the sender's nickname when it has one; show_sender (its colour, its
   // identity) stays the name it advertises.
   copyUtf8ReplacingMissingGlyphs(&g_font_12, d.san_sender, sizeof(d.san_sender),
@@ -49159,6 +49179,14 @@ static void urlMenuOpenWebCb(lv_event_t* e) {
   openReaderPage(u);
 }
 #endif
+#if CAP_LINK_IMAGES
+static void urlMenuViewPicCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  char u[240]; snprintf(u, sizeof u, "%s", s_urlmenu_url);
+  closeUrlMenu();
+  linkImgView(u);
+}
+#endif
 static void openUrlMenu(const char* url) {
   if (!url || !url[0]) return;
   closeUrlMenu();
@@ -49174,9 +49202,14 @@ static void openUrlMenu(const char* url) {
   lv_obj_add_event_cb(s_urlmenu_root, urlMenuBackdropCb, LV_EVENT_CLICKED, nullptr);
   const int card_w = PCW(230), btn_h = PSC(34), pad = PSC(12), gap = PSC(8), url_h = PSC(18);
 #if defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION)
-  const int nbtn = 2;
+  int nbtn = 2;
 #else
-  const int nbtn = 1;
+  int nbtn = 1;
+#endif
+#if CAP_LINK_IMAGES
+  char pic[sizeof s_urlmenu_url];
+  const bool is_pic = linkimg::findUrl(url, pic, sizeof pic) && !strcmp(pic, url);
+  if (is_pic) ++nbtn;
 #endif
   const int card_h = pad + url_h + gap + nbtn * btn_h + (nbtn - 1) * gap + pad;
   lv_obj_t* card = lv_obj_create(s_urlmenu_root);
@@ -49210,6 +49243,9 @@ static void openUrlMenu(const char* url) {
     lv_obj_center(l);
     by += btn_h + gap;
   };
+#if CAP_LINK_IMAGES
+  if (is_pic) mk(TR(LV_SYMBOL_IMAGE "  View picture"), urlMenuViewPicCb);
+#endif
 #if defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION) && CAP_WEB_BROWSER
   mk(TR(LV_SYMBOL_WIFI "  Open in web"), urlMenuOpenWebCb);
 #endif
@@ -49904,6 +49940,10 @@ static lv_coord_t chatVirtCreateBubble(LvChatPanel* p, int logical_i, int ring_i
     inner_y = sender_lh;
   }
   if (d.thumb_sid) {
+#if CAP_LINK_IMAGES
+    if (d.thumb_link) linkImgAddThumb(bubble, d, 0, inner_y);
+    else
+#endif
     chatAddThumb(bubble, d.thumb_sid, 0, inner_y);
     inner_y += thumb_band;
   } else {
@@ -86890,6 +86930,9 @@ void UITask::loop() {
     uiCp("ui:vox");
     VoxPhotos::tick();
     voxThumbTick();         // photo bubbles' thumbnails, decoded one at a time in the background
+#if CAP_LINK_IMAGES
+    linkImgTick();          // pictures linked in messages: one download at a time
+#endif
     if (VoxMic::available()) VoxMic::state();   // releases the mic once a recording ends
     uiCp("ui:otp");
     OtpMessenger::tick();   // sends, retries, sync checks: whether or not the app is open

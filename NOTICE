@@ -23,6 +23,17 @@ MeshCore
     Wi-Fi/BLE/UI hooks) is published under MIT, not GPL, so those hooks remain
     upstreamable to MeshCore.
 
+stb_image (lib/stb_image)
+    Sean Barrett and contributors
+    MIT License or public domain (the user's choice) — https://github.com/nothings/stb
+    Decodes JPEG, PNG, GIF and BMP pictures linked in messages.
+
+simplewebp (lib/simplewebp)
+    Copyright (c) 2010 Google Inc., 2023 Miku AuahDark
+    BSD 3-Clause License, with Google's WebP patent grant (PATENTS.md) —
+    https://github.com/MikuAuahDark/simplewebp
+    Decodes WebP pictures linked in messages.
+
 LVGL
     Copyright (c) LVGL Kft and contributors
     MIT License — https://lvgl.io

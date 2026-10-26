@@ -48,6 +48,11 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_foreign_import test/test_foreign_import.cpp src/helpers/ForeignImport.cpp
           /tmp/test_foreign_import
+      - name: "Linked pictures (LinkImage: links, JPEG/PNG/GIF/BMP/WebP decode)"
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -I test \
+              -o /tmp/test_link_image test/test_link_image.cpp src/helpers/LinkImage.cpp
+          /tmp/test_link_image
       - name: New map points flash (MapHighlight.h)
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
