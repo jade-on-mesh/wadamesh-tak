@@ -181,6 +181,13 @@ bool touchPrefsSetMapShowLinks(bool on);
 uint8_t touchPrefsGetMapStyle();
 bool    touchPrefsSetMapStyle(uint8_t style);
 
+/** microSD PMTiles archive shown on the map, by name: "<name>" selects
+ *  /maps/<name>/<name>.pmtiles, "-" means folder tiles only, unset = automatic
+ *  (the "osm" archive if present, else the first one found). */
+constexpr int TOUCH_MAP_PMTILES_MAXLEN = 32;
+int  touchPrefsGetMapPmTiles(char* out, int out_cap);
+bool touchPrefsSetMapPmTiles(const char* name);
+
 /* App drawer: large grid (one fewer column → bigger icons + labels, for low vision).
  * Default false = the compact grid (T-Deck 4 cols / Heltec V4 3 cols). */
 bool touchPrefsGetAppGridLarge();
@@ -313,6 +320,17 @@ bool     touchPrefsSetReportedBeta(uint16_t n);
 // when the UI is built, so a change takes effect after a restart.
 bool     touchPrefsGetCondenseNav();
 bool     touchPrefsSetCondenseNav(bool on);
+
+// Remove old contacts (#719, Settings > Contact Management): while on, contacts not
+// heard from in the given number of days (1..999, default 30) are deleted.
+// Favourites are always kept. Default off.
+constexpr uint16_t TOUCH_CT_PURGE_DEFAULT_DAYS = 30;
+constexpr uint16_t TOUCH_CT_PURGE_MIN_DAYS = 1;
+constexpr uint16_t TOUCH_CT_PURGE_MAX_DAYS = 999;
+bool     touchPrefsGetContactPurge();
+bool     touchPrefsSetContactPurge(bool on);
+uint16_t touchPrefsGetContactPurgeDays();
+bool     touchPrefsSetContactPurgeDays(uint16_t days);
 /** Where the navigation bar sits (Settings > Display > Navigation bar). Stored in the
  *  v66 condense_nav byte, so no schema change: 0 bottom (the default) and 1 right (the
  *  old Condense Nav rail) keep their meaning; 2 top and 3 left are new. Read once when
@@ -560,6 +578,11 @@ void    touchPrefsSetVoiceBrighter(bool on);
  *  (VoxRestoreSmall, its model on the SD card) when it's there. Default off. */
 bool    touchPrefsGetVoiceRestore();
 void    touchPrefsSetVoiceRestore(bool on);
+bool    touchPrefsGetVibrate();                // vibrate on notifications (boards with a motor), default false (Pager: true)
+void    touchPrefsSetVibrate(bool on);
+uint8_t touchPrefsGetVibratePattern();         // TOUCH_VIB_* style, default TOUCH_VIB_PULSE
+void    touchPrefsSetVibratePattern(uint8_t pat);
+enum { TOUCH_VIB_PULSE = 0, TOUCH_VIB_GENTLE, TOUCH_VIB_LONG, TOUCH_VIB_HEARTBEAT, TOUCH_VIB_COUNT };
 
 /** Do Not Disturb: silences the incoming-message chime during a daily time
  *  window. Start/end are half-hour slots (0..47, slot = hour*2 + (min>=30)),
@@ -623,10 +646,47 @@ uint8_t touchPrefsGetScreensaverBatterySecs();
 void    touchPrefsSetScreensaverBatterySecs(uint8_t secs);
 bool    touchPrefsGetScreensaverAlwaysOnPower();
 void    touchPrefsSetScreensaverAlwaysOnPower(bool on);
+// Keep north up (#706): the Constellation does not turn. Standalone key, default off.
+bool    touchPrefsGetScreensaverNorthUp();
+void    touchPrefsSetScreensaverNorthUp(bool on);
 bool    touchPrefsGetLockPreviews();           // message text on the lock screen's unread cards (default true)
 void    touchPrefsSetLockPreviews(bool on);
 bool    touchPrefsGetGlanceWhenLocked();       // "at a glance" also fires while manually/idle locked, not just unlocked+dimmed (default false)
 void    touchPrefsSetGlanceWhenLocked(bool on);
+#if defined(TLORA_PAGER)
+bool    touchPrefsGetVibrateInput();          // Pager: a click per key / knob detent (default false)
+void    touchPrefsSetVibrateInput(bool on);
+uint8_t touchPrefsGetVibrateKeyLevel();       // 0 off, 1 light, 2 strong (the vib_in key; its old "on" = strong)
+void    touchPrefsSetVibrateKeyLevel(uint8_t level);
+uint8_t touchPrefsGetVibrateStrength();       // 0 light, 1 medium, 2 strong (default 2)
+void    touchPrefsSetVibrateStrength(uint8_t s);
+uint8_t touchPrefsGetVibratePattern(uint8_t kind);   // kind 0 message, 1 DM, 2 @mention -> PagerVibPattern
+void    touchPrefsSetVibratePattern(uint8_t kind, uint8_t pattern);
+// Pager charging (Settings > Battery > Charging). Deliberately not in the backup:
+// a restore must never bring back a limit someone else chose to take a risk with.
+uint16_t touchPrefsGetChargeMa();            // fast-charge current, mA (default 704)
+void     touchPrefsSetChargeMa(uint16_t ma);
+uint16_t touchPrefsGetChargeMv();            // charge voltage, mV (default 4288)
+void     touchPrefsSetChargeMv(uint16_t mv);
+uint8_t  touchPrefsGetChargeTmax();          // stop charging above this, deg C; 0 = guard off (default 45)
+void     touchPrefsSetChargeTmax(uint8_t c);
+uint8_t  touchPrefsGetChargeTmin();          // stop charging below this, deg C (default 0)
+void     touchPrefsSetChargeTmin(uint8_t c);
+bool     touchPrefsGetChargeCare();          // battery care: stop at 80 %, resume below 75 % (default off)
+void     touchPrefsSetChargeCare(bool on);
+bool     touchPrefsGetLowBattWarn();         // warn at 20 / 10 %, switch off at 3 % (default on)
+void     touchPrefsSetLowBattWarn(bool on);
+uint32_t touchPrefsGetBattDayKey();          // local date (YYYYMMDD) the daily mAh count below belongs to
+void     touchPrefsSetBattDayKey(uint32_t key);
+uint32_t touchPrefsGetBattDayMah();          // mAh drawn: today in the low 16 bits, the day before in the high
+void     touchPrefsSetBattDayMah(uint32_t v); // (0xFFFF = not known). Not in the backup: it is this pack's.
+uint32_t touchPrefsGetBattUse();             // average draw on battery: 0.1 mA low 16 bits, minutes seen high
+void     touchPrefsSetBattUse(uint32_t v);
+bool     touchPrefsGetFaceDownQuiet();       // lying face down: screen off, no sound or vibration (default off)
+void     touchPrefsSetFaceDownQuiet(bool on);
+bool     touchPrefsGetPickupWake();          // lifting it off a table lights the screen (default off)
+void     touchPrefsSetPickupWake(bool on);
+#endif
 bool    touchPrefsGetGlanceEnabled();          // master "at a glance" feature toggle (default true)
 void    touchPrefsSetGlanceEnabled(bool on);
 
@@ -789,7 +849,13 @@ bool touchPrefsSetSetupDone(bool done);
  *  override lets the user match their hardware without a rebuild. Read at GPS
  *  init; `fallback` is the compile-time default. Applied on reboot. */
 uint32_t touchPrefsGetGpsBaud(uint32_t fallback);
-bool     touchPrefsSetGpsBaud(uint32_t baud);
+bool     touchPrefsSetGpsBaud(uint32_t baud);   // 0 = no choice ("Auto")
+/** Whether the user picked a speed (touchPrefsSetGpsBaud with a non-zero baud). */
+bool     touchPrefsGpsBaudChosen();
+/** The speed the probe locked on while nothing was picked (CAP_GPS_BAUD_FIND
+ *  boards). touchPrefsGetGpsBaud returns it when there is no choice, so the next
+ *  start opens the UART at the right speed. Written only when it changes. */
+void     touchPrefsSetGpsBaudFound(uint32_t baud);
 
 /** Mesh signal auto-discover probe. When ON (default), the firmware periodically
  *  sends a flood advert so nearby repeaters re-broadcast it and we can measure

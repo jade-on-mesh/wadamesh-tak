@@ -1,7 +1,7 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: fr
-# ver: 29
+# ver: 30
 # name: Français
 # base: fr
  (device behind)	 (appareil en retard)
@@ -147,6 +147,7 @@ Broker host / IP	Hôte / IP du broker
 Buffered receive (experimental)	Réception tamponnée (expérimental)
 Built-in	Intégré
 Built-in (default)	Intégré (par défaut)
+Default	Par défaut
 CR	CR
 Calibrate battery (full = 100%)	Étalonner la batterie (plein = 100%)
 Calibrated: 100%% = %u.%02u V  (long-press to reset)	Étalonné : 100%% = %u.%02u V  (appui long pour réinitialiser)
@@ -403,6 +404,7 @@ Image too large (>4 MB)	Image trop grande (>4 Mo)
 Import	Importer
 Import backup	Importer la sauvegarde
 Import failed (bad/unreadable JSON)	Échec de l'import (JSON illisible)
+Import failed: internal storage unavailable. Identity, channels and contacts were not saved.	Échec de l'importation : stockage interne indisponible. L'identité, les canaux et les contacts n'ont pas été enregistrés.
 Import settings	Importer les réglages
 Import this backup?\nReplaces identity,\nchannels & contacts,\nthen reboots.	Importer cette sauvegarde ?\nRemplace l'identité,\nles canaux & contacts,\npuis redémarre.
 Import: storage unavailable	Import : stockage indisponible
@@ -562,9 +564,11 @@ No contact to trace	Aucun contact à tracer
 No contacts have shared\na GPS location yet.	Aucun contact n'a encore\npartagé de position GPS.
 No discovered nodes yet.\n\nAnything heard over the air that isn't in your contacts will show up here. When auto-add is off, you can manually add nodes to your contacts.	Aucun nœud découvert pour l'instant.\n\nTout ce qui est entendu par radio et qui n'est pas dans vos contacts apparaît ici. Si l'ajout auto est désactivé, vous pouvez ajouter des nœuds manuellement.
 No earlier versions yet	Aucune version antérieure
+No internal storage: identity, channels and contacts can't be saved.	Pas de stockage interne : l'identité, les canaux et les contacts ne peuvent pas être enregistrés.
 No local expansion data	Aucune donnée d'extension locale
 No location for this contact	Aucune position pour ce contact
 No map storage.\n\nInsert an SD card to cache\nWi-Fi tiles (or reflash to\nrestore the tiles partition).	Pas de stockage carte.\n\nInsérez une carte SD pour les\ntuiles Wi-Fi (ou reflashez pour\nrestaurer la partition des tuiles).
+No map storage on this board.\n\nIt has no tiles partition and\nno microSD the map can use.	Pas de stockage de carte ici.\n\nCet appareil n'a ni partition de\ntuiles ni microSD pour la carte.
 No map tiles here.\n\nConnect to Wi-Fi (Settings → Wi-Fi)\nto download this area.	Aucune tuile ici.\n\nConnectez-vous au Wi-Fi (Réglages → Wi-Fi)\npour télécharger cette zone.
 No mapped repeaters in this route	Aucun répéteur cartographié sur cet itinéraire
 No networks found (2.4 GHz only)	Aucun réseau trouvé (2,4 GHz uniquement)
@@ -1689,7 +1693,6 @@ Text console	Text console
 Text size	Text size
 Text size saved, restarting to apply it…	Text size saved, restarting to apply it…
 The MQTT bridge is not in this build.	The MQTT bridge is not in this build.
-The T-Deck Plus uses 38400, the T-Deck 1.0 9600. Applies after a restart.	The T-Deck Plus uses 38400, the T-Deck 1.0 9600. Applies after a restart.
 The arrows and Enter always work. These letters are extra: tap a row, then press a key.	The arrows and Enter always work. These letters are extra: tap a row, then press a key.
 The tab keys, over the navigation bar's icons.	The tab keys, over the navigation bar's icons.
 The touchscreen ignores taps until you unlock.	The touchscreen ignores taps until you unlock.
@@ -2182,3 +2185,99 @@ Powering off… press reset to wake	Extinction… appuyez sur reset pour réveil
 Low	Low
 F11 on the keyboard steps through these too.	F11 sur le clavier parcourt aussi ces niveaux.
 Wi-Fi was switched off because the device crashed while it was on. Turn it on in Settings > Wi-Fi to try again.	Wi-Fi was switched off because the device crashed while it was on. Turn it on in Settings > Wi-Fi to try again.
+Auto	Auto
+Auto tries the common speeds until the GPS answers and keeps the one that works. Pick a speed only if Auto does not find it. Applies after a restart.	Auto essaie les vitesses courantes jusqu'à ce que le GPS réponde et garde celle qui fonctionne. Choisir une vitesse seulement si Auto n'en trouve pas. S'applique après un redémarrage.
+Rooms	Rooms
+Auto-delete: on	Suppression auto : activée
+Auto-delete: off	Suppression auto : désactivée
+Contact Management	Gestion des contacts
+Delete after %d days	Supprimer après %d jours
+Removed %d old contact(s)	%d ancien(s) contact(s) supprimé(s)
+Pulse	Impulsion
+Gentle	Doux
+Long	Long
+Heartbeat	Battement de cœur
+Keep north up	Nord en haut
+The mesh stays put instead of slowly turning around you.	Le réseau reste fixe au lieu de tourner lentement autour de vous.
+Map file	Fichier de carte
+Folder tiles only	Tuiles des dossiers seulement
+rename the file to the folder name	renommez le fichier comme le dossier
+not a PNG raster archive	pas une archive raster PNG
+file incomplete, copy it again	fichier incomplet, recopiez-le
+not a PMTiles v3 file	pas un fichier PMTiles v3
+No map files found. Copy a PNG archive to\n/maps/<name>/<name>.pmtiles	Aucun fichier de carte trouvé. Copiez une archive PNG dans\n/maps/<nom>/<nom>.pmtiles
+Zoom: map levels only	Zoom : niveaux de la carte seulement
+No map levels found on the SD card	Aucun niveau de carte trouvé sur la carte SD
+%d mA · %u:%02u left	%d mA · %u:%02u left
+%d mA · %u:%02u to full	%d mA · %u:%02u to full
+%d.%d °C · %u cycles · health %u%%	%d.%d °C · %u cycles · health %u%%
+%u / %u mAh · %s left	%u / %u mAh · %s left
+%u / %u mAh · %s left at your usage	%u / %u mAh · %s left at your usage
+%u / %u mAh · full in %s	%u / %u mAh · full in %s
+@ mention	@ mention
+A click for each keypress and each turn of the knob.	A click for each keypress and each turn of the knob.
+Apply to the fuel gauge	Apply to the fuel gauge
+Back to 1500 mAh	Back to 1500 mAh
+Back to safe defaults	Back to safe defaults
+Battery at %d%%: charge soon	Battery at %d%%: charge soon
+Battery care	Battery care
+Battery care: kept at 80%, running from USB	Battery care: kept at 80%, running from USB
+Battery empty: switching off in 10 s to protect it. Plug in to cancel.	Battery empty: switching off in 10 s to protect it. Plug in to cancel.
+Battery low: %d%%	Battery low: %d%%
+Battery pack	Battery pack
+Battery temperature OK, charging again	Battery temperature OK, charging again
+Buzzes for the same messages as the sound below, even with Sound off. Do Not Disturb and muted channels stay still.	Buzzes for the same messages as the sound below, even with Sound off. Do Not Disturb and muted channels stay still.
+Capacity (mAh)	Capacity (mAh)
+Charge current	Charge current
+Charge faster than 750 mA?\nLilyGo advises against it for this battery: it heats the cell and wears it out, and a damaged LiPo can swell or catch fire. Only where you can keep an eye on it.	Charge faster than 750 mA?\nLilyGo advises against it for this battery: it heats the cell and wears it out, and a damaged LiPo can swell or catch fire. Only where you can keep an eye on it.
+Charge limits	Charge limits
+Charge only to 80%	Charge only to 80%
+Charge to	Charge to
+Charge to 4.35 V?\nOnly for high-voltage (LiHV) cells. It overcharges a normal LiPo, which can then swell, fail or catch fire.	Charge to 4.35 V?\nOnly for high-voltage (LiHV) cells. It overcharges a normal LiPo, which can then swell, fail or catch fire.
+Charge up to this temperature?\nAbove 45 °C a LiPo wears out fast while charging, and the risk of swelling or fire goes up.	Charge up to this temperature?\nAbove 45 °C a LiPo wears out fast while charging, and the risk of swelling or fire goes up.
+Charging %d mA · %d mW	Charging %d mA · %d mW
+Charging back to the safe defaults	Charging back to the safe defaults
+Charging paused: battery too cold	Charging paused: battery too cold
+Charging paused: battery too cold (%d °C)	Charging paused: battery too cold (%d °C)
+Charging paused: battery too hot	Charging paused: battery too hot
+Charging paused: battery too hot (%d °C)	Charging paused: battery too hot (%d °C)
+Charging paused: too cold	Charging paused: too cold
+Charging paused: too hot	Charging paused: too hot
+Charging: switch-off cancelled	Charging: switch-off cancelled
+Drawing %d mA · %d mW	Drawing %d mA · %d mW
+Faster charging heats and wears the battery.	Faster charging heats and wears the battery.
+Fuel gauge not answering	Fuel gauge not answering
+Fuel gauge set. It relearns the pack over the next charges.	Fuel gauge set. It relearns the pack over the next charges.
+It resumes 3 °C below the limit.	It resumes 3 °C below the limit.
+Kept at 80% (battery care)	Kept at 80% (battery care)
+Key click	Key click
+Lifting the Pager off the table turns the screen on (a locked Pager shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.	Lifting the Pager off the table turns the screen on (a locked Pager shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.
+Light	Light
+LilyGo fits 1500 mAh. Change it only for a different pack.	LilyGo fits 1500 mAh. Change it only for a different pack.
+Low battery warning	Low battery warning
+Lying face down, the screen goes off and the Pager stays silent (no sound, no vibration). Picking it up ends it. Keeps the motion sensor on, a little more power.	Lying face down, the screen goes off and the Pager stays silent (no sound, no vibration). Picking it up ends it. Keeps the motion sensor on, a little more power.
+Never below freezing. It resumes 3 °C above the limit.	Never below freezing. It resumes 3 °C above the limit.
+Once	Once
+Powering off… hold the power key to switch on	Powering off… hold the power key to switch on
+Quiet when face down	Quiet when face down
+Set the battery to %u mAh?\nOnly if that is the pack fitted. The percentage and time left are recalculated and settle over the next full charge.	Set the battery to %u mAh?\nOnly if that is the pack fitted. The percentage and time left are recalculated and settle over the next full charge.
+Starting the motion sensor…	Starting the motion sensor…
+Stop charging above	Stop charging above
+Stop charging below	Stop charging below
+Stopping lower gives a little less capacity and a longer battery life.	Stopping lower gives a little less capacity and a longer battery life.
+Stops charging at 80%, starts again below 75%. Kept off a full charge, the pack lasts noticeably longer; turn it off before a long day away from power.	Stops charging at 80%, starts again below 75%. Kept off a full charge, the pack lasts noticeably longer; turn it off before a long day away from power.
+Strength	Strength
+Strong	Strong
+Switch the temperature guard off?\nThe Pager then charges a hot or frozen battery. Charging below 0 °C damages the cell inside and can cause a short later; charging it hot risks swelling and fire.	Switch the temperature guard off?\nThe Pager then charges a hot or frozen battery. Charging below 0 °C damages the cell inside and can cause a short later; charging it hot risks swelling and fire.
+The defaults are the safe ones for this battery. Anything past them asks first.	The defaults are the safe ones for this battery. Anything past them asks first.
+The fuel gauge did not take the new capacity	The fuel gauge did not take the new capacity
+The fuel gauge is already set to this	The fuel gauge is already set to this
+The percentage comes from the battery's fuel gauge, which learns the pack by itself.	The percentage comes from the battery's fuel gauge, which learns the pack by itself.
+Twice	Twice
+Use anyway	Use anyway
+Used today %d mAh · yesterday %s	Used today %d mAh · yesterday %s
+Wake when picked up	Wake when picked up
+Warns with a vibration at 20%, again at 10%, and switches the Pager off at 3%, so the battery is never run flat.	Warns with a vibration at 20%, again at 10%, and switches the Pager off at 3%, so the battery is never run flat.
+last 5 min charging	last 5 min charging
+last 5 min drawing	last 5 min drawing
+not known	not known
