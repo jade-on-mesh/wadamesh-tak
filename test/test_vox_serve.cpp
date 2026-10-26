@@ -262,8 +262,8 @@ void testChannelOwnOnly() {
   sim.run(s, 20000);
   CHECK(sim.sent.size() == 2, "sent %zu", sim.sent.size());
   CHECK(!sim.sent.empty() && sim.sent[0].channel == 3, "answer on the request's channel");
-  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 2000 && sim.sent[0].at - t0 < 3100,
-        "author answers after 2-3 s (gathering listeners' requests)");
+  CHECK(!sim.sent.empty() && sim.sent[0].at - t0 >= 500 && sim.sent[0].at - t0 < 1100,
+        "author answers after 0.5-1 s (gathering listeners' requests)");
   CHECK(sim.parity.empty(), "missing packets only: no parity");
   const uint32_t gap = sim.sent.size() == 2 ? sim.sent[1].at - sim.sent[0].at : 0;
   CHECK(gap >= 2150 && gap <= 2170, "flood gap %u (4 * air + 150)", gap);
@@ -334,7 +334,7 @@ void testChannelMergeAndZeroHop() {
   s.markOwn(kSid);
   const auto ra = dartFetch(kSid, kKeyA, nullptr, true, nullptr);
   s.onPayload(ra.data(), ra.size(), 2, 0);   // heard directly
-  sim.run(s, 3000 + 3 * 210 + 50);           // up to 3 s gathering, then a few packets
+  sim.run(s, 1000 + 3 * 210 + 50);           // up to 1 s gathering, then a few packets
   const size_t first = sim.sent.size();
   CHECK(first >= 2 && first < 10, "%zu sent before the second listener", first);
   CHECK(sim.zero_hop_sends == (int)first, "in range: zero-hop");
@@ -367,7 +367,7 @@ void testChannelMergeAndZeroHop() {
   sim2.clips[kSid] = {1, clip1200()};
   s2.markOwn(kSid);
   s2.onPayload(ra.data(), ra.size(), 2, 0);
-  sim2.run(s2, 3000 + 2 * 210 + 50);
+  sim2.run(s2, 1000 + 2 * 210 + 50);
   const int zh = sim2.zero_hop_sends;
   s2.onPayload(rb.data(), rb.size(), 2, 2);
   sim2.run(s2, 40000);

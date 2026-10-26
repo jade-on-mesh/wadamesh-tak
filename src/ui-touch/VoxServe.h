@@ -67,7 +67,7 @@ class VoxServe {
   static constexpr uint32_t kDupWindowMs = 6000;
   static constexpr uint32_t kRouteWaitMs = 3000;
   static constexpr uint32_t kRouteWaitDmMs = 25000;
-  static constexpr uint32_t kOwnChannelDelayMs = 2000;   // plus up to 1 s at random
+  static constexpr uint32_t kOwnChannelDelayMs = 500;    // plus up to 0.5 s at random
   static constexpr uint32_t kZeroHopWaitMs = 1000;       // not the author: plus up to 2 s
 
   explicit VoxServe(VoxServeIo& io) : io_(io) {}
