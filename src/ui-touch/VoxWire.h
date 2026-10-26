@@ -310,6 +310,15 @@ inline bool isFetchRequest(const uint8_t* buf, size_t len) {
 // "VR3:" DMs are fetch requests between apps; they never belong in a chat.
 inline bool isControlText(const char* text) { return text && strncmp(text, "VR3:", 4) == 0; }
 
+// "VT1:" texts are an app's transfer-test reports (transfer_test.dart): by DM,
+// or on a channel as "name: VT1:...". Never shown in a chat either.
+inline bool isTransferReport(const char* text) {
+  if (!text) return false;
+  if (strncmp(text, "VT1:", 4) == 0) return true;
+  const char* sep = strstr(text, ": ");
+  return sep && strncmp(sep + 2, "VT1:", 4) == 0;
+}
+
 // VR3 text request. Ranges are written like the Dart side: "m1-3.7". Returns
 // chars written (excluding NUL), or 0 if `cap` is too small.
 inline int encodeTextFetch(uint32_t sid, const uint8_t key6[6], const uint8_t* missing, int n_missing,

@@ -119,6 +119,8 @@ int main() {
   n = encodeFetch(1, kKey6, nullptr, 0, req, sizeof req, true, longpath, 9);   // too long: dropped
   assert(n == kFetchMinLen && req[5] == 0x02);
   assert(isControlText("VR3:abc:a:a1b2c3d4e5f6") && !isControlText("VI1:x") && !isControlText(nullptr));
+  assert(isTransferReport("VT1:0a1b2c3d:100:1:17/17") && isTransferReport("Bob: VT1:0a1b2c3d:1:1:1/1"));
+  assert(!isTransferReport("Bob: hello VT1:") && !isTransferReport("VR3:x") && !isTransferReport(nullptr));
   assert(encodeFetch(1, kKey6, nullptr, 0, req, 12) == 0);
   // Salted: index (salt >> 4) % n repeated (salt & 15) + 1 times; the parsed set is unchanged.
   {
