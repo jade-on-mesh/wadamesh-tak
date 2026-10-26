@@ -114,6 +114,11 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -DVOX_BRIGHT_NO_NET \
               -o /tmp/test_vox_brighten_net test/test_vox_brighten.cpp src/ui-touch/VoxBrighten.cpp
           /tmp/test_vox_brighten_net test/data/vox
+      - name: Small AI voice restorer (VoxRestoreSmall against the training kit's numpy reference)
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_restore_small test/test_restore_small.cpp src/ui-touch/VoxRestoreSmall.cpp -lm
+          /tmp/test_restore_small test/data/restore_small
       - name: VOX voice recording (encoder bit-exact against the app's build, mic levelling)
         run: test/build_vox_record_test.sh /tmp/vox_record
       - name: Sound link (Wavest messages, share links, ggwave with the radios' settings)

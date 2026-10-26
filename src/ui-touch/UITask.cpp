@@ -161,6 +161,7 @@ static void* wadaMp3Scratch() { return s_wada_mp3_scratch; }
 #include "VoxPhotos.h"        // ...and fetched from the sender (VoxFetch over the mesh)
 #include "VoxVoice.h"         // MeshCore Open TAK voice clips: Codec2 decode (lib/codec2)
 #include "../helpers/BootMem.h"   // internal RAM at start-up, for Memory detail
+#include "VoxRestoreSmall.h"  // ...and the small AI voice restorer (a model on the SD card)
 #include "VoxBrighten.h"      // ...and "Brighter voice": the 4-8 kHz band Codec2 leaves out
 #include "VoxMic.h"           // ...and recording them on boards with a microphone (T-Deck)
 #if defined(DOC_CAPTURE)
@@ -19999,6 +20000,8 @@ static void buildSoundPage() {
 #if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
   {
     lv_obj_t* c = setCard("Voice messages");
+    void voxRsDescribe(char* out, size_t cap);   // the AI voice restorer (defined with the voice player)
+    void voxRsSetOn(bool on);
 #if defined(HAS_TDECK_GT911) || defined(HAS_TDISPLAY_P4)
     // The Codec2 mode the mic records in (VoxMic), as in MeshCore Open TAK.
     static const uint8_t kModes[3] = { 1, 5, 6 };
@@ -20022,6 +20025,15 @@ static void buildSoundPage() {
       if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
       touchPrefsSetVoiceBrighter(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
     });
+    {
+      // The small AI voice restorer, and how it did on the last clip, for trying it out.
+      static char desc[320];
+      voxRsDescribe(desc, sizeof desc);
+      setSwitchRow(c, "AI voice restorer", desc, touchPrefsGetVoiceRestore(), [](lv_event_t* e) {
+        if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+        voxRsSetOn(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
+      });
+    }
   }
 #endif
   {
@@ -75428,17 +75440,177 @@ static void voxSinkFlush(LuaAudioSinkSession* sink, VoxBrighten* b) {
   b->end();
 }
 
-struct VoxVoicePlayback { uint8_t* frames; size_t len; int mode; };
+struct VoxVoicePlayback { uint8_t* frames; size_t len; int mode; bool restore; };
 // One clip plays at a time. In PSRAM: its 1.5 KB of filter state is only
 // touched by the playback task, and internal RAM is what Bluetooth needs.
 static VoxBrighten& s_vox_bright = psramObject<VoxBrighten>();
+
+// ---- "AI voice restorer" (Settings > Sound): the small restorer -------------
+// Trained with MeshCore Open TAK's voice training kit (option 4) and copied to
+// the SD card as /models/vox-restorer-small.bin. Loaded on the loop task when a
+// clip is played with the setting on (SD shares the bus with the display);
+// a clip then decodes, restores to 16 kHz (VoxRestoreSmall) and plays. An
+// experiment: how it sounds, and how long each board takes, is what the
+// setting's line reports. Talks heard live play as before.
+static constexpr const char* kVoxRestorePath = "/models/vox-restorer-small.bin";
+static VoxRestoreSmall& s_vox_rs = psramObject<VoxRestoreSmall>();
+static volatile uint32_t s_vox_rs_voice_ms = 0, s_vox_rs_took_ms = 0;   // the last restored clip
+static char s_vox_rs_note[96] = "";   // why the last clip wasn't restored ("" when it was, or never tried)
+
+// Reads `path` from `fs` into a PSRAM buffer. False if it isn't there.
+static bool voxRsReadFrom(fs::FS* fs, const char* path, uint8_t** buf, size_t* len) {
+  if (!fs || !fs->exists(path)) return false;
+  File f = fs->open(path, "r");
+  if (!f) return false;
+  const size_t n = f.size();
+  uint8_t* b = n && n <= 16u * 1024u * 1024u ? (uint8_t*)heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : nullptr;
+  const bool ok = b && f.read(b, n) == n;
+  f.close();
+  if (!ok) { if (b) heap_caps_free(b); return false; }
+  *buf = b;
+  *len = n;
+  return true;
+}
+
+// Loads the model when the setting is on and it isn't yet (loop task). The SD
+// card first, then the data and internal storage.
+static bool voxRsEnsure() {
+  if (s_vox_rs.loaded()) return true;
+  uint8_t* buf = nullptr;
+  size_t len = 0;
+  bool found = false;
+#if CAP_SD
+  if (s_sd_mounted) found = voxRsReadFrom(&SD, kVoxRestorePath, &buf, &len);
+#endif
+#if defined(HAS_TANMATSU) || defined(HAS_TDISPLAY_P4) || defined(HAS_CROWPANEL_P4_101) || defined(HAS_WIO_TRACKER_L2)
+  if (!found && tanSdTryMount()) found = voxRsReadFrom(&SD_MMC, kVoxRestorePath, &buf, &len);   // SDMMC card
+#endif
+  if (!found && uiDataFsReady() && s_ui_data_fs) {
+    char p[96];
+    snprintf(p, sizeof p, "%s%s", s_ui_data_root, kVoxRestorePath);
+    found = voxRsReadFrom(s_ui_data_fs, p, &buf, &len);
+  }
+  if (!found) found = voxRsReadFrom(backupInternalFs(), kVoxRestorePath, &buf, &len);
+  if (!found) {
+    snprintf(s_vox_rs_note, sizeof s_vox_rs_note, "%s", "No model: copy vox-restorer-small.bin to /models on the SD card");
+    return false;
+  }
+  const char* err = nullptr;
+  const uint32_t t0 = millis();
+  s_vox_rs.setYield([] { vTaskDelay(1); });   // it runs for seconds on the audio worker: let the idle task in
+  const bool ok = s_vox_rs.load(buf, len, &err);
+  heap_caps_free(buf);
+  if (!ok) {
+    snprintf(s_vox_rs_note, sizeof s_vox_rs_note, "Model not loaded: %s", err ? err : "?");
+    return false;
+  }
+  s_vox_rs_note[0] = 0;
+  Serial.printf("[VOX] restorer loaded: %u KB, dim %d, %d layers, %lu ms\n", (unsigned)(len / 1024), s_vox_rs.dim(),
+                s_vox_rs.layers(), (unsigned long)(millis() - t0));
+  return true;
+}
+
+struct VoxRsOut { int16_t* buf; size_t n, cap; float gain; };
+static bool voxRsSink(void* ctx, const float* y, size_t n) {
+  VoxRsOut* o = static_cast<VoxRsOut*>(ctx);
+  for (size_t i = 0; i < n && o->n < o->cap; i++) {
+    float s = y[i] * 32768.0f * o->gain;
+    const float a = fabsf(s);
+    if (a > 24000.f) s = (s < 0 ? -1.f : 1.f) * (24000.f + 8000.f * tanhf((a - 24000.f) / 8000.f));   // soft limit
+    o->buf[o->n++] = (int16_t)s;
+  }
+  return true;
+}
+
+// Settings > Sound > AI voice restorer: what to do, then how the last clip went.
+void voxRsDescribe(char* out, size_t cap) {
+  int k = snprintf(out, cap, "%s",
+                   TR("Experimental. Rebuilds voice messages with a small AI model trained with MeshCore Open TAK's "
+                      "voice training kit: copy vox-restorer-small.bin to /models on the SD card. A clip plays once "
+                      "it's restored."));
+  if (k < 0 || (size_t)k >= cap) return;
+  if (s_vox_rs_note[0]) {
+    snprintf(out + k, cap - k, "\n%s.", s_vox_rs_note);
+  } else if (s_vox_rs_voice_ms) {
+    snprintf(out + k, cap - k, TR("\nLast clip: %lu.%lu s of voice restored in %lu.%lu s."),
+             (unsigned long)(s_vox_rs_voice_ms / 1000), (unsigned long)(s_vox_rs_voice_ms / 100 % 10),
+             (unsigned long)(s_vox_rs_took_ms / 1000), (unsigned long)(s_vox_rs_took_ms / 100 % 10));
+  } else if (s_vox_rs.loaded()) {
+    snprintf(out + k, cap - k, TR("\nModel loaded: %d channels, %d layers."), s_vox_rs.dim(), s_vox_rs.layers());
+  }
+}
+void voxRsSetOn(bool on) {
+  touchPrefsSetVoiceRestore(on);
+  if (!on && !s_vox_voice_sid) s_vox_rs.unload();   // gives its ~2 MB of PSRAM back
+}
+
+// Plays `pb` restored. False to play it as before (no memory); true when it
+// played or was stopped.
+static bool voxRestoredPlay(VoxVoicePlayback* pb, LuaAudioSinkSession* sink) {
+  if (!pb->restore || !s_vox_rs.loaded()) return false;
+  const size_t ns = voxCodec2Samples(pb->mode, pb->len);
+  int16_t* pcm = ns ? (int16_t*)heap_caps_malloc(ns * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : nullptr;
+  float* xf = ns ? (float*)heap_caps_malloc(ns * 4, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : nullptr;
+  VoxRsOut o{nullptr, 0, 2 * ns, sink->gain};
+  o.buf = ns ? (int16_t*)heap_caps_malloc(o.cap * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : nullptr;
+  bool done = false;
+  const long got = pcm && xf && o.buf ? voxCodec2Decode(pb->mode, pb->frames, pb->len, pcm, ns) : -1;
+  if (got > 0) {
+    // Levelled as plain playback is (voxPlayNormGain), as floats for the model.
+    const float g = voxPlayNormGain(voxCodec2Peak(pb->mode, pb->frames, pb->len, 3 * kVoxVoiceSampleRate)) / 32768.0f;
+    for (long i = 0; i < got; i++) xf[i] = pcm[i] * g;
+    heap_caps_free(pcm);
+    pcm = nullptr;
+    const uint32_t t0 = millis();
+    const bool ok = s_vox_rs.run(xf, (size_t)got, voxRsSink, &o, &s_vox_voice_stop);
+    const uint32_t took = millis() - t0;
+    if (ok) {
+      s_vox_rs_voice_ms = (uint32_t)((uint64_t)got * 1000 / kVoxVoiceSampleRate);
+      s_vox_rs_took_ms = took;
+      s_vox_rs_note[0] = 0;
+      Serial.printf("[VOX] restored %lu ms of voice in %lu ms\n", (unsigned long)s_vox_rs_voice_ms, (unsigned long)took);
+      // 16 kHz to the speaker's rate (linear in between when it differs).
+      const uint32_t rate = sink->output_rate ? sink->output_rate : 16000;
+      int16_t chunk[256];
+      size_t m = 0;
+      const double step = 16000.0 / (double)rate;
+      bool failed = false;
+      s_vox_voice_len = (uint32_t)o.n;
+      for (double pos = 0; !failed && !s_vox_voice_stop && pos < (double)(o.n - 1); pos += step) {
+        const size_t i = (size_t)pos;
+        const float f = (float)(pos - (double)i);
+        chunk[m++] = (int16_t)(o.buf[i] + (o.buf[i + 1] - o.buf[i]) * f);
+        if (m == 256) {
+          s_vox_voice_done = (uint32_t)i;
+          failed = !luaAudioSinkWrite(sink, chunk, m);
+          m = 0;
+        }
+      }
+      if (m && !failed && !s_vox_voice_stop) luaAudioSinkWrite(sink, chunk, m);
+      done = true;
+    } else if (s_vox_voice_stop) {
+      done = true;   // stopped while restoring
+    } else {
+      snprintf(s_vox_rs_note, sizeof s_vox_rs_note, "%s", "Not enough memory to restore that clip");
+    }
+  } else if (got <= 0 && ns) {
+    snprintf(s_vox_rs_note, sizeof s_vox_rs_note, "%s", "Not enough memory to restore that clip");
+  }
+  if (pcm) heap_caps_free(pcm);
+  if (xf) heap_caps_free(xf);
+  if (o.buf) heap_caps_free(o.buf);
+  return done;
+}
 
 static void voxVoiceJob(void* arg) {
   VoxVoicePlayback* pb = static_cast<VoxVoicePlayback*>(arg);
   VoxCodec2Stream codec;
   LuaAudioSinkSession sink;
   const char* err = nullptr;
-  if (codec.begin(pb->mode) && luaAudioSinkBegin(voxSourceRate(), &sink, &err)) {
+  const bool started = codec.begin(pb->mode) && luaAudioSinkBegin(voxSourceRate(), &sink, &err);
+  if (started && voxRestoredPlay(pb, &sink)) {
+    luaAudioSinkEnd(&sink);
+  } else if (started) {
     const size_t bpf = (size_t)codec.bytesPerFrame();
     const int spf = codec.samplesPerFrame();
     int16_t pcm[320];
@@ -75504,6 +75676,7 @@ static bool voxVoicePlay(uint32_t sid, const char** err) {
     *err = "Couldn't read the voice clip";
     return false;
   }
+  pb->restore = touchPrefsGetVoiceRestore() && voxRsEnsure();   // the AI voice restorer, when on
   __atomic_store_n(&s_lua_audio_active, true, __ATOMIC_RELEASE);
   s_vox_voice_stop = false;
   s_vox_voice_sid = sid;
