@@ -901,6 +901,7 @@ bool photoEnvelope(uint32_t sid, char* out, size_t cap) {
   n += VoxWire::toBase36((uint32_t)total, buf + n);
   buf[n++] = ':';
   n += VoxWire::toBase36(aspect, buf + n);
+  n += snprintf(buf + n, sizeof buf - (size_t)n, " %s", VoxWire::kindLabel(VoxWire::kImage));   // plain word (VoxWire.h)
   if ((size_t)n + 1 > cap) return false;
   memcpy(out, buf, (size_t)n + 1);
   // Ours to serve from now on (VoxServe answers for it as its author), and
