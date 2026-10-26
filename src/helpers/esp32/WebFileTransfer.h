@@ -66,6 +66,6 @@ private:
   volatile uint8_t _auth_failures = 0;
 };
 
-extern WebFileTransfer g_web_file_transfer;
+extern WebFileTransfer& g_web_file_transfer;   // in PSRAM (WebFileTransfer.cpp)
 
 #endif  // WADA_WEB_FILE_TRANSFER

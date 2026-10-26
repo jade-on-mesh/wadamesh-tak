@@ -1907,7 +1907,7 @@ static void setupSummary(const teamsetup::Setup& s, char* out, size_t cap) {
                  (unsigned)s.sf));
 }
 
-static char s_setup_link[teamsetup::kMaxLink + 1];
+static auto& s_setup_link = psramStatic<char[teamsetup::kMaxLink + 1]>();   // PSRAM
 
 static void openShareSetup() {
   teamsetup::Setup* s = new (std::nothrow) teamsetup::Setup();

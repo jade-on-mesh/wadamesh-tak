@@ -2,8 +2,11 @@
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 #include <string.h>
+#include "../PsramStatic.h"
 
-WebMirror g_web_mirror;
+// In PSRAM: ~1 KB of state that only tasks touch (no ISR), and internal RAM is
+// what Wi-Fi and Bluetooth need.
+WebMirror& g_web_mirror = psramObject<WebMirror>();
 
 #ifndef WEB_MIRROR_RING_BYTES
 #define WEB_MIRROR_RING_BYTES  (384 * 1024)   // PSRAM; holds several banded frames

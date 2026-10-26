@@ -208,7 +208,7 @@ static void playJob(void*) {
     uint32_t idle_ms = 0;
     VoxPlayOut po;   // interpolated + low-passed to the speaker's rate (VoxVoice.h)
     po.begin(sink.output_rate, sink.gain);
-    static VoxBrighten bright;   // "Brighter voice", when on (UITask.cpp voxBrightBegin)
+    static VoxBrighten& bright = psramObject<VoxBrighten>();   // "Brighter voice", when on (UITask.cpp voxBrightBegin); PSRAM
     voxBrightBegin(&bright, sink.output_rate);
     static Chunk c;
     while (!s_job_stop && !failed) {
@@ -217,7 +217,7 @@ static void playJob(void*) {
         // last buffer. A talk that went quiet for good ends from the loop task.
         idle_ms += 40;
         if (idle_ms > 8000) break;
-        static int16_t quiet[256];
+        static auto& quiet = psramStatic<int16_t[256]>();
         size_t left = sink.output_rate * 40 / 1000;
         while (left && !failed) {
           const size_t n = left > 256 ? 256 : left;

@@ -665,13 +665,13 @@ static const HwKeyboardLayout k_hw_layouts[] = {
 /* Bulgarian phonetic mapping for T-Deck.
  * Index 0 = 'a' / 'A', 1 = 'b' / 'B', etc.
  * nullptr = pass through unchanged (not a mapped letter). */
-static const char* hw_bg_lower[26] = {
+static const char* const hw_bg_lower[26] = {
     "а", "б", "ц", "д", "е", "ф", "г", "х", "и", "й",
     "к", "л", "м", "н", "о", "п", "я", "р", "с", "т",
     "у", "ж", "в", "ь", "ъ", "з"
 };
 
-static const char* hw_bg_upper[26] = {
+static const char* const hw_bg_upper[26] = {
     "А", "Б", "Ц", "Д", "Е", "Ф", "Г", "Х", "И", "Й",
     "К", "Л", "М", "Н", "О", "П", "Я", "Р", "С", "Т",
     "У", "Ж", "В", "Ь", "Ъ", "З"
@@ -680,7 +680,7 @@ static const char* hw_bg_upper[26] = {
 /* Digits 1-4 map to Cyrillic letters; 5-9,0 pass through as numbers.
  * Note: 'ю' replaces the earlier Russian 'э' so the Bulgarian alphabet
  * is fully covered (30 letters). */
-static const char* hw_bg_digits[10] = {
+static const char* const hw_bg_digits[10] = {
     /* 0 */ nullptr,
     /* 1 */ "ш",
     /* 2 */ "щ",
@@ -693,7 +693,7 @@ static const char* hw_bg_digits[10] = {
     /* 9 */ nullptr
 };
 
-static const char* hw_bg_digits_shift[10] = {
+static const char* const hw_bg_digits_shift[10] = {
     /* 0 */ nullptr,
     /* 1 */ "Ш",
     /* 2 */ "Щ",
@@ -709,19 +709,19 @@ static const char* hw_bg_digits_shift[10] = {
 /* Russian phonetic mapping for T-Deck (homophonic transliteration).
  * a..z -> nearest-sounding Cyrillic; the 7 letters with no Latin homophone
  * (ч щ ъ ь э ю ё) ride on digit keys 1-7. All 33 letters reachable. */
-static const char* hw_ru_lower[26] = {
+static const char* const hw_ru_lower[26] = {
     "а", "б", "ц", "д", "е", "ф", "г", "х", "и", "й",
     "к", "л", "м", "н", "о", "п", "я", "р", "с", "т",
     "у", "в", "ш", "ж", "ы", "з"
 };
 
-static const char* hw_ru_upper[26] = {
+static const char* const hw_ru_upper[26] = {
     "А", "Б", "Ц", "Д", "Е", "Ф", "Г", "Х", "И", "Й",
     "К", "Л", "М", "Н", "О", "П", "Я", "Р", "С", "Т",
     "У", "В", "Ш", "Ж", "Ы", "З"
 };
 
-static const char* hw_ru_digits[10] = {
+static const char* const hw_ru_digits[10] = {
     /* 0 */ nullptr,
     /* 1 */ "ч",
     /* 2 */ "щ",
@@ -734,7 +734,7 @@ static const char* hw_ru_digits[10] = {
     /* 9 */ nullptr
 };
 
-static const char* hw_ru_digits_shift[10] = {
+static const char* const hw_ru_digits_shift[10] = {
     /* 0 */ nullptr,
     /* 1 */ "Ч",
     /* 2 */ "Щ",
@@ -749,191 +749,191 @@ static const char* hw_ru_digits_shift[10] = {
 
 /* Ukrainian phonetic for T-Deck (best-effort; g=ґ, h=г, x=х, y=и, i=і).
  * є ж ї ч ш щ ь ю ride digits 1-8. */
-static const char* hw_uk_lower[26] = {
+static const char* const hw_uk_lower[26] = {
     "а", "б", "ц", "д", "е", "ф", "ґ", "г", "і", "й",
     "к", "л", "м", "н", "о", "п", "я", "р", "с", "т",
     "у", "в", "в", "х", "и", "з"
 };
-static const char* hw_uk_upper[26] = {
+static const char* const hw_uk_upper[26] = {
     "А", "Б", "Ц", "Д", "Е", "Ф", "Ґ", "Г", "І", "Й",
     "К", "Л", "М", "Н", "О", "П", "Я", "Р", "С", "Т",
     "У", "В", "В", "Х", "И", "З"
 };
-static const char* hw_uk_digits[10] = {
+static const char* const hw_uk_digits[10] = {
     nullptr, "ж", "ч", "ш", "щ", "є", "ї", "ь", "ю", nullptr
 };
-static const char* hw_uk_digits_shift[10] = {
+static const char* const hw_uk_digits_shift[10] = {
     nullptr, "Ж", "Ч", "Ш", "Щ", "Є", "Ї", "Ь", "Ю", nullptr
 };
 
 /* Serbian phonetic for T-Deck (best-effort; Gaj's-Latin homophones, single key:
  * q=љ w=ш x=џ y=њ). ч ћ ђ ж ride digits 1-4. */
-static const char* hw_sr_lower[26] = {
+static const char* const hw_sr_lower[26] = {
     "а", "б", "ц", "д", "е", "ф", "г", "х", "и", "ј",
     "к", "л", "м", "н", "о", "п", "љ", "р", "с", "т",
     "у", "в", "ш", "џ", "њ", "з"
 };
-static const char* hw_sr_upper[26] = {
+static const char* const hw_sr_upper[26] = {
     "А", "Б", "Ц", "Д", "Е", "Ф", "Г", "Х", "И", "Ј",
     "К", "Л", "М", "Н", "О", "П", "Љ", "Р", "С", "Т",
     "У", "В", "Ш", "Џ", "Њ", "З"
 };
-static const char* hw_sr_digits[10] = {
+static const char* const hw_sr_digits[10] = {
     nullptr, "ч", "ћ", "ђ", "ж", nullptr, nullptr, nullptr, nullptr, nullptr
 };
-static const char* hw_sr_digits_shift[10] = {
+static const char* const hw_sr_digits_shift[10] = {
     nullptr, "Ч", "Ћ", "Ђ", "Ж", nullptr, nullptr, nullptr, nullptr, nullptr
 };
 
 /* Greek phonetic for T-Deck (ΕΛΟΤ Latin positions). All 24 letters fit a..z;
  * 'q' has no Greek letter (pass-through), 'w' = final sigma ς. */
-static const char* hw_el_lower[26] = {
+static const char* const hw_el_lower[26] = {
     "α", "β", "ψ", "δ", "ε", "φ", "γ", "η", "ι", "ξ",
     "κ", "λ", "μ", "ν", "ο", "π", nullptr, "ρ", "σ", "τ",
     "θ", "ω", "ς", "χ", "υ", "ζ"
 };
-static const char* hw_el_upper[26] = {
+static const char* const hw_el_upper[26] = {
     "Α", "Β", "Ψ", "Δ", "Ε", "Φ", "Γ", "Η", "Ι", "Ξ",
     "Κ", "Λ", "Μ", "Ν", "Ο", "Π", nullptr, "Ρ", "Σ", "Τ",
     "Θ", "Ω", "Σ", "Χ", "Υ", "Ζ"
 };
-static const char* hw_el_digits[10]       = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
-static const char* hw_el_digits_shift[10] = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
+static const char* const hw_el_digits[10]       = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
+static const char* const hw_el_digits_shift[10] = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
 
 /* Arabic-101 physical positions for T-Deck (unicameral -> upper == lower).
  * a..z follow the standard Arabic keyboard; the 7 letters that live on
  * punctuation keys there (ج د ذ ز ط ظ و) ride digits 1-7 so they stay
  * reachable on the T-Deck's compact keyboard. EXPERIMENTAL. */
-static const char* hw_ar_lower[26] = {
+static const char* const hw_ar_lower[26] = {
     "ش", "لا", "ؤ", "ي", "ث", "ب", "ل", "ا", "ه", "ت",
     "ن", "م", "ة", "ى", "خ", "ح", "ض", "ق", "س", "ف",
     "ع", "ر", "ص", "ء", "غ", "ئ"
 };
-static const char* hw_ar_digits[10] = {
+static const char* const hw_ar_digits[10] = {
     nullptr, "ج", "د", "ذ", "ز", "ط", "ظ", "و", "ك", nullptr
 };
 /* Shift: the standard Arabic (101) shift layer, so أ إ آ, the lam-alef pairs, the
  * tashkeel and Arabic punctuation are reachable (#582). Shadda lives on ` there, a key
  * these keyboards do not have, so it takes Shift+Z (~ on the 101). The fonts have no
  * curly quotes, so U and M give a plain apostrophe. ك (on ; there) rides digit 8. */
-static const char* hw_ar_upper[26] = {
+static const char* const hw_ar_upper[26] = {
     "\u0650", "\u0644\u0622", "}", "]", "\u064F", "[", "\u0644\u0623", "\u0623", "\u00F7", "\u0640",
     "\u060C", "/", "'", "\u0622", "\u00D7", "\u061B", "\u064E", "\u064C", "\u064D", "\u0644\u0625",
     "'", "{", "\u064B", "\u0652", "\u0625", "\u0651"
 };
 /* No shifted digits: the symbol fallback in keyboardLayoutMapHwKey() reads this table
  * for ! @ # $ % ..., and sharing hw_ar_digits made those type ج د ذ ز (#582). */
-static const char* hw_ar_digits_shift[10] = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
+static const char* const hw_ar_digits_shift[10] = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
 
 /* French AZERTY mapping for the T-Deck's US-QWERTY physical keyboard.
  * We only remap the alpha keys so punctuation/digits remain predictable on the
  * compact hardware; accented letters are still available through accent popups. */
-static const char* hw_fr_lower[26] = {
+static const char* const hw_fr_lower[26] = {
     "q", "b", "c", "d", "e", "f", "g", "h", "i", "j",
     "k", "l", "m", "n", "o", "p", "a", "r", "s", "t",
     "u", "v", "z", "x", "y", "w"
 };
 
-static const char* hw_fr_upper[26] = {
+static const char* const hw_fr_upper[26] = {
     "Q", "B", "C", "D", "E", "F", "G", "H", "I", "J",
     "K", "L", "M", "N", "O", "P", "A", "R", "S", "T",
     "U", "V", "Z", "X", "Y", "W"
 };
 
-static const char* hw_fr_digits[10]       = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
-static const char* hw_fr_digits_shift[10] = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
+static const char* const hw_fr_digits[10]       = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
+static const char* const hw_fr_digits_shift[10] = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
 
 /* German QWERTZ on the T-Deck's US-QWERTY hardware: swap Y/Z and keep the rest
  * predictable. Umlauts / eszett stay available through accent popups. */
-static const char* hw_de_lower[26] = {
+static const char* const hw_de_lower[26] = {
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
     "k", "l", "m", "n", "o", "p", "q", "r", "s", "t",
     "u", "v", "w", "x", "z", "y"
 };
-static const char* hw_de_upper[26] = {
+static const char* const hw_de_upper[26] = {
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
     "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
     "U", "V", "W", "X", "Z", "Y"
 };
-static const char* hw_de_digits[10]       = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
-static const char* hw_de_digits_shift[10] = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
+static const char* const hw_de_digits[10]       = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
+static const char* const hw_de_digits_shift[10] = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
 
 /* Dutch keeps the standard alpha matrix. (The IJ digraph used to sit on a hardware
  * digit slot, but slot 1 is the "1" key AND the back-mapped "!" key, so it broke both
  * — GH #144/#164 — and the digraph now lives only on the on-screen keyboard's key.) */
-static const char* hw_nl_lower[26] = {
+static const char* const hw_nl_lower[26] = {
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
     "k", "l", "m", "n", "o", "p", "q", "r", "s", "t",
     "u", "v", "w", "x", "y", "z"
 };
-static const char* hw_nl_upper[26] = {
+static const char* const hw_nl_upper[26] = {
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
     "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
     "U", "V", "W", "X", "Y", "Z"
 };
-static const char* hw_nl_digits[10]       = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
-static const char* hw_nl_digits_shift[10] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+static const char* const hw_nl_digits[10]       = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+static const char* const hw_nl_digits_shift[10] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 
 /* Spanish stays close to US QWERTY; use the number row to expose n-tilde on
  * compact hardware where the semicolon key is absent. */
-static const char* hw_es_lower[26] = {
+static const char* const hw_es_lower[26] = {
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
     "k", "l", "m", "n", "o", "p", "q", "r", "s", "t",
     "u", "v", "w", "x", "y", "z"
 };
-static const char* hw_es_upper[26] = {
+static const char* const hw_es_upper[26] = {
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
     "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
     "U", "V", "W", "X", "Y", "Z"
 };
-static const char* hw_es_digits[10]       = { nullptr, "ñ", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
-static const char* hw_es_digits_shift[10] = { nullptr, "Ñ", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+static const char* const hw_es_digits[10]       = { nullptr, "ñ", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+static const char* const hw_es_digits_shift[10] = { nullptr, "Ñ", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 
 /* Italian uses the number row to surface the common accented vowels directly. */
-static const char* hw_it_lower[26] = {
+static const char* const hw_it_lower[26] = {
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
     "k", "l", "m", "n", "o", "p", "q", "r", "s", "t",
     "u", "v", "w", "x", "y", "z"
 };
-static const char* hw_it_upper[26] = {
+static const char* const hw_it_upper[26] = {
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
     "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
     "U", "V", "W", "X", "Y", "Z"
 };
-static const char* hw_it_digits[10]       = { nullptr, "à", "è", "ì", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
-static const char* hw_it_digits_shift[10] = { nullptr, "À", "È", "Ì", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+static const char* const hw_it_digits[10]       = { nullptr, "à", "è", "ì", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+static const char* const hw_it_digits_shift[10] = { nullptr, "À", "È", "Ì", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 
 /* Romanian keeps the standard alpha matrix; the number row surfaces the five
  * special letters on compact hardware (same trick as Italian's accented vowels). */
-static const char* hw_ro_lower[26] = {
+static const char* const hw_ro_lower[26] = {
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
     "k", "l", "m", "n", "o", "p", "q", "r", "s", "t",
     "u", "v", "w", "x", "y", "z"
 };
-static const char* hw_ro_upper[26] = {
+static const char* const hw_ro_upper[26] = {
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
     "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
     "U", "V", "W", "X", "Y", "Z"
 };
-static const char* hw_ro_digits[10]       = { nullptr, "ă", "â", "î", "ş", "ţ", nullptr, nullptr, nullptr, nullptr };
-static const char* hw_ro_digits_shift[10] = { nullptr, "Ă", "Â", "Î", "Ş", "Ţ", nullptr, nullptr, nullptr, nullptr };
+static const char* const hw_ro_digits[10]       = { nullptr, "ă", "â", "î", "ş", "ţ", nullptr, nullptr, nullptr, nullptr };
+static const char* const hw_ro_digits_shift[10] = { nullptr, "Ă", "Â", "Î", "Ş", "Ţ", nullptr, nullptr, nullptr, nullptr };
 
 /* Latvian keeps the standard a..z alpha matrix (identical to English, matching
  * the on-screen deck above); the number row surfaces the eight macron/cedilla
  * letters that aren't already promoted onto the deck (č š ž), in alphabetical
  * order of their base letter — same trick as Romanian's digit row. */
-static const char* hw_lv_lower[26] = {
+static const char* const hw_lv_lower[26] = {
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
     "k", "l", "m", "n", "o", "p", "q", "r", "s", "t",
     "u", "v", "w", "x", "y", "z"
 };
-static const char* hw_lv_upper[26] = {
+static const char* const hw_lv_upper[26] = {
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
     "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
     "U", "V", "W", "X", "Y", "Z"
 };
-static const char* hw_lv_digits[10]       = { nullptr, "ā", "ē", "ģ", "ī", "ķ", "ļ", "ņ", "ū", nullptr };
-static const char* hw_lv_digits_shift[10] = { nullptr, "Ā", "Ē", "Ģ", "Ī", "Ķ", "Ļ", "Ņ", "Ū", nullptr };
+static const char* const hw_lv_digits[10]       = { nullptr, "ā", "ē", "ģ", "ī", "ķ", "ļ", "ņ", "ū", nullptr };
+static const char* const hw_lv_digits_shift[10] = { nullptr, "Ā", "Ē", "Ģ", "Ī", "Ķ", "Ļ", "Ņ", "Ū", nullptr };
 
 /* ================================================================
  * Runtime state

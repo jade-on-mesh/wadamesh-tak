@@ -110,6 +110,8 @@ void* dav1d_ext_realloc(void* p, size_t sz) {
 extern "C" int dav1d_ext_alloc_wedge_tables(void);
 extern "C" int dav1d_ext_alloc_scratch(void);
 extern "C" int dav1d_ext_alloc_qm_tables(void);
+extern "C" int dav1d_ext_alloc_intra_edge_tree(void);
+extern "C" int dav1d_ext_alloc_scan_tables(void);
 
 namespace {
 
@@ -181,7 +183,8 @@ VoxAv1Result voxAv1Decode(const uint8_t* obus, size_t len, VoxAv1Format format,
 
   // Allocated by the first photo and kept for the next: the tables upstream keeps
   // in .bss, and the 40 KB arena that keeps dav1d's big DSP buffers off the stack.
-  if (!dav1d_ext_alloc_scratch() || !dav1d_ext_alloc_wedge_tables() || !dav1d_ext_alloc_qm_tables())
+  if (!dav1d_ext_alloc_scratch() || !dav1d_ext_alloc_wedge_tables() || !dav1d_ext_alloc_qm_tables() ||
+      !dav1d_ext_alloc_intra_edge_tree() || !dav1d_ext_alloc_scan_tables())
     return kVoxAv1NoMemory;
 
   // The sender strips the 2-byte temporal delimiter; dav1d wants it back.

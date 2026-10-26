@@ -69,5 +69,8 @@ typedef struct EdgeBranch {
 EXTERN const EdgeNode *dav1d_intra_edge_tree[2 /* BL_128X128, BL_64X64 */];
 
 void dav1d_init_intra_edge_tree(void);
+#if DAV1D_EXTERNAL_ALLOC
+int dav1d_ext_alloc_intra_edge_tree(void);
+#endif
 
 #endif /* DAV1D_SRC_INTRA_EDGE_H */

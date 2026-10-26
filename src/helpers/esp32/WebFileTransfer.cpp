@@ -6,8 +6,10 @@
 #include <esp_heap_caps.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../PsramStatic.h"
 
-WebFileTransfer g_web_file_transfer;
+// In PSRAM, like its buffers: internal RAM is what Wi-Fi and Bluetooth need.
+WebFileTransfer& g_web_file_transfer = psramObject<WebFileTransfer>();
 
 bool WebFileTransfer::begin() {
   if (!_inbound) {

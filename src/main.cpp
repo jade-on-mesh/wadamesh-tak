@@ -854,6 +854,7 @@ void setup() {
 
   board.begin();
   Serial.println("[BOOT] board ok");
+  bootmem::mark("board ready");
 
 #if defined(HAS_RAK_TAP_V2)
   // Quick PSRAM sanity check — silent crash before SPIFFS could be bad PSRAM config
@@ -983,6 +984,7 @@ void setup() {
   }
   Serial.println("[BOOT] radio ok");
 
+  bootmem::mark("display and radio ready");
   fast_rng.begin(radio_driver.getRngSeed());
 
 #if defined(ESP32_PLATFORM) && defined(HAS_TOUCH_UI)
@@ -1401,6 +1403,7 @@ void setup() {
     }
   }
 #endif
+  bootmem::mark("storage mounted");
   // Repair an unusable SPIFFS whether or not the profile lives on SD.
   //
   // This used to be `if (!sd_storage && !spiffs_ok)`, which is a catch-22: an
@@ -1511,6 +1514,7 @@ void setup() {
     #endif
   );
   Serial.println("[BOOT] mesh ok");
+  bootmem::mark("mesh started");
 #if defined(HAS_RAK_TAP_V2)
   Serial.flush();
 #endif
@@ -1560,6 +1564,7 @@ void setup() {
   board.setInhibitSleep(true);
   serial_interface.begin(Serial, TCP_PORT, WS_PORT);
   Serial.println("[BOOT] serial_interface ok");
+  bootmem::mark("phone links ready");
   serial_interface.setBroadcastResponses(true);  // RX log, channel messages, etc. go to all clients (USB + TCP + WS [+ BLE]), not only last sender
   /* Wi-Fi and NimBLE coexist, but their first allocations are order-sensitive
    * on the Pager. Claim Wi-Fi's DMA/coexistence resources before starting BLE;
@@ -1705,6 +1710,7 @@ void setup() {
           // the request. This is a heap refusal, not Wi-Fi ownership.
           s_pager_ble_after_wifi = true;
           Serial.println("[boot] BLE cold start deferred: insufficient contiguous heap");
+          bootmem::mark("BLE refused: needs 50 KB (block 20)");
         }
       }
     } else {
