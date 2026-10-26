@@ -522,6 +522,16 @@ static void workerFn(void* arg) {
 // (core 0, beside Wi-Fi), and waits for it.
 static int run(Job& j) {
   tlsUsePsram();
+  // Already on the shared worker (the Pager's net worker runs there): waiting
+  // for the worker would wait for ourselves, so run it here, on its stack.
+  if (VoxAudioTask::isWorker()) {
+    j.done = nullptr;
+    const UBaseType_t prio = uxTaskPriorityGet(nullptr);
+    vTaskPrioritySet(nullptr, 1);
+    jobBody(j);
+    vTaskPrioritySet(nullptr, prio);
+    return j.result;
+  }
   j.done = xSemaphoreCreateBinary();
   if (!j.done) { say(j, "out of memory"); return j.kind == Kind::Latest ? -1 : 0; }
   // The worker may be busy for a moment (a voice clip, the Reader): wait up to

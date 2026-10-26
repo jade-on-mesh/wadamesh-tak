@@ -28,6 +28,12 @@ void* s_job_arg = nullptr;
 void (*s_next)(void*) = nullptr;    // queued by runNext() while busy
 void* s_next_arg = nullptr;
 bool s_busy = false;
+// post(): background jobs that wait their turn, after s_job and s_next.
+constexpr int kFifo = 8;
+void (*s_fifo_fn[kFifo])(void*) = {};
+void* s_fifo_arg[kFifo] = {};
+int s_fifo_head = 0, s_fifo_n = 0;
+bool s_cur_bg = false;   // the running job came from post(): it gives way (see run)
 
 void workerTask(void*) {
   for (;;) {
@@ -36,10 +42,16 @@ void workerTask(void*) {
       void (*fn)(void*) = nullptr;
       void* arg = nullptr;
       portENTER_CRITICAL(&s_mux);
+      s_cur_bg = false;
       if (s_job) {
         fn = s_job; arg = s_job_arg; s_job = nullptr;
       } else if (s_next) {
         fn = s_next; arg = s_next_arg; s_next = nullptr;
+      } else if (s_fifo_n) {
+        fn = s_fifo_fn[s_fifo_head]; arg = s_fifo_arg[s_fifo_head];
+        s_fifo_head = (s_fifo_head + 1) % kFifo;
+        s_fifo_n--;
+        s_cur_bg = true;
       } else {
         s_busy = false;
       }
@@ -65,9 +77,10 @@ bool begin() {
 
 bool exists() { return s_worker != nullptr; }
 
+// Idle, or running background work (post()) that will give way to a run().
 bool available() {
   portENTER_CRITICAL(&s_mux);
-  const bool idle = s_worker && !s_busy;
+  const bool idle = s_worker && (!s_busy || (s_cur_bg && !s_next && !s_job));
   portEXIT_CRITICAL(&s_mux);
   return idle;
 }
@@ -75,11 +88,17 @@ bool available() {
 bool run(void (*fn)(void*), void* arg) {
   if (!s_worker || !fn) return false;
   portENTER_CRITICAL(&s_mux);
-  const bool ok = !s_busy;
+  bool ok = !s_busy;
   if (ok) {
     s_busy = true;
     s_job = fn;
     s_job_arg = arg;
+  } else if (s_cur_bg && !s_job && !s_next) {
+    // Background work is running (map tiles, a settings save): this goes
+    // next, and that job gives way at its next step (it checks waiting()).
+    s_job = fn;
+    s_job_arg = arg;
+    ok = true;
   }
   portEXIT_CRITICAL(&s_mux);
   if (ok) xTaskNotifyGive(s_worker);
@@ -119,6 +138,32 @@ bool queued() {
   portEXIT_CRITICAL(&s_mux);
   return q;
 }
+
+bool post(void (*fn)(void*), void* arg) {
+  if (!s_worker || !fn) return false;
+  bool ok = false, wake = false;
+  portENTER_CRITICAL(&s_mux);
+  if (s_fifo_n < kFifo) {
+    const int at = (s_fifo_head + s_fifo_n) % kFifo;
+    s_fifo_fn[at] = fn;
+    s_fifo_arg[at] = arg;
+    s_fifo_n++;
+    ok = true;
+    if (!s_busy) { s_busy = true; wake = true; }
+  }
+  portEXIT_CRITICAL(&s_mux);
+  if (wake) xTaskNotifyGive(s_worker);
+  return ok;
+}
+
+bool waiting() {
+  portENTER_CRITICAL(&s_mux);
+  const bool w = s_job != nullptr || s_next != nullptr || s_fifo_n > 0;
+  portEXIT_CRITICAL(&s_mux);
+  return w;
+}
+
+bool isWorker() { return s_worker && xTaskGetCurrentTaskHandle() == s_worker; }
 }  // namespace VoxAudioTask
 
 #else  // host builds (web)
@@ -130,6 +175,9 @@ bool available() { return false; }
 bool run(void (*)(void*), void*) { return false; }
 bool runNext(void (*)(void*), void*) { return false; }
 bool queued() { return false; }
+bool post(void (*)(void*), void*) { return false; }
+bool waiting() { return false; }
+bool isWorker() { return false; }
 }  // namespace VoxAudioTask
 
 #endif

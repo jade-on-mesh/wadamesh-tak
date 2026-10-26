@@ -13,6 +13,12 @@
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
+#if defined(TLORA_PAGER) && defined(HAS_TOUCH_UI)
+#define PREFS_ON_SHARED_WORKER 1
+#include "../../ui-touch/VoxMic.h"   // VoxAudioTask: the shared worker
+#else
+#define PREFS_ON_SHARED_WORKER 0
+#endif
 #include <new>
 #include <stddef.h>
 #include <string.h>
@@ -353,40 +359,83 @@ static bool copyCachedValue(const char* path, const char* key, void* out,
   return found;
 }
 
+// One snapshot write (the writer task's, or the shared worker's on the Pager).
+static void prefsProcess(WriteJob* job) {
+  const uint32_t started = millis();
+  const bool ok = writeSnapshot(job->fs, job->legacy_path, job->slot, job->generation, job->kv);
+  const uint32_t elapsed = millis() - started;
+  xSemaphoreTake(s_cache_mutex, portMAX_DELAY);
+  if (FileCache* cache = findCacheLocked(job->legacy_path)) {
+    cache->writing = false;
+    if (ok) {
+      cache->generation = job->generation;
+      cache->active_slot = job->slot;
+      if (cache->revision == job->revision) cache->dirty = false;
+      cache->retry_after_ms = 0;
+    } else {
+      cache->dirty = true;
+      cache->dirty_first_ms = cache->dirty_last_ms = millis();
+      cache->retry_after_ms = millis() + 30000;
+      Serial.printf("[PREFS] snapshot write failed %s.%c\n", job->legacy_path, job->slot);
+    }
+  }
+  xSemaphoreGive(s_cache_mutex);
+  if (ok && elapsed >= PREFS_SLOW_IO_MS)
+    Serial.printf("[PREFS] slow snapshot %s slot %c: %lums\n", job->legacy_path,
+                  job->slot, (unsigned long)elapsed);
+  delete job;
+}
+
 static void prefsWriterTask(void*) {
   for (;;) {
     WriteJob* job = nullptr;
     if (xQueueReceive(s_write_queue, &job, portMAX_DELAY) != pdTRUE || !job) continue;
-    const uint32_t started = millis();
-    const bool ok = writeSnapshot(job->fs, job->legacy_path, job->slot, job->generation, job->kv);
-    const uint32_t elapsed = millis() - started;
-    xSemaphoreTake(s_cache_mutex, portMAX_DELAY);
-    if (FileCache* cache = findCacheLocked(job->legacy_path)) {
-      cache->writing = false;
-      if (ok) {
-        cache->generation = job->generation;
-        cache->active_slot = job->slot;
-        if (cache->revision == job->revision) cache->dirty = false;
-        cache->retry_after_ms = 0;
-      } else {
-        cache->dirty = true;
-        cache->dirty_first_ms = cache->dirty_last_ms = millis();
-        cache->retry_after_ms = millis() + 30000;
-        Serial.printf("[PREFS] snapshot write failed %s.%c\n", job->legacy_path, job->slot);
-      }
-    }
-    xSemaphoreGive(s_cache_mutex);
-    if (ok && elapsed >= PREFS_SLOW_IO_MS)
-      Serial.printf("[PREFS] slow snapshot %s slot %c: %lums\n", job->legacy_path,
-                    job->slot, (unsigned long)elapsed);
-    delete job;
+    prefsProcess(job);
   }
 }
 
-static bool ensureWorker() {
+// T-LoRa Pager: no writer task of its own (6 KB of internal RAM the Pager
+// can't spare beside Wi-Fi and Bluetooth). Queued snapshots are written by a
+// job on the shared 16 KB worker (VoxAudioTask::post), at the old task's
+// priority. Before that worker exists (early boot) a flush still gets the
+// old task.
+#if PREFS_ON_SHARED_WORKER
+static volatile bool s_drain_posted = false;
+static void prefsDrainJob(void*) {
+  const UBaseType_t prio = uxTaskPriorityGet(nullptr);
+  vTaskPrioritySet(nullptr, 2);
+  for (;;) {
+    WriteJob* job = nullptr;
+    while (xQueueReceive(s_write_queue, &job, 0) == pdTRUE)
+      if (job) prefsProcess(job);
+    s_drain_posted = false;
+    if (uxQueueMessagesWaiting(s_write_queue) == 0) break;
+    s_drain_posted = true;   // queued in the gap: go round again
+  }
+  vTaskPrioritySet(nullptr, prio);
+}
+// Gets queued snapshots written: by the writer task when there is one, else
+// on the shared worker (inline when already on it, as a flush there would
+// otherwise wait for itself).
+static void prefsKick() {
+  if (s_write_task || !s_write_queue || uxQueueMessagesWaiting(s_write_queue) == 0) return;
+  if (VoxAudioTask::isWorker()) { prefsDrainJob(nullptr); return; }
+  if (s_drain_posted) return;
+  s_drain_posted = true;
+  if (!VoxAudioTask::post(prefsDrainJob, nullptr)) s_drain_posted = false;
+}
+#else
+static void prefsKick() {}
+#endif
+
+static bool ensureWorker(bool force_task = false) {
+  (void)force_task;
   if (!s_cache_mutex) s_cache_mutex = xSemaphoreCreateMutex();
   if (!s_write_queue) s_write_queue = xQueueCreate(2, sizeof(WriteJob*));
   if (!s_cache_mutex || !s_write_queue) return false;
+#if PREFS_ON_SHARED_WORKER
+  if (!s_write_task && !force_task) return true;   // the shared worker writes (prefsKick)
+#endif
   if (!s_write_task) {
     if (xTaskCreatePinnedToCore(prefsWriterTask, "prefs_writer", 6144, nullptr, 2,
                                 &s_write_task, 0) != pdPASS) s_write_task = nullptr;
@@ -668,8 +717,10 @@ static bool scheduleOne(uint32_t now, bool force) {
     if (FileCache* cache = findCacheLocked(armed_path)) cache->writing = false;
     xSemaphoreGive(s_cache_mutex);
     delete job;
+    prefsKick();
     return false;
   }
+  prefsKick();
   return true;
 }
 
@@ -677,11 +728,18 @@ void SdNvsPrefs::tick(uint32_t now_ms) {
   if (!fileMode()) return;
   if (now_ms == 0) now_ms = millis();
   scheduleOne(now_ms, false);
+  prefsKick();   // anything queued before the shared worker was up
 }
 
 bool SdNvsPrefs::flush(uint32_t timeout_ms) {
   if (!fileMode()) return true;
-  if (!ensureWorker()) {
+#if PREFS_ON_SHARED_WORKER
+  // Without the shared worker yet (early boot), a flush needs the old task.
+  const bool need_task = !VoxAudioTask::exists();
+#else
+  const bool need_task = false;
+#endif
+  if (!ensureWorker(need_task)) {
     // A writer-allocation failure is only a flush failure when RAM contains
     // work that still needs landing. A clean store has nothing to wait for and
     // must not permanently block unrelated migration/reboot workflows.

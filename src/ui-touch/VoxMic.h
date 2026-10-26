@@ -84,4 +84,14 @@ bool run(void (*fn)(void*), void* arg);
 bool runNext(void (*fn)(void*), void* arg);
 // A job is waiting for the worker (queued by runNext).
 bool queued();
+// Background work that waits its turn: runs fn(arg) after the running job,
+// a runNext() one and anything posted before it (up to 8 waiting). False if
+// there's no worker or the line is full. A long job (map tiles) checks
+// waiting() between steps and posts itself again to let others go first.
+bool post(void (*fn)(void*), void* arg);
+// Something is waiting for the worker (run, runNext or post).
+bool waiting();
+// The caller is the worker itself (a job that would wait on another job
+// must run it inline instead).
+bool isWorker();
 }  // namespace VoxAudioTask
