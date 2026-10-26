@@ -160,8 +160,31 @@ static void jitter() {
   free(j);
 }
 
+// DM talks: the same bytes as MeshCore Open TAK's walkie_wire_test.dart.
+static void dm() {
+  uint8_t to[8], from[6], codec[6], b[64], self2[4];
+  char h[140];
+  unhex("0102030405060708", to);
+  unhex("a0a1a2a3a4a5", from);
+  unhex("c0ffee112233", codec);
+  const int n = WalkieWire::encodeDmAudio(0x1a2b3c4d, 2, 1, true, to, from, codec, 6, b, sizeof b);
+  hex(b, n, h);
+  CHECK(strcmp(h, "56cd8afc93028101020304a0a1a2a3c0ffee112233") == 0);
+  WalkieWire::DmAudio d;
+  CHECK(WalkieWire::parseDmAudio(b, (size_t)n, to, &d));
+  CHECK(d.audio.sid == 0x1a2b3c4d && d.audio.index == 2 && d.audio.last && d.audio.len == 6);
+  CHECK(memcmp(d.from, from, 4) == 0 && memcmp(d.audio.data, codec, 6) == 0);
+  unhex("01020305", self2);
+  CHECK(!WalkieWire::parseDmAudio(b, (size_t)n, self2, &d));   // not to us
+  CHECK(!WalkieWire::parseDmAudio(b, (size_t)n - 2, to, &d));   // a partial frame
+  uint8_t ve3[32];
+  const int m = unhex("561a2b3c4d00c0ffee11223344556677", ve3);
+  CHECK(!WalkieWire::parseDmAudio(ve3, (size_t)m, to, &d));     // an ordinary VE3 packet
+}
+
 int main() {
   golden();
+  dm();
   jitter();
   if (g_fail) {
     printf("%d failure(s)\n", g_fail);

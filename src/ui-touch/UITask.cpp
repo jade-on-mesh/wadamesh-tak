@@ -12334,6 +12334,18 @@ static void threadSheetResetPathDo() {
 static void threadSheetResetPathCb(lv_event_t* e) {
   if (lv_event_get_code(e) == LV_EVENT_CLICKED) threadSheetResetPathDo();
 }
+#if CAP_LUA_AUDIO
+// "Walkie-talkie" in a DM: push-to-talk to that contact alone (WalkieUI.inc).
+void walkieOpenDm(const uint8_t pub[32]);
+static void threadSheetWalkieDmDo() {
+  if (!g_lv.task) return;
+  const int idx = s_channel_long_idx;
+  closeChannelLongSheet();
+  uint8_t pub[32];
+  if (g_lv.task->getThreadContactPub(idx, pub)) walkieOpenDm(pub);
+  else g_lv.task->showAlert(TR("Contact not found"), 1200);
+}
+#endif
 
 // Chat-icon chooser (channels and direct chats): tap picks an emoji for the
 // conversation's avatar via the emoji sheet in pick mode; long-press puts the
@@ -12421,6 +12433,9 @@ static void openThreadActionSheet(int thread_idx, const char* name, bool is_chan
         items[n++] = { LV_SYMBOL_REFRESH, TR("Log in again"), threadSheetRoomLoginDo, false };
         items[n++] = { LV_SYMBOL_LOOP, TR("Join w/ password"), threadSheetRoomJoinDo, false };
       }
+#if CAP_LUA_AUDIO
+      if (!is_room_thread) items[n++] = { LV_SYMBOL_AUDIO, TR("Walkie-talkie"), threadSheetWalkieDmDo, false };
+#endif
       items[n++] = { LV_SYMBOL_LOOP, TR("Reset path"), threadSheetResetPathDo, false };
     }
     items[n++] = { LV_SYMBOL_CLOSE, TR("Blocked users"), channelLongSheetBlockedDo, false };
@@ -75528,6 +75543,7 @@ static void voxVoiceStop() { if (s_vox_voice_sid) s_vox_voice_stop = true; }
 #include "WalkieUI.inc"
 #else
 void walkieOnChannelData(int, const uint8_t*, size_t) {}
+bool walkieOnRawData(const uint8_t*, size_t) { return false; }
 #endif
 
 #if (defined(HAS_TDECK_GT911) || defined(HAS_TDISPLAY_P4)) && CAP_LUA_AUDIO

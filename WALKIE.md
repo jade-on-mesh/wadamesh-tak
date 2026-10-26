@@ -33,8 +33,8 @@ touchscreen.
 
 A talk goes only to the channel it's on, and only people with that channel
 hear it. The Mic key talks on the channel whose chat is open (else the
-walkie-talkie opened last); in a DM it doesn't talk at all, as a talk would go
-to a whole channel: record a voice message there instead.
+walkie-talkie opened last); in a DM it talks to that contact alone (below),
+never to a channel.
 
 Talks play by themselves as they arrive on the channel whose chat or card is
 open. **Play talks on every channel** (off by default) plays them from every
@@ -50,6 +50,18 @@ until they finish. It's half duplex: nothing plays while you talk.
 - **Mute voice in this channel**: its talks don't play, even with its chat
   open (only with its card open). They still arrive as voice messages, to
   play with a tap.
+
+### In a DM
+
+Long-press a DM in Chats and pick **Walkie-talkie**, or hold the Mic key with
+the DM open. The talk goes to that one contact: along the route to them, or,
+with no route yet, only to radios in range (the card says which). Nobody else
+plays it. When you let go it's sent to them as a voice message DM, the same as
+on a channel.
+
+A DM talk plays live while that DM's chat or walkie-talkie is open. Otherwise
+an alert says who is talking to you, and the talk arrives as the voice message.
+MeshCore Open TAK does the same, with a Walkie-talkie button in the DM.
 
 A talk heard live in full is kept with its voice message, so the message plays
 straight away with nothing to download.
@@ -85,6 +97,19 @@ only (`markTransfer`):
   versions that don't know it show "Voice message: PTT". A talk announced
   without it still shows as a talk on a standalone that heard its packets.
 
+A DM talk has no start packet. Its audio goes as raw data along the contact's
+route (1-byte hashes; otherwise, or with no route, zero-hop), addressed by key:
+
+| Packet | Bytes |
+| --- | --- |
+| DM talk audio | `[0x56][session id ^ 0xD7A1C0DE: 4][index: 1][flags: 1][to: 4][from: 4][Codec2 frames]` |
+
+`to` and `from` are the first 4 bytes of the receiver's and the sender's public
+keys; a radio takes it only when `to` is its key and `from` is a contact. The
+scrambled session id keeps older radios, which read 0x56 as a VE3 chunk, from
+matching it to a clip; they drop it. At the end the talk is sent to the contact
+as `VE3:<id>:1:<packets>:<seconds> PTT`, a DM, with the real session id.
+
 Packets are spaced like a photo transfer: through repeaters at least four
 packet airtimes plus 150 ms (800 ms at least), so a packet doesn't talk over
 the relays of the one before; direct, one airtime plus 60 ms. At the 250 kHz
@@ -107,7 +132,8 @@ talk with nothing heard for 3.5 s has ended.
 | The trackball's button | `TBH_TALK` in the trackball handler (`UITask.cpp`), `walkie::ballTalks` |
 | The waveform (host-tested) | `voxCodec2Waveform` (`src/ui-touch/VoxVoice.cpp`, `test/test_vox_record.cpp`); drawn by `chatTalkWaveDrawCb` |
 | Keeping a talk heard in full | `VoxPhotos::storeHeard` |
-| From the mesh | `MyMesh::onChannelDataRecv` -> `walkieOnChannelData` |
+| From the mesh | `MyMesh::onChannelDataRecv` -> `walkieOnChannelData`; DMs: `MyMesh::onRawDataRecv` -> `walkieOnRawData` |
+| A DM's walkie-talkie | `walkie::cardOpenDm`, `txStartDm`; the DM long-press sheet's `threadSheetWalkieDmDo` |
 
 The golden bytes in `test/test_walkie.cpp` are the ones MeshCore Open TAK's
 `test/vox/walkie_wire_test.dart` checks.
