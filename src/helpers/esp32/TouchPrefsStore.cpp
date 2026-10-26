@@ -1,6 +1,8 @@
 #include "../PsramStatic.h"
 #include "TouchPrefsStore.h"
 #include "TouchPrefsSchema.h"
+#include "../TimeZones.h"     // the picker's zones and their POSIX TZ strings (#699)
+#include "GpsBaudPrefs.h"
 
 #if defined(ESP32)
 
@@ -170,6 +172,8 @@ static void cfgSetDefaults(TouchCfg& c) {
   c.beta_updates      = 0;      // OFF: stable update channel (opt-in to beta/test firmware)
   c.report_ping       = 0;      // OFF: no anonymous install count until asked for (v64)
   c.condense_nav      = 0;      // OFF: bottom nav bar + labelled Home launchers (v66, #592)
+  c.ct_purge_on       = 0;      // OFF: contacts stay until deleted (v72, #719)
+  c.ct_purge_days     = TOUCH_CT_PURGE_DEFAULT_DAYS;
   c.report_done_n     = 0;      // no beta reported on yet
   c.boot_advert       = 0;      // OFF: no automatic advert on boot — opt-in (#76)
   c.console_mode      = 0;      // OFF: boot into the graphical UI (CONSOLE_MODE.md)
@@ -330,6 +334,10 @@ static void cfgLoadOrMigrate() {
         }
 #endif
         if (stored_version < 66) s_cfg.condense_nav = 0;   // v66 new trailing field: never stored before
+        if (stored_version < 72) {   // v72 new trailing fields: never stored before
+          s_cfg.ct_purge_on = 0;
+          s_cfg.ct_purge_days = TOUCH_CT_PURGE_DEFAULT_DAYS;
+        }
         if (stored_version < 29 && s_cfg.ui_scale == 0) s_cfg.ui_scale = 1;   // bump old 100% default -> Large (150%)
         if (stored_version < 30) s_cfg.boot_advert = 0;   // #76 new trailing field: advert-on-boot off by default
         // v51 new trailing field. Anything older than 51 never stored it, so it
@@ -834,34 +842,13 @@ bool touchPrefsSetTimeOffsetHours(int hours) {
   s_cfg.time_offs = (int8_t)hours;
   return cfgFlush();
 }
-// Curated time zones, each with the correct POSIX DST rules for that region, so
-// non-European users get the right time year-round instead of the CET base + EU
-// DST dates. Index 0 (Europe/CET) is the default and matches the old behaviour.
-struct TzZone { const char* label; const char* posix; };
-static const TzZone TZ_ZONES[] = {
-  { "Europe (CET/CEST)",   "CET-1CEST,M3.5.0,M10.5.0/3" },
-  { "UK (GMT/BST)",        "GMT0BST,M3.5.0/1,M10.5.0" },
-  { "UTC",                 "UTC0" },
-  { "US Eastern",          "EST5EDT,M3.2.0,M11.1.0" },
-  { "US Central",          "CST6CDT,M3.2.0,M11.1.0" },
-  { "US Mountain",         "MST7MDT,M3.2.0,M11.1.0" },
-  { "US Arizona (no DST)", "MST7" },
-  { "US Pacific",          "PST8PDT,M3.2.0,M11.1.0" },
-  { "US Alaska",           "AKST9AKDT,M3.2.0,M11.1.0" },
-  { "US Hawaii",           "HST10" },
-  { "Canada Atlantic",     "AST4ADT,M3.2.0,M11.1.0" },
-  { "Brazil (Brasilia)",   "<-03>3" },
-  { "India (IST)",         "IST-5:30" },
-  { "China (CST)",         "CST-8" },
-  { "Japan (JST)",         "JST-9" },
-  { "Sydney (AEST/AEDT)",  "AEST-10AEDT,M10.1.0,M4.1.0/3" },
-};
-static const int TZ_ZONE_N = (int)(sizeof(TZ_ZONES) / sizeof(TZ_ZONES[0]));
+// The zones and their POSIX strings live in helpers/TimeZones.h (unit-tested on the host).
+static const int TZ_ZONE_N = TimeZones::ZONE_N;
 
 int touchPrefsTimezoneCount() { return TZ_ZONE_N + 1; }   // +1 = "Custom (UTC offset)"
 
 const char* touchPrefsTimezoneLabel(int idx) {
-  if (idx >= 0 && idx < TZ_ZONE_N) return TZ_ZONES[idx].label;
+  if (idx >= 0 && idx < TZ_ZONE_N) return TimeZones::ZONES[idx].label;
   if (idx == TZ_ZONE_N)            return "Custom (UTC offset)";
   return "";
 }
@@ -887,17 +874,7 @@ void touchPrefsSetTimezone(uint8_t idx) {
 
 void touchPrefsBuildLocalTz(char* out, int out_cap) {
   if (!out || out_cap <= 0) return;
-  const uint8_t z = touchPrefsGetTimezone();
-  if (z < (uint8_t)TZ_ZONE_N) {
-    snprintf(out, out_cap, "%s", TZ_ZONES[z].posix);
-    return;
-  }
-  // "Custom (UTC offset)": a fixed offset, no DST. POSIX std-offset is the
-  // negation of the UTC offset (it's the time to ADD to local to reach UTC), so
-  // UTC-7 -> "<-07>7", UTC+2 -> "<+02>-2".
-  const int off = touchPrefsGetTimeOffsetHours();
-  if (off == 0) { snprintf(out, out_cap, "UTC0"); return; }
-  snprintf(out, out_cap, "<%+03d>%d", off, -off);
+  TimeZones::buildPosix(touchPrefsGetTimezone(), touchPrefsGetTimeOffsetHours(), out, out_cap);
 }
 
 uint32_t touchPrefsGetLockTextColor() {
@@ -1203,6 +1180,32 @@ bool touchPrefsSetMapStyle(uint8_t style) {
   if (!s_begun) touchPrefsBegin();
   s_cfg.map_style = style;
   return cfgFlush();
+}
+
+static const char* KEY_MAP_PMT = "map_pmt";
+
+int touchPrefsGetMapPmTiles(char* out, int out_cap) {
+  if (!out || out_cap <= 0) return 0;
+  out[0] = '\0';
+  if (!s_begun) touchPrefsBegin();
+  String v = prefsGetStr(KEY_MAP_PMT, String(""));
+  int n = (int)v.length();
+  if (n > out_cap - 1) n = out_cap - 1;
+  if (n > TOUCH_MAP_PMTILES_MAXLEN - 1) n = TOUCH_MAP_PMTILES_MAXLEN - 1;
+  memcpy(out, v.c_str(), (size_t)n);
+  out[n] = '\0';
+  return n;
+}
+
+bool touchPrefsSetMapPmTiles(const char* name) {
+  if (!name || !name[0]) return false;
+  if (!s_begun) touchPrefsBegin();
+  s_prefs.end();
+  if (!s_prefs.begin(TOUCH_NS, false)) return false;
+  const bool ok = s_prefs.putString(KEY_MAP_PMT, name) > 0;
+  s_prefs.end();
+  s_begun = s_prefs.begin(TOUCH_NS, true);
+  return ok;
 }
 bool touchPrefsGetAppGridLarge() {
   if (!s_begun) touchPrefsBegin();
@@ -1522,6 +1525,30 @@ bool touchPrefsGetCondenseNav() {
 bool touchPrefsSetCondenseNav(bool on) {
   if (!s_begun) touchPrefsBegin();
   s_cfg.condense_nav = on ? 1 : 0;
+  return cfgFlush();
+}
+// Remove old contacts (v72, #719): Settings > Contact Management.
+bool touchPrefsGetContactPurge() {
+  if (!s_begun) touchPrefsBegin();
+  return s_cfg.ct_purge_on != 0;
+}
+bool touchPrefsSetContactPurge(bool on) {
+  if (!s_begun) touchPrefsBegin();
+  s_cfg.ct_purge_on = on ? 1 : 0;
+  return cfgFlush();
+}
+uint16_t touchPrefsGetContactPurgeDays() {
+  if (!s_begun) touchPrefsBegin();
+  uint16_t d = s_cfg.ct_purge_days;
+  if (d < TOUCH_CT_PURGE_MIN_DAYS) d = TOUCH_CT_PURGE_MIN_DAYS;
+  if (d > TOUCH_CT_PURGE_MAX_DAYS) d = TOUCH_CT_PURGE_MAX_DAYS;
+  return d;
+}
+bool touchPrefsSetContactPurgeDays(uint16_t days) {
+  if (days < TOUCH_CT_PURGE_MIN_DAYS) days = TOUCH_CT_PURGE_MIN_DAYS;
+  if (days > TOUCH_CT_PURGE_MAX_DAYS) days = TOUCH_CT_PURGE_MAX_DAYS;
+  if (!s_begun) touchPrefsBegin();
+  s_cfg.ct_purge_days = days;
   return cfgFlush();
 }
 uint8_t touchPrefsGetNavPos() {
@@ -2356,6 +2383,28 @@ bool touchPrefsGetSoundDirect() {
   return s_prefs.getUChar("snd_dm", 1) != 0;
 }
 void touchPrefsSetSoundDirect(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("snd_dm", on ? 1 : 0); }
+// Vibration motor (T-Display P4). Independent of the master Sound switch -- that is the point
+// of a "silent but buzz" setting -- but chooses events with the same per-type switches above.
+// Off until turned on: a fresh install should not start buzzing unasked. The Pager
+// (DRV2605) is the exception: buzzing for messages is what a pager is for.
+bool touchPrefsGetVibrate() {
+  if (!s_begun) touchPrefsBegin();
+#if defined(TLORA_PAGER)
+  return s_prefs.getUChar("vibrate", 1) != 0;
+#else
+  return s_prefs.getUChar("vibrate", 0) != 0;
+#endif
+}
+void touchPrefsSetVibrate(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("vibrate", on ? 1 : 0); }
+uint8_t touchPrefsGetVibratePattern() {
+  if (!s_begun) touchPrefsBegin();
+  const uint8_t p = s_prefs.getUChar("vib_pat", TOUCH_VIB_PULSE);
+  return p < TOUCH_VIB_COUNT ? p : TOUCH_VIB_PULSE;
+}
+void touchPrefsSetVibratePattern(uint8_t pat) {
+  if (!s_begun) touchPrefsBegin();
+  prefsPutUChar("vib_pat", pat < TOUCH_VIB_COUNT ? pat : TOUCH_VIB_PULSE);
+}
 // Drop incoming text messages whose body is a single character. Mesh spam is
 // overwhelmingly 1-byte payloads (cheapest possible airtime per message), and a
 // 1-character message is never something a person meant to send. Off by default:
@@ -2491,10 +2540,59 @@ uint8_t touchPrefsGetScreensaverBatterySecs() {
 void touchPrefsSetScreensaverBatterySecs(uint8_t secs) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("ssaver_bat", secs > 60 ? 60 : secs); }
 bool touchPrefsGetScreensaverAlwaysOnPower() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("ssaver_pwr", 1) != 0; }
 void touchPrefsSetScreensaverAlwaysOnPower(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("ssaver_pwr", on ? 1 : 0); }
+bool touchPrefsGetScreensaverNorthUp() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("ssaver_north", 0) != 0; }
+void touchPrefsSetScreensaverNorthUp(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("ssaver_north", on ? 1 : 0); }
 bool touchPrefsGetLockPreviews() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("lock_prev", 1) != 0; }
 void touchPrefsSetLockPreviews(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("lock_prev", on ? 1 : 0); }
 bool touchPrefsGetGlanceWhenLocked() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("glance_lck", 0) != 0; }
 void touchPrefsSetGlanceWhenLocked(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("glance_lck", on ? 1 : 0); }
+#if defined(TLORA_PAGER)   // the Pager's DRV2605 vibration motor
+bool touchPrefsGetVibrateInput()        { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("vib_in", 0) != 0; }
+void touchPrefsSetVibrateInput(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("vib_in", on ? 1 : 0); }
+// vib_in: 0 off, 1 strong (what the old on/off switch stored), 2 light.
+uint8_t touchPrefsGetVibrateKeyLevel() {
+  if (!s_begun) touchPrefsBegin();
+  const uint8_t v = s_prefs.getUChar("vib_in", 0);
+  return v == 1 ? 2 : v == 2 ? 1 : 0;
+}
+void touchPrefsSetVibrateKeyLevel(uint8_t l) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("vib_in", l >= 2 ? 1 : l == 1 ? 2 : 0); }
+uint8_t touchPrefsGetVibrateStrength() { if (!s_begun) touchPrefsBegin(); const uint8_t v = s_prefs.getUChar("vib_str", 2); return v > 2 ? 2 : v; }
+void touchPrefsSetVibrateStrength(uint8_t v) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("vib_str", v > 2 ? 2 : v); }
+uint8_t touchPrefsGetVibratePattern(uint8_t kind) {
+  if (!s_begun) touchPrefsBegin();
+  static const char* const k[3] = { "vib_pm", "vib_pd", "vib_pn" };
+  static const uint8_t dflt[3] = { 1, 2, 3 };   // once, twice, three times: what it always did
+  if (kind > 2) kind = 0;
+  return s_prefs.getUChar(k[kind], dflt[kind]);
+}
+void touchPrefsSetVibratePattern(uint8_t kind, uint8_t p) {
+  if (!s_begun) touchPrefsBegin();
+  static const char* const k[3] = { "vib_pm", "vib_pd", "vib_pn" };
+  if (kind <= 2) prefsPutUChar(k[kind], p);
+}
+uint16_t touchPrefsGetChargeMa()        { if (!s_begun) touchPrefsBegin(); return s_prefs.getUShort("chg_ma", 704); }
+void     touchPrefsSetChargeMa(uint16_t v) { if (!s_begun) touchPrefsBegin(); prefsPutUShort("chg_ma", v); }
+uint16_t touchPrefsGetChargeMv()        { if (!s_begun) touchPrefsBegin(); return s_prefs.getUShort("chg_mv", 4288); }
+void     touchPrefsSetChargeMv(uint16_t v) { if (!s_begun) touchPrefsBegin(); prefsPutUShort("chg_mv", v); }
+uint8_t  touchPrefsGetChargeTmax()      { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("chg_tmax", 45); }
+void     touchPrefsSetChargeTmax(uint8_t v) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("chg_tmax", v); }
+uint8_t  touchPrefsGetChargeTmin()      { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("chg_tmin", 0); }
+void     touchPrefsSetChargeTmin(uint8_t v) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("chg_tmin", v); }
+bool touchPrefsGetChargeCare()          { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("chg_care", 0) != 0; }
+void touchPrefsSetChargeCare(bool on)   { if (!s_begun) touchPrefsBegin(); prefsPutUChar("chg_care", on ? 1 : 0); }
+bool touchPrefsGetLowBattWarn()         { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("low_batt", 1) != 0; }
+void touchPrefsSetLowBattWarn(bool on)  { if (!s_begun) touchPrefsBegin(); prefsPutUChar("low_batt", on ? 1 : 0); }
+uint32_t touchPrefsGetBattDayKey()        { if (!s_begun) touchPrefsBegin(); return s_prefs.getUInt("bat_day", 0); }
+void     touchPrefsSetBattDayKey(uint32_t k) { if (!s_begun) touchPrefsBegin(); prefsPutUInt("bat_day", k); }
+uint32_t touchPrefsGetBattDayMah()        { if (!s_begun) touchPrefsBegin(); return s_prefs.getUInt("bat_mah", 0xFFFF0000u); }
+void     touchPrefsSetBattDayMah(uint32_t v) { if (!s_begun) touchPrefsBegin(); prefsPutUInt("bat_mah", v); }
+uint32_t touchPrefsGetBattUse()          { if (!s_begun) touchPrefsBegin(); return s_prefs.getUInt("bat_use", 0); }
+void     touchPrefsSetBattUse(uint32_t v) { if (!s_begun) touchPrefsBegin(); prefsPutUInt("bat_use", v); }
+bool touchPrefsGetFaceDownQuiet()       { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("face_down", 0) != 0; }
+void touchPrefsSetFaceDownQuiet(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("face_down", on ? 1 : 0); }
+bool touchPrefsGetPickupWake()         { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("pick_wake", 0) != 0; }
+void touchPrefsSetPickupWake(bool on)  { if (!s_begun) touchPrefsBegin(); prefsPutUChar("pick_wake", on ? 1 : 0); }
+#endif
 bool touchPrefsGetGlanceEnabled()   { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("glance_en", 1) != 0; }
 void touchPrefsSetGlanceEnabled(bool on)    { if (!s_begun) touchPrefsBegin(); prefsPutUChar("glance_en", on ? 1 : 0); }
 uint8_t touchPrefsGetChatIcons() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("chat_icons", 0) ? 1 : 0; }
@@ -2900,11 +2998,32 @@ bool touchPrefsSetSetupDone(bool done) {
   return ok;
 }
 
+// The speed the GPS probe last locked on while the user had not picked one. Its own
+// key, outside the settings blob, so an older firmware never reads it as a choice.
+// The rules are in GpsBaudPrefs.h (host-tested with the probe).
+static const char* LK_GPS_BAUD_FOUND = "gps_bd_fd";
+
 uint32_t touchPrefsGetGpsBaud(uint32_t fallback) {
   if (!s_begun) touchPrefsBegin();
-  // 0 = never set -> caller's compile-time default. A real configured baud is
-  // always non-zero, so this preserves the old "absent key -> fallback" result.
-  return s_cfg.gps_baud != 0 ? s_cfg.gps_baud : fallback;
+  // 0 = never set -> the speed the probe found, else the caller's compile-time
+  // default. A real configured baud is always non-zero, so this preserves the
+  // old "absent key -> fallback" result where nothing was ever found.
+  if (s_cfg.gps_baud != 0) return s_cfg.gps_baud;
+  const uint32_t found = s_prefs.isKey(LK_GPS_BAUD_FOUND) ? s_prefs.getUInt(LK_GPS_BAUD_FOUND, 0) : 0;
+  return GpsBaudPrefs::effective(0, found, fallback);
+}
+
+bool touchPrefsGpsBaudChosen() {
+  if (!s_begun) touchPrefsBegin();
+  return s_cfg.gps_baud != 0;
+}
+
+void touchPrefsSetGpsBaudFound(uint32_t baud) {
+  if (!s_begun) touchPrefsBegin();
+  if (!GpsBaudPrefs::sane(baud)) return;
+  const bool have = s_prefs.isKey(LK_GPS_BAUD_FOUND);
+  if (!GpsBaudPrefs::foundNeedsWrite(baud, have, have ? s_prefs.getUInt(LK_GPS_BAUD_FOUND, 0) : 0)) return;
+  prefsPutUInt(LK_GPS_BAUD_FOUND, baud);
 }
 
 bool touchPrefsSetGpsBaud(uint32_t baud) {
@@ -2932,9 +3051,13 @@ static int backupKeys(BkKey* out, int cap) {
   };
   add(KEY_CFG, 'b');
   static const char* const k_u8[] = {
-    "snd_msg", "snd_men", "snd_dm", "snd_vol", "ign_tiny", "dsc_evict", "dsc_hops",
+    "snd_msg", "snd_men", "snd_dm", "snd_vol", "vibrate", "vib_pat", "ign_tiny", "dsc_evict", "dsc_hops",
     "ent_send", "clk_12h", "nav_mbk", "tb_rev", "tb_edgesc", "lock_off", "glance_lck",
     "glance_en", "msg_led", "dnd_en", "dnd_ss", "dnd_es", "kbd_bl",
+#if defined(TLORA_PAGER)
+    "vib_in", "vib_str", "vib_pm", "vib_pd", "vib_pn",   // the Pager's vibration settings ("vibrate" is above)
+    "chg_care", "low_batt", "face_down", "pick_wake",             // the Pager's battery care and quiet modes
+#endif
     "chat_icons", "col_more", "col_style", "col_rb", "bg_kind", "gps_save", "gps_every",
     "glass",   // NOT "ant_ext": a restore must never point a unit at an empty antenna socket
   };
@@ -2965,7 +3088,11 @@ static int backupKeys(BkKey* out, int cap) {
   }
   return n;
 }
-static constexpr int kBackupKeyCap = 160;
+// Room for every key backupKeys() lists. add() drops whatever does not fit, without a
+// word, and the Wi-Fi slots come last: on 2026-10-26 the list was 158 keys on most
+// boards and 167 on the Pager (its vibration, battery care and motion keys), so a
+// Pager backup lost its last saved Wi-Fi slots. Keep well clear of the count.
+static constexpr int kBackupKeyCap = 192;
 static constexpr size_t kBackupBlobMax = 2048;
 
 static void bkPrintJsonStr(Print& out, const char* s) {
