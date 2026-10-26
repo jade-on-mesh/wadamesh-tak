@@ -171,9 +171,11 @@ void VoxServe::enqueue(const VoxWire::FetchRequest& r, int channel, bool from_dm
   }
   t.asked_at = now ? now : 1;
   t.zero_hop_req = channel < 0 && r.has_path && r.path_len == 0;
-  // On a channel, gather: listeners' requests close together go in one burst.
+  // On a channel, gather briefly: listeners who tap the same clip almost
+  // together share one burst; a later tap gets its own. Short, as in the app:
+  // the one asking is watching a spinner.
   // A zero-hop raw request reached everyone in range: the author goes first.
-  t.not_before = channel >= 0 ? now + kOwnChannelDelayMs + io_.random32() % 1000
+  t.not_before = channel >= 0 ? now + kOwnChannelDelayMs + io_.random32() % 500
                : t.zero_hop_req && !isOwn(r.sid) ? now + kZeroHopWaitMs + io_.random32() % 2000
                : now;
   t.route_deadline = now + (from_dm ? kRouteWaitDmMs : kRouteWaitMs);

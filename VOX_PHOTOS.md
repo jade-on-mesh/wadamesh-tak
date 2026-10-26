@@ -116,8 +116,9 @@ These follow MeshCore Open TAK, which defines them (`lib/vox/vox_fec.dart` and
   radio in range with one raw request with an empty path, which needs no
   route. Anyone holding it answers zero-hop. A holder that isn't the clip's
   author waits 1-3 s and leaves out packets it hears another node send.
-- **Channel answers.** The author gathers requests for 2-3 s (it was 300 ms),
-  so listeners asking close together get one burst.
+- **Channel answers.** The author gathers requests for 0.5-1 s, as the app
+  does, so listeners tapping almost together get one burst; a later tap gets
+  its own. (It was 2-3 s, which kept the one asking watching a spinner.)
 - **Backoff.** Retries that bring nothing back off by half again after the
   fourth, up to 4 minutes, as the app does.
 
