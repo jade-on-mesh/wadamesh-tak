@@ -1,3 +1,4 @@
+#include "WifiLean.h"
 #include "WifiRuntimeStore.h"
 
 #if defined(ESP32)
@@ -237,6 +238,7 @@ void wifiConfigApply() {
   char pwd[WIFI_CONFIG_PWD_MAX];
   wifiConfigGetSsid(ssid, sizeof(ssid));
   wifiConfigGetPwd(pwd, sizeof(pwd));
+  wifiLeanInit();                 // Pager: smaller Wi-Fi buffers (WifiLean.h)
   WiFi.mode(WIFI_STA);            // esp_wifi_remote needs an explicit STA mode before begin()
   WiFi.disconnect();
   delay(100);

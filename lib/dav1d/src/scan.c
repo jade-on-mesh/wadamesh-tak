@@ -27,9 +27,12 @@
 
 #include "config.h"
 
+#include <string.h>
+
 #include "common/attributes.h"
 #include "common/intops.h"
 
+#include "src/mem.h"
 #include "src/scan.h"
 #include "src/thread.h"
 
@@ -301,6 +304,25 @@ const uint16_t *const dav1d_scans[N_RECT_TX_SIZES] = {
     [RTX_64X16] = scan_32x16,
 };
 
+#if DAV1D_EXTERNAL_ALLOC
+/* wadamesh: these 3.3 KB of derived tables on the heap (PSRAM) instead of
+ * .bss (internal RAM), in one block. Must succeed before dav1d_open():
+ * dav1d_init_last_nonzero_col_from_eob_tables() writes here. */
+static uint8_t *last_nonzero_col_from_eob_4x4;
+static uint8_t *last_nonzero_col_from_eob_8x8;
+static uint8_t *last_nonzero_col_from_eob_16x16;
+static uint8_t *last_nonzero_col_from_eob_32x32;
+static uint8_t *last_nonzero_col_from_eob_4x8;
+static uint8_t *last_nonzero_col_from_eob_8x4;
+static uint8_t *last_nonzero_col_from_eob_8x16;
+static uint8_t *last_nonzero_col_from_eob_16x8;
+static uint8_t *last_nonzero_col_from_eob_16x32;
+static uint8_t *last_nonzero_col_from_eob_32x16;
+static uint8_t *last_nonzero_col_from_eob_4x16;
+static uint8_t *last_nonzero_col_from_eob_16x4;
+static uint8_t *last_nonzero_col_from_eob_8x32;
+static uint8_t *last_nonzero_col_from_eob_32x8;
+#else
 static uint8_t last_nonzero_col_from_eob_4x4[16];
 static uint8_t last_nonzero_col_from_eob_8x8[64];
 static uint8_t last_nonzero_col_from_eob_16x16[256];
@@ -315,6 +337,8 @@ static uint8_t last_nonzero_col_from_eob_4x16[64];
 static uint8_t last_nonzero_col_from_eob_16x4[64];
 static uint8_t last_nonzero_col_from_eob_8x32[256];
 static uint8_t last_nonzero_col_from_eob_32x8[256];
+
+#endif
 
 static COLD void init_tbl(uint8_t *const last_nonzero_col_from_eob,
                           const uint16_t *const scan, const int w, const int h)
@@ -352,6 +376,58 @@ COLD void dav1d_init_last_nonzero_col_from_eob_tables(void) {
     pthread_once(&initted, init_internal);
 }
 
+#if DAV1D_EXTERNAL_ALLOC
+const uint8_t *dav1d_last_nonzero_col_from_eob[N_RECT_TX_SIZES];
+
+int dav1d_ext_alloc_scan_tables(void);
+int dav1d_ext_alloc_scan_tables(void) {
+    static uint8_t *block;
+    if (block) return 1;
+    block = dav1d_ext_alloc_aligned(16 + 64 + 256 + 1024 + 32 + 32 + 128 + 128 +
+                                    512 + 512 + 64 + 64 + 256 + 256, 16);
+    if (!block) return 0;
+    uint8_t *p = block;
+#define TAKE(name, n) do { name = p; p += (n); } while (0)
+    TAKE(last_nonzero_col_from_eob_4x4,     16);
+    TAKE(last_nonzero_col_from_eob_8x8,     64);
+    TAKE(last_nonzero_col_from_eob_16x16,  256);
+    TAKE(last_nonzero_col_from_eob_32x32, 1024);
+    TAKE(last_nonzero_col_from_eob_4x8,     32);
+    TAKE(last_nonzero_col_from_eob_8x4,     32);
+    TAKE(last_nonzero_col_from_eob_8x16,   128);
+    TAKE(last_nonzero_col_from_eob_16x8,   128);
+    TAKE(last_nonzero_col_from_eob_16x32,  512);
+    TAKE(last_nonzero_col_from_eob_32x16,  512);
+    TAKE(last_nonzero_col_from_eob_4x16,    64);
+    TAKE(last_nonzero_col_from_eob_16x4,    64);
+    TAKE(last_nonzero_col_from_eob_8x32,   256);
+    TAKE(last_nonzero_col_from_eob_32x8,   256);
+#undef TAKE
+    const uint8_t *const t[N_RECT_TX_SIZES] = {
+    [ TX_4X4  ] = last_nonzero_col_from_eob_4x4,
+    [ TX_8X8  ] = last_nonzero_col_from_eob_8x8,
+    [ TX_16X16] = last_nonzero_col_from_eob_16x16,
+    [ TX_32X32] = last_nonzero_col_from_eob_32x32,
+    [ TX_64X64] = last_nonzero_col_from_eob_32x32,
+    [RTX_4X8  ] = last_nonzero_col_from_eob_4x8,
+    [RTX_8X4  ] = last_nonzero_col_from_eob_8x4,
+    [RTX_8X16 ] = last_nonzero_col_from_eob_8x16,
+    [RTX_16X8 ] = last_nonzero_col_from_eob_16x8,
+    [RTX_16X32] = last_nonzero_col_from_eob_16x32,
+    [RTX_32X16] = last_nonzero_col_from_eob_32x16,
+    [RTX_32X64] = last_nonzero_col_from_eob_32x32,
+    [RTX_64X32] = last_nonzero_col_from_eob_32x32,
+    [RTX_4X16 ] = last_nonzero_col_from_eob_4x16,
+    [RTX_16X4 ] = last_nonzero_col_from_eob_16x4,
+    [RTX_8X32 ] = last_nonzero_col_from_eob_8x32,
+    [RTX_32X8 ] = last_nonzero_col_from_eob_32x8,
+    [RTX_16X64] = last_nonzero_col_from_eob_16x32,
+    [RTX_64X16] = last_nonzero_col_from_eob_32x16,
+};
+    memcpy(dav1d_last_nonzero_col_from_eob, t, sizeof(t));
+    return 1;
+}
+#else
 const uint8_t *const dav1d_last_nonzero_col_from_eob[N_RECT_TX_SIZES] = {
     [ TX_4X4  ] = last_nonzero_col_from_eob_4x4,
     [ TX_8X8  ] = last_nonzero_col_from_eob_8x8,
@@ -373,3 +449,4 @@ const uint8_t *const dav1d_last_nonzero_col_from_eob[N_RECT_TX_SIZES] = {
     [RTX_16X64] = last_nonzero_col_from_eob_16x32,
     [RTX_64X16] = last_nonzero_col_from_eob_32x16,
 };
+#endif

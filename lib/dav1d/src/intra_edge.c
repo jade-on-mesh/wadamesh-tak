@@ -33,6 +33,7 @@
 
 #include "src/intra_edge.h"
 #include "src/levels.h"
+#include "src/mem.h"
 
 struct ModeSelMem {
     EdgeBranch *nwc[3 /* 64x64, 32x32, 16x16 */];
@@ -41,16 +42,37 @@ struct ModeSelMem {
 
 /* Because we're using 16-bit offsets to refer to other nodes those arrays
  * are placed in a struct to ensure they're consecutive in memory. */
-static struct {
+typedef struct EdgeNodes {
     EdgeBranch branch_sb128[1 + 4 + 16 + 64];
     EdgeTip tip_sb128[256];
     EdgeBranch branch_sb64[1 + 4 + 16];
     EdgeTip tip_sb64[64];
-} ALIGN(nodes, 16);
+} EdgeNodes;
+
+#if DAV1D_EXTERNAL_ALLOC
+/* wadamesh: the 4 KB tree on the heap (PSRAM) instead of .bss (internal RAM).
+ * Must succeed before dav1d_open(): dav1d_init_intra_edge_tree() writes here. */
+static EdgeNodes *nodes_p;
+#define nodes (*nodes_p)
+const EdgeNode *dav1d_intra_edge_tree[2];
+
+int dav1d_ext_alloc_intra_edge_tree(void);
+int dav1d_ext_alloc_intra_edge_tree(void) {
+    if (!nodes_p) {
+        nodes_p = dav1d_ext_alloc_aligned(sizeof(*nodes_p), 16);
+        if (!nodes_p) return 0;
+        dav1d_intra_edge_tree[0] = (EdgeNode*)nodes_p->branch_sb128;
+        dav1d_intra_edge_tree[1] = (EdgeNode*)nodes_p->branch_sb64;
+    }
+    return 1;
+}
+#else
+static EdgeNodes ALIGN(nodes, 16);
 
 const EdgeNode *dav1d_intra_edge_tree[2] = {
     (EdgeNode*)nodes.branch_sb128, (EdgeNode*)nodes.branch_sb64
 };
+#endif
 
 static COLD void init_edges(EdgeNode *const node,
                             const enum BlockLevel bl,

@@ -247,7 +247,7 @@ static int openRetrying(Get& g, const char* url, char* note, size_t note_cap) {
 // with the tag), so redirects are followed until one names a tag: a build that
 // knows the old name keeps finding updates after a rename.
 static int latest() {
-  static char url[1024];
+  static auto& url = psramStatic<char[1024]>();   // PSRAM: internal RAM is for Wi-Fi and BLE
   snprintf(url, sizeof url, "https://github.com/%s/releases/latest", WADA_FORK_REPO);
   s_verchk_why[0] = 0;
   for (int hop = 0; hop < 4; hop++) {
@@ -293,7 +293,7 @@ static void assetUrl(char* out, size_t cap, const char* tag, const char* file) {
 // couldn't connect. True with g.code 200 and the body ready to read; else a
 // message in j.
 static bool getFollowing(Job& j, const char* first, Get& g, const char* what) {
-  static char url[1024];
+  static auto& url = psramStatic<char[1024]>();   // PSRAM: internal RAM is for Wi-Fi and BLE
   snprintf(url, sizeof url, "%s", first);
   for (int hop = 0; hop < 5; hop++) {
     char note[96];

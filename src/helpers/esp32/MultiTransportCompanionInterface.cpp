@@ -7,6 +7,7 @@
 #include "WebFileTransfer.h"
 #endif
 #include <esp_heap_caps.h>
+#include "../BootMem.h"
 #include <string.h>
 #include "../../ui-touch/BleKeyboard.h"   // stackGoingDown() before NimBLE teardown
 #include "../../ui-touch/FlockRadio.h"    // likewise: Flock You's BLE scan
@@ -227,6 +228,29 @@ extern "C" bool hostedIsBLEActive();
 // Why the last cold start from enableBle() did not happen, for the toast (#612: every
 // refusal used to read as a memory shortage).
 static uint8_t s_ble_fail = BLE_FAIL_NONE;
+
+#if defined(TLORA_PAGER)
+// Bluetooth's start on the Pager, across a reset (RTC memory keeps it through a
+// panic or restart; a power-on leaves garbage, which matches neither value).
+// Armed just before NimBLE starts and cleared once it has: still armed at the
+// next boot means NimBLE aborted for want of memory, so this power-on goes
+// back to the old 50 KB reserve.
+#include <esp_attr.h>
+static constexpr uint32_t kPagerBleArmed = 0x424C4541u;   // 'BLEA'
+static constexpr uint32_t kPagerBleSafe  = 0x424C4553u;   // 'BLES'
+RTC_NOINIT_ATTR static uint32_t s_pager_ble_arm;
+static bool pagerBleSafe() {
+  static int s = -1;
+  if (s < 0) {
+    if (s_pager_ble_arm == kPagerBleArmed) {
+      s_pager_ble_arm = kPagerBleSafe;
+      bootmem::mark("BLE start crashed last boot: 50 KB again");
+    }
+    s = s_pager_ble_arm == kPagerBleSafe;
+  }
+  return s;
+}
+#endif
 uint8_t bleLastFailReason() { return s_ble_fail; }
 
 void MultiTransportCompanionInterface::enableBle() {
@@ -248,8 +272,19 @@ void MultiTransportCompanionInterface::enableBle() {
     // already-created stack below this threshold is allocation-free and must
     // not be rejected (UITask used to gate both cases identically, trapping the
     // user with BLE resident-but-off and neither radio enableable).
+#if defined(TLORA_PAGER)
+    // The Pager can't keep 50 KB free beside Wi-Fi. Bluetooth itself measured
+    // about 21 KB of internal RAM there (NimBLE's host is in PSRAM since #166),
+    // so ask for that plus room to run. A failed controller allocation aborts
+    // inside NimBLE (ESP_ERROR_CHECK), so a start that never finished falls
+    // back to the old reserve for the rest of this power-on (pagerBleSafe()).
+    const bool ble_safe = pagerBleSafe();
+    const size_t BLE_COEXIST_MIN_FREE  = (ble_safe ? 50u : 32u) * 1024u;
+    const size_t BLE_COEXIST_MIN_BLOCK = (ble_safe ? 20u : 12u) * 1024u;
+#else
     const size_t BLE_COEXIST_MIN_FREE  = 50u * 1024u;
     const size_t BLE_COEXIST_MIN_BLOCK = 20u * 1024u;
+#endif
     const uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     const size_t internal_free = heap_caps_get_free_size(internal_caps);
     const size_t internal_max  = heap_caps_get_largest_free_block(internal_caps);
@@ -258,6 +293,10 @@ void MultiTransportCompanionInterface::enableBle() {
       Serial.printf("[ble] cold start refused: free=%u maxblk=%u\n",
                     (unsigned)internal_free, (unsigned)internal_max);
       s_ble_fail = BLE_FAIL_HEAP;
+#if defined(TLORA_PAGER)
+      bootmem::mark(ble_safe ? "BLE refused: needs 50 KB (block 20)"
+                             : "BLE refused: needs 32 KB (block 12)");
+#endif
       return;
     }
 #if (defined(HAS_TDISPLAY_P4) && defined(TDP4_C6_HOSTED) && TDP4_C6_HOSTED) || defined(HAS_CROWPANEL_P4_101)
@@ -274,9 +313,17 @@ void MultiTransportCompanionInterface::enableBle() {
     char name[sizeof(_ble_name)];
     strncpy(name, _ble_name, sizeof(name) - 1);
     name[sizeof(name) - 1] = '\0';
+#if defined(TLORA_PAGER)
+    bootmem::mark("before BLE start");
+    s_pager_ble_arm = kPagerBleArmed;   // a reset before the line below = this start aborted
+#endif
     _ble.begin(_ble_prefix, name, _ble_pin_code);
     NimBLEDevice::setMTU(MAX_FRAME_SIZE + 3);   // see beginBle(): ATT payload is MTU-3
     _ble_begun = true;
+#if defined(TLORA_PAGER)
+    if (s_pager_ble_arm == kPagerBleArmed) s_pager_ble_arm = 0;
+    bootmem::mark("BLE started");
+#endif
   }
   _ble_enabled = true;
   wifiConfigSetBleEnabled(true);    // persist so it survives reboot

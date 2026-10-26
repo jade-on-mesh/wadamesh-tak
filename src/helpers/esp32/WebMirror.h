@@ -156,4 +156,4 @@ private:
   volatile size_t _td_head = 0, _td_tail = 0;
 };
 
-extern WebMirror g_web_mirror;
+extern WebMirror& g_web_mirror;   // in PSRAM (WebMirror.cpp)

@@ -8961,7 +8961,7 @@ static bool      s_update_available = false;
 // Beta test reports. The state lives up here beside the version-check flags
 // because the same tick reads both; the builders and the worker are further down
 // with the rest of the HTTP code.
-static char          s_report_body[420];
+static auto&         s_report_body = psramStatic<char[420]>();
 static volatile bool s_report_request = false;   // UI -> worker: send s_report_body
 static volatile bool s_report_done    = false;   // worker -> UI: result ready
 static volatile int  s_report_result  = 0;       // 1 sent, -1 failed
@@ -9100,7 +9100,7 @@ struct UiSegInfo {
   // until that lands. Set on append failure and by segRetableFromRing.
   uint8_t  rewrite_open;
 };
-static UiSegInfo s_seg[k_ui_seg_max];
+static auto& s_seg = psramStatic<UiSegInfo[k_ui_seg_max]>();   // PSRAM (tasks only)
 static int       s_seg_count = 0;
 static volatile uint32_t s_seg_total_bytes = 0;  // writer-maintained; About page reads it
 static volatile bool     s_seg_resync = false;   // card swapped/remounted: rewrite everything from RAM
@@ -9198,7 +9198,7 @@ static bool          touchHasOtaUpdateSlot();    // fwd: spare-A/B-slot probe, d
 // ---- Wi-Fi scan (serviced by the core-0 fetch worker; results drawn in the
 // Network tab + the setup wizard) ----
 static constexpr int kWifiScanMax = 14;
-static char          s_wifiscan_ssids[kWifiScanMax][WIFI_CONFIG_SSID_MAX];
+static auto&         s_wifiscan_ssids = psramStatic<char[kWifiScanMax][WIFI_CONFIG_SSID_MAX]>();
 static volatile int  s_wifiscan_count   = 0;
 static volatile bool s_wifiscan_request = false;   // UI -> worker: scan now
 static volatile bool s_wifiscan_done    = false;   // worker -> UI: results ready
@@ -17773,7 +17773,8 @@ static void openMemoryDetailCb(lv_event_t* e) {
   const size_t s_min  = heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM);
   const size_t s_lrg  = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
   const size_t dma_free = heap_caps_get_free_size(MALLOC_CAP_DMA);
-  char b[1300]; int q = 0;
+  // In PSRAM, not on the UI loop's stack (a few KB at most).
+  static auto& b = psramStatic<char[1700]>(); int q = 0;
   q += snprintf(b + q, sizeof(b) - q,
     "Internal DRAM\n  used  %u / %u KB\n  free  %u KB (low %u)\n  largest free  %u KB\n\n",
     kb(i_tot - i_free), kb(i_tot), kb(i_free), kb(i_min), kb(i_lrg));
@@ -32152,7 +32153,7 @@ static lv_obj_t*          s_spec_peak_lbl = nullptr;    // live "peak −87 dBm 
 static lv_obj_t*          s_spec_scale_lbl = nullptr;   // vertical colour-scale: floor dBm (bottom)
 static lv_obj_t*          s_spec_scale_hi_lbl = nullptr;// vertical colour-scale: ceiling dBm (top)
 static lv_timer_t*        s_spec_timer    = nullptr;
-static int16_t            s_spec_rssi[SPEC_BINS];       // latest full sweep (dBm)
+static auto&              s_spec_rssi = psramStatic<int16_t[SPEC_BINS]>();       // latest full sweep (dBm)
 static float              s_spec_start    = 0.0f;       // band start (MHz)
 static float              s_spec_step     = 0.0f;       // per-bin step (MHz)
 static int                s_spec_pos      = 0;          // next bin to sweep this pass
@@ -32179,8 +32180,8 @@ static lv_color_t* s_spec_ramp_buf  = nullptr;
 static int         s_spec_plot_w = 0, s_spec_plot_h = 0;
 static int         s_spec_wf_w   = 0, s_spec_wf_h   = 0;
 static int         s_spec_wf_rh     = 2;          // screen rows per waterfall line
-static int16_t     s_spec_hold[SPEC_BINS];        // peak hold
-static int16_t     s_spec_acc[SPEC_BINS];         // strongest reading since the last waterfall line
+static auto&       s_spec_hold = psramStatic<int16_t[SPEC_BINS]>();        // peak hold
+static auto&       s_spec_acc = psramStatic<int16_t[SPEC_BINS]>();         // strongest reading since the last waterfall line
 static uint32_t    s_spec_row_ms    = 0;
 static uint8_t     s_spec_window    = 0;          // waterfall history: 0 live, 1 one minute, 2 ten minutes
 static bool        s_spec_chan_view = false;      // false = the 24 MHz band, true = zoomed on our channel
@@ -38480,7 +38481,7 @@ static uint8_t* decodePngToRgb565(const uint8_t* png, size_t png_len, int* out_w
 constexpr int kMapSdLayouts = 6;    // /MAPS|/maps osm png|PNG, /tiles png, /tiles PNG
 constexpr int kMapSdZooms   = 21;
 struct MapSdLayoutStat { uint8_t hit; uint16_t miss; };
-static MapSdLayoutStat s_map_sd_layout[kMapSdLayouts][kMapSdZooms];
+static auto& s_map_sd_layout = psramStatic<MapSdLayoutStat[kMapSdLayouts][kMapSdZooms]>();
 static inline void mapSdLayoutReset() { memset(s_map_sd_layout, 0, sizeof s_map_sd_layout); }
 static inline bool mapSdLayoutWorthTrying(int l, uint8_t z) {
   if (z >= kMapSdZooms) return true;
@@ -75306,7 +75307,9 @@ static void voxSinkFlush(LuaAudioSinkSession* sink, VoxBrighten* b) {
 }
 
 struct VoxVoicePlayback { uint8_t* frames; size_t len; int mode; };
-static VoxBrighten s_vox_bright;   // one clip plays at a time
+// One clip plays at a time. In PSRAM: its 1.5 KB of filter state is only
+// touched by the playback task, and internal RAM is what Bluetooth needs.
+static VoxBrighten& s_vox_bright = psramObject<VoxBrighten>();
 
 static void voxVoiceJob(void* arg) {
   VoxVoicePlayback* pb = static_cast<VoxVoicePlayback*>(arg);

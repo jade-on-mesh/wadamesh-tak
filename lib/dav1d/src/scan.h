@@ -33,7 +33,12 @@
 #include "src/levels.h"
 
 EXTERN const uint16_t *const dav1d_scans[N_RECT_TX_SIZES];
+#if DAV1D_EXTERNAL_ALLOC
+EXTERN const uint8_t *dav1d_last_nonzero_col_from_eob[N_RECT_TX_SIZES];
+int dav1d_ext_alloc_scan_tables(void);
+#else
 EXTERN const uint8_t *const dav1d_last_nonzero_col_from_eob[N_RECT_TX_SIZES];
+#endif
 
 void dav1d_init_last_nonzero_col_from_eob_tables(void);
 

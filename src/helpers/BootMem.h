@@ -16,7 +16,7 @@ struct Mark {
   uint32_t largest;    // its largest block
 };
 
-constexpr int kMax = 10;
+constexpr int kMax = 16;
 inline Mark g_marks[kMax];
 inline int g_count = 0;
 

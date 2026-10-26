@@ -1,4 +1,5 @@
 #include "helpers/BootMem.h"
+#include "helpers/esp32/WifiLean.h"   // Pager: smaller Wi-Fi driver buffers (a no-op elsewhere)
 #include "helpers/PsramStatic.h"   // buffers in PSRAM (internal RAM is for Wi-Fi, BLE, TLS, stacks)
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
@@ -26,6 +27,10 @@
 #if CAP_USB_FILES
 #include "ui-touch/UsbFilesSession.h"   // kUsbFilesUartRxQueue
 #endif
+#endif
+#if defined(TLORA_PAGER) && defined(HAS_TOUCH_UI)
+#include "ui-touch/VoxMic.h"   // VoxAudioTask::begin before Wi-Fi
+void reserveTileFetchStack();   // UITask.cpp
 #endif
 
 #if defined(WADA_LVGL_O2)
@@ -854,6 +859,7 @@ void setup() {
 
   board.begin();
   Serial.println("[BOOT] board ok");
+  bootmem::mark("board ready");
 
 #if defined(HAS_RAK_TAP_V2)
   // Quick PSRAM sanity check — silent crash before SPIFFS could be bad PSRAM config
@@ -983,6 +989,7 @@ void setup() {
   }
   Serial.println("[BOOT] radio ok");
 
+  bootmem::mark("display and radio ready");
   fast_rng.begin(radio_driver.getRngSeed());
 
 #if defined(ESP32_PLATFORM) && defined(HAS_TOUCH_UI)
@@ -1401,6 +1408,7 @@ void setup() {
     }
   }
 #endif
+  bootmem::mark("storage mounted");
   // Repair an unusable SPIFFS whether or not the profile lives on SD.
   //
   // This used to be `if (!sd_storage && !spiffs_ok)`, which is a catch-22: an
@@ -1511,6 +1519,7 @@ void setup() {
     #endif
   );
   Serial.println("[BOOT] mesh ok");
+  bootmem::mark("mesh started");
 #if defined(HAS_RAK_TAP_V2)
   Serial.flush();
 #endif
@@ -1560,6 +1569,7 @@ void setup() {
   board.setInhibitSleep(true);
   serial_interface.begin(Serial, TCP_PORT, WS_PORT);
   Serial.println("[BOOT] serial_interface ok");
+  bootmem::mark("phone links ready");
   serial_interface.setBroadcastResponses(true);  // RX log, channel messages, etc. go to all clients (USB + TCP + WS [+ BLE]), not only last sender
   /* Wi-Fi and NimBLE coexist, but their first allocations are order-sensitive
    * on the Pager. Claim Wi-Fi's DMA/coexistence resources before starting BLE;
@@ -1606,7 +1616,18 @@ void setup() {
         if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED)   wifi_needs_reconnect = true;
         else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP)    wifi_needs_reconnect = false;
     });
+#if defined(TLORA_PAGER) && defined(HAS_TOUCH_UI)
+    // Take the two task stacks that must be one piece of internal RAM before
+    // Wi-Fi does: the 16 KB worker (voice playback, Wi-Fi updates, the Reader)
+    // and the 8 KB net worker (map tiles, update check). UITask::begin() made
+    // them after Wi-Fi had taken 36 KB, and on the Pager the worker didn't fit:
+    // updates said "out of memory (need 16K)" and voice made its own task.
+    reserveTileFetchStack();
+    VoxAudioTask::begin();
+    bootmem::mark("worker stacks taken");
+#endif
     bootmem::mark("before Wi-Fi");
+    wifiLeanInit();   // Pager: smaller Wi-Fi buffers first (WifiLean.h)
     const bool wifi_mode_ready = WiFi.mode(WIFI_STA);
     bootmem::mark("Wi-Fi started");
 #if defined(TLORA_PAGER)
@@ -1974,7 +1995,8 @@ void loop() {
 #endif
   if (wifi_state_machine_active) {
     if (!wifi_started) {
-      const bool wifi_mode_ready = WiFi.mode(WIFI_STA);
+      wifiLeanInit();   // Pager: smaller Wi-Fi buffers first (WifiLean.h)
+    const bool wifi_mode_ready = WiFi.mode(WIFI_STA);
       if (!wifi_mode_ready) {
 #if defined(TLORA_PAGER) && defined(BLE_PIN_CODE)
         const bool ble_waiting = s_pager_ble_after_wifi ||
