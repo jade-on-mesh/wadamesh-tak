@@ -54,6 +54,8 @@ class VoxFetchIo {
   virtual void changed(uint32_t sid) = 0;
   // Spreads listeners' requests apart (0 is fine where nothing else asks).
   virtual uint32_t random32() { return 0; }
+  // A line for the serial log (the transfer's timing).
+  virtual void log(const char* line) { (void)line; }
 };
 
 class VoxFetch {
@@ -144,6 +146,14 @@ class VoxFetch {
   // Timing shared with lib/vox/vox_timing.dart.
   // After the last packet the sender meant to send, with some missing: wait
   // for stragglers (only relayed packets can still be on their way).
+  // After a marked packet saying `left` more of the answer are to come,
+  // `gap` ms apart: none left, ask at once (300 ms); else after those and one
+  // more gap, plus half a gap (at least 400 ms). Same as voxMarkedWaitMs.
+  static uint32_t markedWait(int left, uint32_t gap) {
+    if (left <= 0) return 300;
+    const uint32_t half = gap / 2 > 400 ? gap / 2 : 400;
+    return (uint32_t)(left + 1) * gap + half;
+  }
   static uint32_t gapRequestDelay(bool relayed, uint32_t packet_gap, uint32_t zero_hop_gap) {
     return relayed ? packet_gap + 1000 : zero_hop_gap + 400;
   }
@@ -221,6 +231,8 @@ class VoxFetch {
     uint32_t rx_last_ms = 0;   // when the last new packet came in this burst
     uint32_t rx_gap_ms = 0;    // the bursts' gap between packets (smoothed)
     uint8_t rx_gaps = 0;       // how many gaps that is from
+    uint32_t asked_ms = 0;     // when the last request went out (the log's timing)
+    bool answered = false;     // a packet came since
     bool probe_on = false;     // probeFirst(): ask for the thumbnail's packets at probe_at
     uint32_t probe_at = 0;
     uint8_t probe_tries = 0;   // asks made
@@ -262,7 +274,8 @@ class VoxFetch {
   void acceptParity(Session& s, const VoxWire::Packet& p);
   // Rebuilds what the session's parity can; true if any packet came back.
   bool rebuildFromParity(Session& s);
-  void afterPacket(Session& s, int index);
+  void afterPacket(Session& s, int index, int left = -1);
+  void logf(const char* fmt, ...);
   void adoptOrphans(Session& s);
   uint32_t airMs(const Session& s);
   uint32_t zeroHopGap(uint32_t air);

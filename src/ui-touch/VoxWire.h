@@ -23,12 +23,19 @@
 //   Data packet (raw data on a direct route, or GRP_DATA type 0x5643 on a channel):
 //     [0x56][sid:4 BE][index:1][bytes...]          plain
 //     [0x57][sid:4 BE][index:1][bytes...][salt:1]  salted resend
+//     [0x58][sid:4 BE][index:1][bytes...][mark:1]  marked: mark = (resend << 6) |
+//              min(left, 63), `left` the packets of this answer still to come.
+//              Channel answers only, to listeners who asked with flag 0x08 (raw
+//              0x58 would go out on the main mesh: Keymind routes raw media by its
+//              first byte, 0x56/0x57). Same size as 0x57.
 //   Every packet but the last carries packetBytes(mode): as many whole codec
 //   frames as fit in 156 bytes (156 for photos).
 //
 //   Fetch request (same planes as the data):
 //     [0x72][sid:4 BE][flags:1][requesterKey6:6][count:1][missing indices...]
 //       flags bit0 = only the listed indices are wanted; otherwise all.
+//             bit3 = reads marked packets (0x58); channel requests only (Keymind
+//             sends a raw request on radio2 only with flags in 0x07).
 //
 //   Text fetch request (flooded DM when there is no direct route):
 //     VR3:{sid}:{a | m<ranges>}:{requesterKey6 hex}
@@ -45,10 +52,12 @@ namespace VoxWire {
 
 constexpr uint8_t  kPacketMagic       = 0x56;   // 'V'
 constexpr uint8_t  kPacketSaltedMagic = 0x57;   // 'W'
+constexpr uint8_t  kPacketMarkedMagic = 0x58;   // 'X': counts down its answer (channel only)
 constexpr uint8_t  kFetchMagic        = 0x72;   // 'r'
 constexpr uint8_t  kFetchFlagMissing  = 0x01;
 constexpr uint8_t  kFetchFlagSaltOk   = 0x02;   // requester takes salted (0x57) resends
 constexpr uint8_t  kFetchFlagHasPath  = 0x04;   // [len][path] follows: requester -> sender route
+constexpr uint8_t  kFetchFlagMarkOk   = 0x08;   // requester reads marked (0x58) packets: channel only
 constexpr int      kMaxReplyPathBytes = 8;      // senders ignore longer reply paths
 constexpr uint16_t kChannelDataType   = 0x5643; // 'VC'
 constexpr int      kImageModeId       = 40;
@@ -217,6 +226,8 @@ struct Packet {
   uint8_t  index;
   const uint8_t* data;
   int      len;
+  bool     marked;   // a marked packet (0x58): `left` of its answer still to come
+  uint8_t  left;     // (63: that many or more)
 };
 
 inline uint32_t readSid(const uint8_t* b) {
@@ -229,13 +240,15 @@ inline void writeSid(uint32_t sid, uint8_t* b) {
 // Parses a data packet (plain or salted). `pkt->data` points into `buf`.
 inline bool parsePacket(const uint8_t* buf, size_t len, Packet* pkt) {
   if (!buf || len == 0) return false;
-  if (buf[0] != kPacketMagic && buf[0] != kPacketSaltedMagic) return false;
-  const size_t end = buf[0] == kPacketSaltedMagic ? len - 1 : len;
+  if (buf[0] != kPacketMagic && buf[0] != kPacketSaltedMagic && buf[0] != kPacketMarkedMagic) return false;
+  const size_t end = buf[0] == kPacketMagic ? len : len - 1;
   if (end <= (size_t)kPacketHeaderLen) return false;
   pkt->sid = readSid(buf + 1);
   pkt->index = buf[5];
   pkt->data = buf + kPacketHeaderLen;
   pkt->len = (int)(end - kPacketHeaderLen);
+  pkt->marked = buf[0] == kPacketMarkedMagic;
+  pkt->left = pkt->marked ? (uint8_t)(buf[len - 1] & 0x3F) : 0;
   return pkt->index < kMaxPackets;
 }
 
@@ -256,7 +269,8 @@ inline bool parsePacket(const uint8_t* buf, size_t len, Packet* pkt) {
 // Returns bytes written, or 0 if `cap` is too small.
 inline int encodeFetch(uint32_t sid, const uint8_t key6[6], const uint8_t* missing, int n_missing,
                        uint8_t* out, size_t cap, bool salt_ok = false,
-                       const uint8_t* reply_path = nullptr, int reply_path_len = 0, int salt = -1) {
+                       const uint8_t* reply_path = nullptr, int reply_path_len = 0, int salt = -1,
+                       bool mark_ok = false) {
   uint8_t sorted[kMaxPackets];
   int n = 0;
   if (missing) {
@@ -277,7 +291,7 @@ inline int encodeFetch(uint32_t sid, const uint8_t key6[6], const uint8_t* missi
   out[0] = kFetchMagic;
   writeSid(sid, out + 1);
   out[5] = (uint8_t)((missing ? kFetchFlagMissing : 0) | (salt_ok ? kFetchFlagSaltOk : 0) |
-                     (has_path ? kFetchFlagHasPath : 0));
+                     (has_path ? kFetchFlagHasPath : 0) | (mark_ok ? kFetchFlagMarkOk : 0));
   memcpy(out + 6, key6, 6);
   out[12] = (uint8_t)n;
   if (n) memcpy(out + kFetchMinLen, sorted, (size_t)n);
@@ -295,6 +309,15 @@ inline bool isFetchRequest(const uint8_t* buf, size_t len) {
 
 // "VR3:" DMs are fetch requests between apps; they never belong in a chat.
 inline bool isControlText(const char* text) { return text && strncmp(text, "VR3:", 4) == 0; }
+
+// "VT1:" texts are an app's transfer-test reports (transfer_test.dart): by DM,
+// or on a channel as "name: VT1:...". Never shown in a chat either.
+inline bool isTransferReport(const char* text) {
+  if (!text) return false;
+  if (strncmp(text, "VT1:", 4) == 0) return true;
+  const char* sep = strstr(text, ": ");
+  return sep && strncmp(sep + 2, "VT1:", 4) == 0;
+}
 
 // VR3 text request. Ranges are written like the Dart side: "m1-3.7". Returns
 // chars written (excluding NUL), or 0 if `cap` is too small.
@@ -345,6 +368,7 @@ struct FetchRequest {
   bool     has_path = false;
   uint8_t  path[kMaxReplyPathBytes];
   int      path_len = 0;
+  bool     mark_ok = false;   // reads marked (0x58) packets
 };
 
 // Binary request (see encodeFetch). Like the Dart parser it drops indices
@@ -357,6 +381,7 @@ inline bool parseFetch(const uint8_t* buf, size_t len, FetchRequest* r) {
   memcpy(r->key6, buf + 6, 6);
   const int count = buf[12];
   r->salt_ok = (flags & kFetchFlagSaltOk) != 0;
+  r->mark_ok = (flags & kFetchFlagMarkOk) != 0;
   if (flags & kFetchFlagMissing) {
     if (len < (size_t)kFetchMinLen + (size_t)count) return false;
     bool seen[kMaxPackets] = {false};
@@ -466,15 +491,19 @@ inline int encodeVoiceEnvelope(uint32_t sid, int wire_mode, int total, int secon
 
 // One data packet for a clip: `[0x56][sid][index][bytes]`, or with `salt` >= 0
 // the salted form `[0x57]...[salt]`. Returns bytes written, or 0.
+// With `left` >= 0 (and a salt), a marked packet (0x58): the trailing byte is
+// (salt << 6) | min(left, 63), so `salt` should count this packet's sends.
 inline int encodePacket(uint32_t sid, uint8_t index, const uint8_t* data, int len, int salt, uint8_t* out,
-                        size_t cap) {
+                        size_t cap, int left = -1) {
   const size_t need = (size_t)kPacketHeaderLen + (size_t)len + (salt >= 0 ? 1 : 0);
   if (len < 1 || cap < need) return 0;
-  out[0] = salt >= 0 ? kPacketSaltedMagic : kPacketMagic;
+  const bool mark = salt >= 0 && left >= 0;
+  out[0] = salt < 0 ? kPacketMagic : mark ? kPacketMarkedMagic : kPacketSaltedMagic;
   writeSid(sid, out + 1);
   out[5] = index;
   memcpy(out + kPacketHeaderLen, data, (size_t)len);
-  if (salt >= 0) out[need - 1] = (uint8_t)salt;
+  if (salt >= 0)
+    out[need - 1] = mark ? (uint8_t)(((salt & 3) << 6) | (left < 63 ? left : 63)) : (uint8_t)salt;
   return (int)need;
 }
 

@@ -363,6 +363,57 @@ void testChannelPaceLearns() {
   }
 }
 
+// The end-of-answer marker: a channel request saying it reads marked packets
+// (flag 0x08) gets 0x58 packets counting down to 0; one that doesn't, or any
+// raw request, gets 0x57 as before (raw 0x58 would go out on the main mesh).
+void testMarkedChannelAnswer() {
+  Sim sim;
+  VoxServe s(sim);
+  sim.clips[kSid] = {1, clip1200(1000)};   // 7 packets
+  s.markOwn(kSid);
+  const uint8_t miss[4] = {1, 2, 4, 6};
+  uint8_t req[64];
+  const int n = VoxWire::encodeFetch(kSid, kKeyA, miss, 4, req, sizeof req, true, nullptr, 0, 3, true);
+  CHECK(n > 0 && (req[5] & VoxWire::kFetchFlagMarkOk), "the request says it reads marked packets");
+  VoxWire::FetchRequest fr;
+  CHECK(VoxWire::parseFetch(req, (size_t)n, &fr) && fr.mark_ok, "parsed back");
+  s.onPayload(req, (size_t)n, 3, 1);
+  sim.run(s, 30000);
+  CHECK(sim.sent.size() == 4, "sent %zu", sim.sent.size());
+  int expect_left = 3;
+  for (auto& p : sim.sent) {
+    VoxWire::Packet pk;
+    CHECK(VoxWire::parsePacket(p.data.data(), p.data.size(), &pk), "parses");
+    CHECK(p.data[0] == VoxWire::kPacketMarkedMagic && pk.marked, "marked (0x%02x)", p.data[0]);
+    CHECK(pk.left == expect_left, "left %d, want %d", pk.left, expect_left);
+    CHECK(p.data.size() <= 163, "GRP_DATA limit");
+    expect_left--;
+  }
+  CHECK(reassemble(sim, kSid, 7).empty(), "only the 4 asked for");   // (not the whole clip)
+
+  // Without the flag: salted 0x57, as before.
+  Sim old;
+  VoxServe o(old);
+  old.clips[kSid] = {1, clip1200(1000)};
+  o.markOwn(kSid);
+  const int n2 = VoxWire::encodeFetch(kSid, kKeyB, miss, 4, req, sizeof req, true, nullptr, 0, 3, false);
+  o.onPayload(req, (size_t)n2, 3, 1);
+  old.run(o, 30000);
+  CHECK(!old.sent.empty(), "answered");
+  for (auto& p : old.sent) CHECK(p.data[0] == VoxWire::kPacketSaltedMagic, "unmarked (0x%02x)", p.data[0]);
+
+  // A raw request that sets the flag anyway: raw stays 0x57.
+  Sim raw;
+  VoxServe r(raw);
+  raw.clips[kSid] = {1, clip1200(1000)};
+  const std::vector<uint8_t> path = {0x11};
+  const int n3 = VoxWire::encodeFetch(kSid, kKeyA, miss, 4, req, sizeof req, true, path.data(), 1, 3, true);
+  r.onPayload(req, (size_t)n3, -1);
+  raw.run(r, 30000);
+  CHECK(!raw.sent.empty(), "answered raw");
+  for (auto& p : raw.sent) CHECK(p.data[0] == VoxWire::kPacketSaltedMagic, "raw unmarked (0x%02x)", p.data[0]);
+}
+
 void testDuplicateIgnored() {
   Sim sim;
   VoxServe s(sim);
@@ -508,7 +559,7 @@ void testParityAfterWholeClip() {
   for (auto& p : sim.parity) pv.push_back(VoxFec::Parity{p.data[5], (uint8_t)(p.data.size() - 6), p.data.data() + 6});
   const int got = VoxFec::rebuild(10, 156, a.payload(), [&](int i) { return a.have((uint8_t)i); }, pv.data(),
                                   (int)pv.size(), [&](int i, const uint8_t* d, int len) {
-                                    a.add(VoxWire::Packet{kSid, (uint8_t)i, d, len});
+                                    a.add(VoxWire::Packet{kSid, (uint8_t)i, d, len, false, 0});
                                   });
   CHECK(got == 3 && a.complete() && std::vector<uint8_t>(a.payload(), a.payload() + a.payloadLen()) == clip,
         "rebuilt %d", got);
@@ -647,6 +698,7 @@ int main(int argc, char** argv) {
   testChannelFarListener();
   testFloodPace();
   testChannelPaceLearns();
+  testMarkedChannelAnswer();
   testDuplicateIgnored();
   testNewerRequestReplaces();
   testQueuedListeners();

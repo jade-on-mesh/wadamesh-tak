@@ -403,6 +403,7 @@ void earlyThumbCheck(uint32_t sid);
 class MeshIo : public VoxFetchIo {
  public:
   uint32_t nowMs() override { return millis(); }
+  void log(const char* line) override { Serial.println(line); }
   uint32_t random32() override { return esp_random(); }
 
   void selfKey6(uint8_t out[6]) override { memcpy(out, the_mesh.getSelfPubKey(), 6); }

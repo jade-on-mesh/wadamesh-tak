@@ -118,6 +118,7 @@ bool VoxServe::mergeChannel(const VoxWire::FetchRequest& r, int channel, int hop
     if (!q.used || q.sid != r.sid || q.channel != channel) continue;
     const int h = hops < 0 ? 3 : hops;
     if (h > q.max_hops) q.max_hops = h;
+    q.mark_ok = q.mark_ok && r.mark_ok;   // everyone it answers must read marked packets
     if (q.bits) {   // started: mark the packets it lacks
       for (int k = 0; k < q.total; k++) {
         bool want = r.all;
@@ -163,6 +164,7 @@ void VoxServe::enqueue(const VoxWire::FetchRequest& r, int channel, bool from_dm
   t.n_want = r.all ? 0 : r.n_missing;
   if (t.n_want) memcpy(t.want, r.missing, (size_t)t.n_want);
   t.salt_ok = r.salt_ok;
+  t.mark_ok = channel >= 0 && r.mark_ok;   // marked packets go on a channel only
   if (channel < 0 && r.has_path) {
     // The way the request just reached us, reversed: known to work right now.
     t.have_route = true;
@@ -347,6 +349,12 @@ bool VoxServe::sendParity(Job& j, uint32_t now) {
 
 void VoxServe::finish(Job& j, const char* why) {
   logf("[VOX] serve %08lx: %s (%d/%d sent)", (unsigned long)j.sid, why, j.next, j.bits ? packetCount(j) : 0);
+  if (j.first_sent_ms && j.asked_at) {   // where the time went
+    const uint32_t now = io_.nowMs();
+    logf("[VOX] serve %08lx: first packet %lu ms after the request, all of it in %lu ms, %lu ms apart%s",
+         (unsigned long)j.sid, (unsigned long)(j.first_sent_ms - j.asked_at), (unsigned long)(now - j.asked_at),
+         (unsigned long)j.gap, j.mark_ok && j.channel >= 0 ? ", marked" : "");
+  }
   if (j.channel >= 0 && j.answer.n > 0) {   // what listeners still lack after it tells the pace how it did
     AnswerRec& a = answers_[answers_next_];
     answers_next_ = (answers_next_ + 1) % (int)(sizeof answers_ / sizeof answers_[0]);
@@ -430,8 +438,21 @@ void VoxServe::tick() {
   // Salt each send so a resend is never dropped as a duplicate by a radio that
   // saw an earlier copy (channel data must still fit GRP_DATA's 163 bytes).
   const bool salt = j.salt_ok && (j.channel < 0 || VoxWire::kPacketHeaderLen + n + 1 <= 163);
+  // Marked (0x58) on a channel when everyone asking reads it: how many of this
+  // answer are still to come, so they know when it's over. The salt then counts
+  // this packet's sends, so a resend differs from copies repeaters have seen.
+  const bool mark = salt && j.channel >= 0 && j.mark_ok;
+  int left = -1;
+  if (mark) {
+    left = j.par_total - j.par_next;
+    for (int i = 0; i < j.total && i < 256; i++)
+      if (i != idx && (j.pend[i >> 3] & (1u << (i & 7)))) left++;
+    if (mark_sid_ != j.sid) { memset(mark_sends_, 0, sizeof mark_sends_); mark_sid_ = j.sid; }
+  }
   const int plen = VoxWire::encodePacket(j.sid, (uint8_t)idx, j.bits + off, n,
-                                         salt ? (int)(io_.random32() & 0xFF) : -1, pkt, sizeof pkt);
+                                         !salt ? -1 : mark ? (int)(mark_sends_[idx]++) : (int)(io_.random32() & 0xFF),
+                                         pkt, sizeof pkt, left);
+  if (!j.first_sent_ms) j.first_sent_ms = now ? now : 1;
   const bool ok = plen > 0 && (j.channel >= 0 ? io_.sendChannelData(j.channel, VoxWire::kChannelDataType, pkt, (size_t)plen, zero_hop)
                                               : io_.sendRaw(j.route, j.route_len, pkt, (size_t)plen));
   if (!ok) {

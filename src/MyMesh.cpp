@@ -3348,7 +3348,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   bool should_display = txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN;
   // "VR3:" DMs are photo/voice fetch requests between MeshCore Open TAK apps:
   // the app (if one is connected) still gets the frame above, the chat doesn't.
-  if (VoxWire::isControlText(text)) should_display = false;
+  if (VoxWire::isControlText(text) || VoxWire::isTransferReport(text)) should_display = false;
   if (txt_type == TXT_TYPE_PLAIN) VoxPhotos::onDirectText(text, from.id.pub_key);
   // One-time-pad traffic for a contact we share a pad with: OTP Messenger shows
   // the decrypted text; the chat would only show hex.
@@ -3627,6 +3627,8 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
 #ifdef DISPLAY_CLASS
   // MeshCore TEAM's tracking text: members and pins on the team channel, never chat.
   if (resolved_idx >= 0 && teamCompatOnChannelText(resolved_idx, text)) return;
+  // An app's transfer-test report (VT1): for the app that sent the photos.
+  if (VoxWire::isTransferReport(text)) return;
   if (resolved_idx >= 0) VoxPhotos::onChannelText(text, resolved_idx);
   if (resolved_idx >= 0) teamOnChannelText(resolved_idx, text, timestamp);   // watched channels on the map
   if (resolved_idx >= 0) soundLinkOnChannelText(resolved_idx, text);   // Sound link: play the bridged channel
