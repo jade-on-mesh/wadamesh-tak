@@ -90,6 +90,12 @@ reduced still-picture header and no AVIF container, 2,750 B ("Standard") or
   finishes, the photo is decoded on the background task and opens in the image
   viewer by itself; tapping a downloaded photo later opens it again.
 
+### Copy and paste a photo
+
+Hold a photo message (one that's on this standalone: sent from it, or downloaded) and pick **Copy photo**. Then hold the text box of any channel or DM and pick **Paste**: the photo is sent to that chat, as Photos > Send does (its VI1 envelope goes out as a message, and this standalone serves the photo to whoever asks). Copying text afterwards replaces the photo on the clipboard.
+
+For a message with a linked picture (LINKED_IMAGES.md), **Copy photo** copies the picture's link, so Paste puts the link in the text box; standalones and apps with linked images on show it as the picture.
+
 ## Parity packets, zero-hop requests and backoff
 
 These follow MeshCore Open TAK, which defines them (`lib/vox/vox_fec.dart` and

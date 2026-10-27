@@ -14357,9 +14357,14 @@ constexpr size_t CLIPBOARD_MAX = 640;   // must cover the largest copyable text 
                                         // plus the 600-byte label-staging buffer (clipboardSet's callers);
                                         // 192 silently truncated long copy/pastes (GH #120).
 static auto& s_clipboard = psramStatic<char[CLIPBOARD_MAX]>();
+// A photo on the clipboard (a message's menu > Copy photo): Paste in a chat's
+// composer sends it to that chat. Copying text replaces it.
+static uint32_t s_clip_photo_sid = 0;
+static void chatPastePhoto();   // after PhotosUI.inc
 
 static void clipboardSet(const char* text, const char* tag) {
   if (!text) return;
+  s_clip_photo_sid = 0;
   size_t n = strlen(text);
   if (n >= CLIPBOARD_MAX) n = CLIPBOARD_MAX - 1;
   memcpy(s_clipboard, text, n);
@@ -14641,6 +14646,11 @@ static void txtMenuCellCb(lv_event_t* e) {
       else     lv_textarea_set_text(ta, "");
     }
   } else if (act == TXT_PASTE) {
+    if (s_clip_photo_sid && (s_txtmenu_ta == g_lv.ch.composer_ta || s_txtmenu_ta == g_lv.dm.composer_ta)) {
+      txtMenuHide();
+      chatPastePhoto();   // a copied photo goes to this chat
+      return;
+    }
     txtPasteInto(ta);
   }
   taClearSelection(ta);
@@ -46661,6 +46671,13 @@ static char      s_msg_menu_sender[UITask::MAX_SENDER_NAME + 1] = {0};
 // Buffer the body text so the Copy button doesn't reach back into the ring
 // (the bubble might get redrawn between menu-open and copy-tap).
 static char      s_msg_menu_text[UITask::MAX_MSG_TEXT + 1] = {0};
+static uint32_t  s_msg_menu_photo_sid = 0;   // a stored photo the message carries (Copy photo)
+static char      s_msg_menu_pic_url[240] = {0};   // or a picture it links to
+static bool chatMessagePhoto(const UITask::UIMessage& m, VoxWire::Envelope* env, char* sender,
+                             size_t sender_cap);
+#if CAP_LINK_IMAGES
+#include "../helpers/LinkImage.h"
+#endif
 // Pre-composed one-tap "ack" line (mention + link quality + route of the message),
 // built when the menu opens so the Ack button never reaches back into the (possibly
 // rotated) ring. s_msg_menu_channel picks which composer to drop it into.
@@ -46759,6 +46776,21 @@ static void msgMenuCopyCb(lv_event_t* e) {
   lv_indev_t* a = lv_indev_get_act();
   if (a) lv_indev_wait_release(a);
   clipboardSet(s_msg_menu_text, "message");
+  closeMsgActionMenu();
+}
+
+// Copy photo: a photo message's photo (pasted in a chat's composer, it's sent
+// there), or a linked picture's link (pasted as text, it shows as the picture).
+static void msgMenuCopyPhotoCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  lv_indev_t* a = lv_indev_get_act();
+  if (a) lv_indev_wait_release(a);
+  if (s_msg_menu_photo_sid) {
+    s_clip_photo_sid = s_msg_menu_photo_sid;
+    if (g_lv.task) g_lv.task->showAlert(TR("Photo copied: hold a chat's text box and Paste to send it"), 2200);
+  } else if (s_msg_menu_pic_url[0]) {
+    clipboardSet(s_msg_menu_pic_url, "picture link");
+  }
   closeMsgActionMenu();
 }
 
@@ -46950,6 +46982,22 @@ static void openMessageActionMenu(int msg_idx) {
   s_msg_menu_channel = m.channel;
   buildAckText(m, s_msg_menu_ack, sizeof s_msg_menu_ack);
   s_msg_menu_has_coords = chatFirstCoord(s_msg_menu_text, &s_msg_menu_lat, &s_msg_menu_lon);
+  // A photo that's here (sent, or downloaded), or a linked picture: Copy photo.
+  s_msg_menu_photo_sid = 0;
+  s_msg_menu_pic_url[0] = '\0';
+  {
+#if VOX_AV1_AVAILABLE
+    VoxWire::Envelope pe;
+    char probe[48];
+    if (chatMessagePhoto(m, &pe, nullptr, 0) && pe.sid && VoxPhotos::photoEnvelope(pe.sid, probe, sizeof probe))
+      s_msg_menu_photo_sid = pe.sid;
+#endif
+#if CAP_LINK_IMAGES
+    if (!s_msg_menu_photo_sid && !linkimg::findUrl(s_msg_menu_text, s_msg_menu_pic_url, sizeof s_msg_menu_pic_url))
+      s_msg_menu_pic_url[0] = '\0';
+#endif
+  }
+  const bool can_copy_photo = s_msg_menu_photo_sid || s_msg_menu_pic_url[0];
   // "Ack" (quick link-quality confirmation) + "Mention" are for incoming messages.
   const bool can_ack     = !m.outgoing && m.sender[0];   // ack its sender (channel or DM)
   const bool can_mention = m.channel && !m.outgoing && m.sender[0];
@@ -46997,7 +47045,7 @@ static void openMessageActionMenu(int msg_idx) {
   // Header row reserves space for the close-X badge so it doesn't sit on a button.
   const int hdr_h  = 24;
 #endif
-  const int nbtn   = (can_ack ? 1 : 0) + (can_mention ? 1 : 0) + (can_web ? 1 : 0) + (can_channel ? 1 : 0) + (can_map ? 1 : 0) + 3 /*Copy+Info+Delete*/ + (can_block ? 1 : 0) + (can_resend ? 1 : 0);
+  const int nbtn   = (can_ack ? 1 : 0) + (can_mention ? 1 : 0) + (can_web ? 1 : 0) + (can_channel ? 1 : 0) + (can_map ? 1 : 0) + (can_copy_photo ? 1 : 0) + 3 /*Copy+Info+Delete*/ + (can_block ? 1 : 0) + (can_resend ? 1 : 0);
   const int nrows  = (nbtn + 1) / 2;
   int card_h = hdr_h + nrows * btn_h + (nrows - 1) * gap + 2 * pad;
   // Never exceed the visible area under the status bar; scroll if it ever would
@@ -47070,6 +47118,7 @@ static void openMessageActionMenu(int msg_idx) {
     mk_btn("@", ml, msgMenuMentionCb);
   }
   mk_btn(LV_SYMBOL_COPY, TR(LV_SYMBOL_COPY "  Copy"), msgMenuCopyCb);
+  if (can_copy_photo) mk_btn(LV_SYMBOL_IMAGE, TR(LV_SYMBOL_IMAGE "  Copy photo"), msgMenuCopyPhotoCb);
   auto mk_link_btn = [&](const char* icon, const char* label, ChatLinkKind kind) {
     lv_obj_set_user_data(mk_btn(icon, label, messageMenuLinkCb), (void*)(intptr_t)kind);
   };
@@ -61869,6 +61918,27 @@ __attribute__((unused)) static bool bgListenerResetOnce(const char* key) {
 #if VOX_AV1_AVAILABLE
 // Photos (app drawer -> APPACT_PHOTOS): downloaded mesh photos as a thumbnail grid.
 #include "PhotosUI.inc"
+
+// Paste in a chat's composer with a photo on the clipboard: the photo goes to
+// that chat, as Photos > Send does (its VI1 envelope; this radio serves it).
+static void chatPastePhoto() {
+  const uint32_t sid = s_clip_photo_sid;
+  const int tidx = g_lv.task ? g_lv.task->activeThreadIdx() : -1;
+  bool ch = false; uint16_t unread = 0; uint32_t ts = 0; char name[48] = {0};
+  char env[48];
+  if (!sid || tidx < 0 || !g_lv.task->getThreadInfo(tidx, ch, unread, ts, name, sizeof name) ||
+      !VoxPhotos::photoEnvelope(sid, env, sizeof env) || !photosui::sendToThread(tidx, env)) {
+    if (g_lv.task) g_lv.task->showAlert(TR("Couldn't send the photo"), 2000);
+    return;
+  }
+  char msg[80];
+  snprintf(msg, sizeof msg, TR("Photo sent to %s"), name);
+  g_lv.task->showAlert(msg, 1800);
+  g_lv.dirty_threads = true;
+  g_lv.dirty_timeline = true;
+}
+#else
+static void chatPastePhoto() {}   // no photos on this board: nothing is ever copied
 #endif
 #if CAP_SOUND_LINK
 // Sound link (app drawer -> APPACT_SOUND): SoundLinkUI.inc, included further down,
