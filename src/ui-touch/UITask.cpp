@@ -20397,6 +20397,7 @@ static void buildSoundPage() {
     lv_obj_t* c = setCard("Voice messages");
     void voxRsDescribe(char* out, size_t cap);   // the AI voice restorer (defined with the voice player)
     void voxRsSetOn(bool on);
+    void voxRsDownloadNow();
 #if defined(HAS_TDECK_GT911) || defined(HAS_TDISPLAY_P4)
     // The Codec2 mode the mic records in (VoxMic), as in MeshCore Open TAK.
     static const uint8_t kModes[3] = { 1, 5, 6 };
@@ -20428,6 +20429,13 @@ static void buildSoundPage() {
         if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
         voxRsSetOn(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
       });
+#if defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION) && WADA_FORK_RELEASES
+      // Fetch the model now (replacing the one here), rather than waiting for it.
+      setActionRow(c, UI_ICON_REFRESH_CW, "Download voice model", nullptr, [](lv_event_t* e) {
+        if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+        voxRsDownloadNow();
+      });
+#endif
     }
   }
 #endif
@@ -38502,6 +38510,8 @@ static int wifiScanWatchdogSafe(uint32_t cap_ms, uint16_t per_chan_ms = 300) {
 #define VOX_RS_DOWNLOAD 1
 static volatile uint8_t s_vrs_dl_state = 0;      // 0 not needed / unknown, 1 wanted, 2 downloading, 3 downloaded, 4 failed
 static volatile bool s_vrs_dl_request = false;   // UI -> worker
+static bool s_vrs_force = false;                 // "Download the model now": fetch it even if it's here
+static uint32_t s_vrs_next_ms = 0;               // voxRsModelTick's next look
 static uint8_t* volatile s_vrs_dl = nullptr;     // the worker's download buffer
 static volatile size_t s_vrs_dl_len = 0;
 static char s_vrs_dl_msg[112];
@@ -77930,17 +77940,22 @@ static bool voxRsSaveModel(const uint8_t* b, size_t n) {
 // From the loop: with AI voice restorer on and no model here, fetch it once
 // Wi-Fi is up (on the fetch worker), check it loads, and keep it.
 static void voxRsModelTick(uint32_t now) {
-  static uint32_t next_ms = 0;
+  uint32_t& next_ms = s_vrs_next_ms;
   if ((long)(now - next_ms) < 0) return;
   if (s_vrs_dl_state == 3 || s_vrs_dl_state == 4) {
+    // A forced download replaces the model in use: not while a clip plays with it.
+    if (s_vrs_force && s_vrs_dl_state == 3 && s_vox_voice_sid) { next_ms = now + 1000; return; }
     uint8_t* b = s_vrs_dl;
     s_vrs_dl = nullptr;
     const char* err = nullptr;
     bool ok = s_vrs_dl_state == 3 && b && s_vrs_dl_len > 0;
+    if (ok && s_vrs_force) s_vox_rs.unload();   // the new one is checked and kept instead
     if (ok && !s_vox_rs.loaded()) {   // it must load, or it isn't the model
       s_vox_rs.setYield([] { vTaskDelay(1); });
       ok = s_vox_rs.load(b, s_vrs_dl_len, &err);
     }
+    const bool forced = s_vrs_force;
+    s_vrs_force = false;
     if (ok && voxRsSaveModel(b, s_vrs_dl_len)) {
       Serial.printf("[VOX] restorer model downloaded: %u KB\n", (unsigned)(s_vrs_dl_len / 1024));
       s_vox_rs_note[0] = 0;
@@ -77949,6 +77964,7 @@ static void voxRsModelTick(uint32_t now) {
     } else {
       Serial.printf("[VOX] restorer model download failed: %s\n",
                     err ? err : s_vrs_dl_msg[0] ? s_vrs_dl_msg : ok ? "couldn't store it" : "?");
+      if (forced && g_lv.task) g_lv.task->showAlert(TR("AI voice restorer: download failed"), 2200);
       s_vrs_dl_state = 1;
       next_ms = now + 10UL * 60UL * 1000UL;   // try again in 10 min
     }
@@ -77956,7 +77972,7 @@ static void voxRsModelTick(uint32_t now) {
     return;
   }
   next_ms = now + 5000;
-  if (s_vrs_dl_state == 2 || !touchPrefsGetVoiceRestore()) return;
+  if (s_vrs_dl_state == 2 || (!touchPrefsGetVoiceRestore() && !s_vrs_force)) return;
   if (s_vrs_dl_state == 0) {   // once a boot: is it here?
     static bool checked = false;
     if (checked) return;
@@ -77998,6 +78014,32 @@ void voxRsDescribe(char* out, size_t cap) {
     snprintf(out + k, cap - k, TR("\nModel loaded: %d channels, %d layers."), s_vox_rs.dim(), s_vox_rs.layers());
   }
 }
+// Settings > Sound > "Download voice model": fetches the restorer's model now,
+// even when one is here (a newer or a damaged one replaced), Wi-Fi permitting.
+void voxRsDownloadNow() {
+  if (!g_lv.task) return;
+#if VOX_RS_DOWNLOAD
+  if (s_vrs_dl_state == 2 || s_vrs_force) {
+    g_lv.task->showAlert(TR("Already downloading the voice model"), 1600);
+    return;
+  }
+  if (WiFi.status() != WL_CONNECTED || (uint32_t)WiFi.localIP() == 0) {
+    g_lv.task->showAlert(TR("Connect to Wi-Fi first"), 1800);
+    return;
+  }
+  if (firmwareReleaseN() < 0) {
+    g_lv.task->showAlert(TR("This build can't download it: copy it to /models on the SD card"), 2400);
+    return;
+  }
+  s_vrs_force = true;
+  s_vrs_dl_state = 1;
+  s_vrs_next_ms = millis();   // now, not after a failed try's 10 minutes
+  g_lv.task->showAlert(TR("Downloading the voice model..."), 1800);
+#else
+  g_lv.task->showAlert(TR("Copy vox-restorer-small.bin to /models on the SD card"), 2400);
+#endif
+}
+
 void voxRsSetOn(bool on) {
   touchPrefsSetVoiceRestore(on);
   if (!on && !s_vox_voice_sid) s_vox_rs.unload();   // gives its ~2 MB of PSRAM back

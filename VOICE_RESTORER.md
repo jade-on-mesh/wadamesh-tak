@@ -17,6 +17,9 @@ T-Display P4 and Tanmatsu.
   release (else from `main`), checks it loads, and keeps it on the SD card, or
   on the internal store without one. A failed download is tried again every
   10 minutes. Until then voice plays as before.
+- **Download voice model** (under the setting) fetches it now, on Wi-Fi,
+  replacing the one already there: for a newer model, or one that won't load.
+  It works with the setting off too, so the model is ready when you turn it on.
 - Or copy it yourself: `/models/vox-restorer-small.bin` on the SD card.
 - Play a voice message. The clip is restored first, then plays, so there is a
   pause before it starts on a slow board. The setting's line says how long the
