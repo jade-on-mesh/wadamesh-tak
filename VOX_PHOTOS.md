@@ -92,7 +92,7 @@ reduced still-picture header and no AVIF container, 2,750 B ("Standard") or
 
 ### Copy and paste a photo
 
-Hold a photo message (one that's on this standalone: sent from it, or downloaded) and pick **Copy photo**. Then hold the text box of any channel or DM and pick **Paste**: the photo is sent to that chat, as Photos > Send does (its VI1 envelope goes out as a message, and this standalone serves the photo to whoever asks). Copying text afterwards replaces the photo on the clipboard.
+Hold a photo message (one that's on this standalone: sent from it, or downloaded) and pick **Copy photo**. Then hold the text box of any channel or DM and pick **Paste**, then **Send** when it asks: the photo is sent to that chat, as Photos > Send does (its VI1 envelope goes out as a message, and this standalone serves the photo to whoever asks). Copying text afterwards replaces the photo on the clipboard.
 
 For a message with a linked picture (LINKED_IMAGES.md), **Copy photo** copies the picture's link, so Paste puts the link in the text box; standalones and apps with linked images on show it as the picture.
 

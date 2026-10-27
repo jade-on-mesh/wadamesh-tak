@@ -61919,23 +61919,46 @@ __attribute__((unused)) static bool bgListenerResetOnce(const char* key) {
 // Photos (app drawer -> APPACT_PHOTOS): downloaded mesh photos as a thumbnail grid.
 #include "PhotosUI.inc"
 
-// Paste in a chat's composer with a photo on the clipboard: the photo goes to
-// that chat, as Photos > Send does (its VI1 envelope; this radio serves it).
-static void chatPastePhoto() {
-  const uint32_t sid = s_clip_photo_sid;
-  const int tidx = g_lv.task ? g_lv.task->activeThreadIdx() : -1;
-  bool ch = false; uint16_t unread = 0; uint32_t ts = 0; char name[48] = {0};
+// Paste in a chat's composer with a photo on the clipboard: asks first, then the
+// photo goes to that chat as Photos > Send does (its VI1 envelope; this radio
+// serves it). The chat and photo are fixed when asked, so a chat switched
+// meanwhile doesn't get it.
+static uint32_t s_paste_sid = 0;
+static int s_paste_tidx = -1;
+static char s_paste_name[48] = {0};
+
+static void chatPastePhotoSend() {
+  const uint32_t sid = s_paste_sid;
+  const int tidx = s_paste_tidx;
+  s_paste_sid = 0;
+  s_paste_tidx = -1;
   char env[48];
-  if (!sid || tidx < 0 || !g_lv.task->getThreadInfo(tidx, ch, unread, ts, name, sizeof name) ||
-      !VoxPhotos::photoEnvelope(sid, env, sizeof env) || !photosui::sendToThread(tidx, env)) {
+  if (!sid || tidx < 0 || !g_lv.task || !VoxPhotos::photoEnvelope(sid, env, sizeof env) ||
+      !photosui::sendToThread(tidx, env)) {
     if (g_lv.task) g_lv.task->showAlert(TR("Couldn't send the photo"), 2000);
     return;
   }
   char msg[80];
-  snprintf(msg, sizeof msg, TR("Photo sent to %s"), name);
+  snprintf(msg, sizeof msg, TR("Photo sent to %s"), s_paste_name);
   g_lv.task->showAlert(msg, 1800);
   g_lv.dirty_threads = true;
   g_lv.dirty_timeline = true;
+}
+
+static void chatPastePhoto() {
+  const uint32_t sid = s_clip_photo_sid;
+  const int tidx = g_lv.task ? g_lv.task->activeThreadIdx() : -1;
+  bool ch = false; uint16_t unread = 0; uint32_t ts = 0;
+  s_paste_name[0] = '\0';
+  if (!sid || tidx < 0 || !g_lv.task->getThreadInfo(tidx, ch, unread, ts, s_paste_name, sizeof s_paste_name)) {
+    if (g_lv.task) g_lv.task->showAlert(TR("Couldn't send the photo"), 2000);
+    return;
+  }
+  s_paste_sid = sid;
+  s_paste_tidx = tidx;
+  static char ask[96];
+  snprintf(ask, sizeof ask, TR("Send the copied photo to %s%s?"), (ch && s_paste_name[0] != '#') ? "#" : "", s_paste_name);
+  showConfirm(ask, TR("Send"), chatPastePhotoSend);
 }
 #else
 static void chatPastePhoto() {}   // no photos on this board: nothing is ever copied
