@@ -2,7 +2,7 @@
 
 When someone posts a link to a picture in a channel or a DM, the radio can download it over Wi-Fi and show it in the message bubble.
 
-**Settings > General > Linked images > Download over Wi-Fi** turns it on. It's off by default, because downloading a link tells that picture's server this radio's internet address.
+**Settings > General > Linked images > Download over Wi-Fi** is on by default. Downloading a link tells that picture's server this radio's internet address, so turn it off if you'd rather not.
 
 ## What it does
 

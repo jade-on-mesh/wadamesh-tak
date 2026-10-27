@@ -3,7 +3,9 @@
 // Someone posts a link to a picture (https://.../cat.jpg, .png, .gif, .webp, .bmp) in a
 // channel or a DM. With Settings > General > Linked images on, the radio downloads it
 // over Wi-Fi and the bubble shows it above the text; a tap on it opens it full size.
-// Off by default: fetching a link tells that server this radio's address.
+// On by default (fetching a link tells that server this radio's address: turn it off
+// to keep that). The saved value is "linkimg2", so radios that saved the old default
+// (off) get the new one.
 //
 // One picture at a time, on a worker (the shared audio worker when it's free, as the
 // web reader does: TLS needs its 16 KB stack in internal RAM), never the UI loop:
@@ -34,8 +36,8 @@ static constexpr size_t kLiKeepFree = 1536u * 1024u;          // PSRAM left for 
 static int8_t s_li_on = -1;
 static bool linkImgOn() {
   if (s_li_on < 0) {
-    uint8_t v = 0;
-    s_li_on = (touchPrefsGetBlob("linkimg", &v, 1) == 1 && v) ? 1 : 0;
+    uint8_t v = 1;
+    s_li_on = (touchPrefsGetBlob("linkimg2", &v, 1) == 1 && !v) ? 0 : 1;
   }
   return s_li_on == 1;
 }
@@ -44,7 +46,7 @@ static void linkImgToggleCb(lv_event_t* e) {
   const bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
   s_li_on = on ? 1 : 0;
   const uint8_t v = on ? 1 : 0;
-  touchPrefsSetBlob("linkimg", &v, 1);
+  touchPrefsSetBlob("linkimg2", &v, 1);
   ++s_chat_thumb_gen;   // the open chat lays out again: pictures in or out
   g_lv.dirty_timeline = true;
 }
