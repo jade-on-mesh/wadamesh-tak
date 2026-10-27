@@ -46779,6 +46779,251 @@ static void msgMenuCopyCb(lv_event_t* e) {
   closeMsgActionMenu();
 }
 
+#if CAP_TOUCH
+// ---- Select text: part of a message, picked like on a phone ----------------------
+// Touch boards only: without a touchscreen (Pager, M9, Tanmatsu) the menu's Copy
+// works as it always has.
+// The message in a popup, all of it highlighted at first, with a handle under each
+// end of the highlight: drag them to the part you want (the text scrolls under
+// them), or nudge each end a letter at a time with the arrow buttons (boards
+// without touch). Copy puts just that part on the clipboard.
+static lv_obj_t* s_seltx_root = nullptr;
+static lv_obj_t* s_seltx_box = nullptr;     // scrolls the text
+static lv_obj_t* s_seltx_lbl = nullptr;
+static lv_obj_t* s_seltx_h[2] = {nullptr, nullptr};   // start, end handles
+static char      s_seltx_text[UITask::MAX_MSG_TEXT + 1] = {0};
+static uint32_t  s_seltx_len = 0;           // in letters
+static uint32_t  s_seltx_a = 0, s_seltx_b = 0;   // the selection [a, b), in letters
+static constexpr lv_coord_t kSelHandle = 18;
+
+static void seltxClose() {
+  if (s_seltx_root) popupClose(&s_seltx_root);
+  s_seltx_box = s_seltx_lbl = s_seltx_h[0] = s_seltx_h[1] = nullptr;
+}
+
+// The point where letter `i` starts (top left), in the label's own coordinates.
+static lv_point_t seltxLetterPos(uint32_t i) {
+  lv_point_t p = {0, 0};
+  if (s_seltx_lbl) lv_label_get_letter_pos(s_seltx_lbl, i, &p);
+  return p;
+}
+
+// Highlights [a, b) and puts the handles under its ends.
+static void seltxApply() {
+  if (!s_seltx_lbl) return;
+  if (s_seltx_b > s_seltx_len) s_seltx_b = s_seltx_len;
+  if (s_seltx_a >= s_seltx_b) s_seltx_a = s_seltx_b ? s_seltx_b - 1 : 0;
+  lv_label_set_text_sel_start(s_seltx_lbl, s_seltx_a);
+  lv_label_set_text_sel_end(s_seltx_lbl, s_seltx_b);
+  const lv_font_t* f = lv_obj_get_style_text_font(s_seltx_lbl, LV_PART_MAIN);
+  const lv_coord_t lh = f ? lv_font_get_line_height(f) : 16;
+  const lv_coord_t lx = lv_obj_get_x(s_seltx_lbl), ly = lv_obj_get_y(s_seltx_lbl);
+  // Start: under the first letter's left edge. End: under the last letter's right
+  // edge (on its own line, not where the next one wraps to).
+  const lv_point_t ps = seltxLetterPos(s_seltx_a);
+  lv_point_t pe = seltxLetterPos(s_seltx_b ? s_seltx_b - 1 : 0);
+  if (s_seltx_b) {
+    const uint32_t bb = taCpToByte(s_seltx_text, s_seltx_b - 1), be = taCpToByte(s_seltx_text, s_seltx_b);
+    if (be > bb && s_seltx_text[bb] != '\n')
+      pe.x += lv_txt_get_width(s_seltx_text + bb, be - bb, f, 0, LV_TEXT_FLAG_NONE);
+  }
+  if (s_seltx_h[0]) lv_obj_set_pos(s_seltx_h[0], lx + ps.x - kSelHandle / 2, ly + ps.y + lh);
+  if (s_seltx_h[1]) lv_obj_set_pos(s_seltx_h[1], lx + pe.x - kSelHandle / 2, ly + pe.y + lh);
+}
+
+// Dragging a handle: the letter above the finger becomes that end (the handles
+// swap roles if one is dragged past the other).
+static void seltxHandleCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_PRESSING || !s_seltx_lbl) return;
+  const int which = (int)(intptr_t)lv_event_get_user_data(e);
+  lv_indev_t* in = lv_indev_get_act();
+  if (!in) return;
+  lv_point_t pt;
+  lv_indev_get_point(in, &pt);
+  lv_area_t la;
+  lv_obj_get_coords(s_seltx_lbl, &la);
+  const lv_font_t* f = lv_obj_get_style_text_font(s_seltx_lbl, LV_PART_MAIN);
+  const lv_coord_t lh = f ? lv_font_get_line_height(f) : 16;
+  lv_point_t q = {(lv_coord_t)(pt.x - la.x1), (lv_coord_t)(pt.y - la.y1 - lh - kSelHandle / 2)};   // the text above the finger
+  if (q.y < 0) q.y = 0;
+  if (q.x < 0) q.x = 0;
+  uint32_t i = lv_label_get_letter_on(s_seltx_lbl, &q);
+  if (which == 1) {
+    // The end goes after the letter when the finger is past its middle.
+    const lv_point_t lp = seltxLetterPos(i);
+    const uint32_t bb = taCpToByte(s_seltx_text, i), be = taCpToByte(s_seltx_text, i + 1);
+    const lv_coord_t w = be > bb ? lv_txt_get_width(s_seltx_text + bb, be - bb, f, 0, LV_TEXT_FLAG_NONE) : 0;
+    if (q.x >= lp.x + w / 2) i++;
+    if (i <= s_seltx_a) { s_seltx_b = s_seltx_a + 1; s_seltx_a = i ? i - 1 : 0; }
+    else s_seltx_b = i;
+  } else {
+    if (i >= s_seltx_b) { s_seltx_a = s_seltx_b ? s_seltx_b - 1 : 0; s_seltx_b = i + 1; }
+    else s_seltx_a = i;
+  }
+  seltxApply();
+}
+
+// The arrow buttons: one letter at a time (held, they repeat).
+static void seltxNudgeCb(lv_event_t* e) {
+  const lv_event_code_t c = lv_event_get_code(e);
+  if (c != LV_EVENT_CLICKED && c != LV_EVENT_LONG_PRESSED_REPEAT) return;
+  const int k = (int)(intptr_t)lv_event_get_user_data(e);   // 0 start-, 1 start+, 2 end-, 3 end+
+  if (k == 0 && s_seltx_a > 0) s_seltx_a--;
+  else if (k == 1 && s_seltx_a + 1 < s_seltx_b) s_seltx_a++;
+  else if (k == 2 && s_seltx_b > s_seltx_a + 1) s_seltx_b--;
+  else if (k == 3 && s_seltx_b < s_seltx_len) s_seltx_b++;
+  seltxApply();
+  // Keep the end being moved in view.
+  if (s_seltx_box && s_seltx_h[k < 2 ? 0 : 1]) lv_obj_scroll_to_view(s_seltx_h[k < 2 ? 0 : 1], LV_ANIM_OFF);
+}
+
+static void seltxCopyCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  const uint32_t bb = taCpToByte(s_seltx_text, s_seltx_a), be = taCpToByte(s_seltx_text, s_seltx_b);
+  char buf[CLIPBOARD_MAX];
+  size_t n = be > bb ? be - bb : 0;
+  if (n >= sizeof buf) n = sizeof buf - 1;
+  memcpy(buf, s_seltx_text + bb, n);
+  buf[n] = '\0';
+  seltxClose();
+  clipboardSet(buf, "selection");
+}
+static void seltxAllCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  s_seltx_a = 0;
+  s_seltx_b = s_seltx_len;
+  seltxApply();
+}
+static void seltxCloseCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  seltxClose();
+}
+
+static void openSelectText(const char* text) {
+  seltxClose();
+  if (!text || !text[0]) return;
+  snprintf(s_seltx_text, sizeof s_seltx_text, "%s", text);   // as sent: a #channel keeps its #
+  s_seltx_len = _lv_txt_get_encoded_length(s_seltx_text);
+  if (!s_seltx_len) return;
+  s_seltx_a = 0;
+  s_seltx_b = s_seltx_len;
+  const lv_coord_t sw = lv_disp_get_hor_res(nullptr), sh = lv_disp_get_ver_res(nullptr);
+  s_seltx_root = lv_obj_create(lv_layer_top());
+  lv_obj_remove_style_all(s_seltx_root);
+  lv_obj_set_size(s_seltx_root, sw, sh - STATUSBAR_H);
+  lv_obj_set_pos(s_seltx_root, 0, STATUSBAR_H);
+  lv_obj_set_style_bg_color(s_seltx_root, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(s_seltx_root, LV_OPA_60, LV_PART_MAIN);
+  lv_obj_clear_flag(s_seltx_root, LV_OBJ_FLAG_SCROLLABLE);
+
+  const lv_coord_t pad = 8, gap = 6, btn_h = 30;
+  lv_obj_t* card = lv_obj_create(s_seltx_root);
+  lv_obj_remove_style_all(card);
+  lv_obj_set_size(card, sw - 16, sh - STATUSBAR_H - 16);
+  lv_obj_align(card, LV_ALIGN_CENTER, 0, 0);
+  lv_obj_set_style_bg_color(card, lv_color_hex(COLOR_PANEL), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(card, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_radius(card, 8, LV_PART_MAIN);
+  lv_obj_set_style_border_color(card, lv_color_hex(COLOR_BORDER), LV_PART_MAIN);
+  lv_obj_set_style_border_width(card, 1, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(card, pad, LV_PART_MAIN);
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+  addCloseXBadge(card, seltxCloseCb);
+  const lv_coord_t cw = sw - 16 - 2 * pad, ch = sh - STATUSBAR_H - 16 - 2 * pad;
+
+  lv_obj_t* title = lv_label_create(card);
+  lv_label_set_text(title, TR("Drag the handles, then Copy"));
+  lv_obj_set_style_text_font(title, &g_font_12, LV_PART_MAIN);
+  lv_obj_set_style_text_color(title, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+  lv_obj_set_pos(title, 0, 0);
+  const lv_coord_t top = 20;
+
+  // Two rows of buttons under the text: the letter nudges, then All / Copy.
+  const lv_coord_t rows_h = 2 * btn_h + gap;
+  s_seltx_box = lv_obj_create(card);
+  lv_obj_remove_style_all(s_seltx_box);
+  lv_obj_set_pos(s_seltx_box, 0, top);
+  lv_obj_set_size(s_seltx_box, cw, ch - top - rows_h - gap);
+  lv_obj_set_style_pad_bottom(s_seltx_box, kSelHandle + 4, LV_PART_MAIN);   // room for the last line's handles
+  lv_obj_set_scroll_dir(s_seltx_box, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(s_seltx_box, LV_SCROLLBAR_MODE_AUTO);
+
+  s_seltx_lbl = lv_label_create(s_seltx_box);
+  lv_obj_set_style_text_font(s_seltx_lbl, &g_font_16, LV_PART_MAIN);
+  useChainedFont(s_seltx_lbl);
+  lv_obj_set_style_text_color(s_seltx_lbl, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+  lv_obj_set_style_text_line_space(s_seltx_lbl, kSelHandle - 6, LV_PART_MAIN);   // room for the handles between lines
+  lv_obj_set_style_bg_color(s_seltx_lbl, lv_color_hex(COLOR_ACCENT), LV_PART_SELECTED);
+  lv_obj_set_style_text_color(s_seltx_lbl, lv_color_hex(COLOR_ON_ACCENT), LV_PART_SELECTED);
+  lv_label_set_long_mode(s_seltx_lbl, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(s_seltx_lbl, cw - kSelHandle);
+  lv_obj_set_pos(s_seltx_lbl, kSelHandle / 2, 2);
+  lv_label_set_text(s_seltx_lbl, s_seltx_text);
+  lv_obj_update_layout(s_seltx_box);
+
+  for (int i = 0; i < 2; i++) {
+    lv_obj_t* h = lv_obj_create(s_seltx_box);
+    lv_obj_remove_style_all(h);
+    lv_obj_set_size(h, kSelHandle, kSelHandle);
+    lv_obj_set_style_radius(h, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(h, lv_color_hex(COLOR_ACCENT), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(h, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_ext_click_area(h, 10);   // easier to catch with a finger
+    lv_obj_add_flag(h, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(h, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_CHAIN);   // dragging it never scrolls the text
+    lv_obj_add_event_cb(h, seltxHandleCb, LV_EVENT_PRESSING, (void*)(intptr_t)i);
+    s_seltx_h[i] = h;
+  }
+  seltxApply();
+
+  // Nudges: start ◂ ▸, end ◂ ▸.
+  const lv_coord_t by1 = ch - rows_h, by2 = by1 + btn_h + gap;
+  const lv_coord_t bw4 = (cw - 3 * gap) / 4;
+  static const char* const kNudge[4] = { LV_SYMBOL_LEFT " Start", "Start " LV_SYMBOL_RIGHT,
+                                         LV_SYMBOL_LEFT " End", "End " LV_SYMBOL_RIGHT };
+  for (int k = 0; k < 4; k++) {
+    lv_obj_t* b = lv_btn_create(card);
+    lv_obj_set_size(b, bw4, btn_h);
+    lv_obj_set_pos(b, k * (bw4 + gap), by1);
+    styleButton(b);
+    lv_obj_set_style_pad_all(b, 0, LV_PART_MAIN);
+    lv_obj_add_event_cb(b, seltxNudgeCb, LV_EVENT_ALL, (void*)(intptr_t)k);
+    lv_obj_t* l = lv_label_create(b);
+    lv_label_set_text(l, TR(kNudge[k]));
+    lv_obj_set_style_text_font(l, &g_font_12, LV_PART_MAIN);
+    lv_obj_set_style_text_color(l, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+    uiFitLabelWidth(l, bw4 - 4);
+    lv_obj_center(l);
+  }
+  const lv_coord_t bw2 = (cw - gap) / 2;
+  struct { const char* t; lv_event_cb_t cb; bool primary; } act[2] = {
+    { LV_SYMBOL_LIST "  All", seltxAllCb, false }, { LV_SYMBOL_COPY "  Copy", seltxCopyCb, true } };
+  for (int k = 0; k < 2; k++) {
+    lv_obj_t* b = lv_btn_create(card);
+    lv_obj_set_size(b, bw2, btn_h);
+    lv_obj_set_pos(b, k * (bw2 + gap), by2);
+    if (act[k].primary) stylePrimary(b); else styleButton(b);
+    lv_obj_set_style_pad_all(b, 0, LV_PART_MAIN);
+    lv_obj_add_event_cb(b, act[k].cb, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t* l = lv_label_create(b);
+    lv_label_set_text(l, TR(act[k].t));
+    lv_obj_set_style_text_font(l, &g_font_14, LV_PART_MAIN);
+    lv_obj_set_style_text_color(l, lv_color_hex(act[k].primary ? COLOR_ON_ACCENT : COLOR_TEXT), LV_PART_MAIN);
+    lv_obj_center(l);
+  }
+}
+
+static void msgMenuSelectCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  lv_indev_t* a = lv_indev_get_act();
+  if (a) lv_indev_wait_release(a);
+  char text[sizeof s_msg_menu_text];
+  snprintf(text, sizeof text, "%s", s_msg_menu_text);
+  closeMsgActionMenu();
+  openSelectText(text);
+}
+#endif  // CAP_TOUCH
+
 // Copy photo: a photo message's photo (pasted in a chat's composer, it's sent
 // there), or a linked picture's link (pasted as text, it shows as the picture).
 static void msgMenuCopyPhotoCb(lv_event_t* e) {
@@ -47045,7 +47290,7 @@ static void openMessageActionMenu(int msg_idx) {
   // Header row reserves space for the close-X badge so it doesn't sit on a button.
   const int hdr_h  = 24;
 #endif
-  const int nbtn   = (can_ack ? 1 : 0) + (can_mention ? 1 : 0) + (can_web ? 1 : 0) + (can_channel ? 1 : 0) + (can_map ? 1 : 0) + (can_copy_photo ? 1 : 0) + 3 /*Copy+Info+Delete*/ + (can_block ? 1 : 0) + (can_resend ? 1 : 0);
+  const int nbtn   = (can_ack ? 1 : 0) + (can_mention ? 1 : 0) + (can_web ? 1 : 0) + (can_channel ? 1 : 0) + (can_map ? 1 : 0) + (can_copy_photo ? 1 : 0) + (CAP_TOUCH ? 4 : 3) /*Copy+Select (touch)+Info+Delete*/ + (can_block ? 1 : 0) + (can_resend ? 1 : 0);
   const int nrows  = (nbtn + 1) / 2;
   int card_h = hdr_h + nrows * btn_h + (nrows - 1) * gap + 2 * pad;
   // Never exceed the visible area under the status bar; scroll if it ever would
@@ -47118,6 +47363,9 @@ static void openMessageActionMenu(int msg_idx) {
     mk_btn("@", ml, msgMenuMentionCb);
   }
   mk_btn(LV_SYMBOL_COPY, TR(LV_SYMBOL_COPY "  Copy"), msgMenuCopyCb);
+#if CAP_TOUCH
+  mk_btn(LV_SYMBOL_EDIT, TR(LV_SYMBOL_EDIT "  Select"), msgMenuSelectCb);
+#endif
   if (can_copy_photo) mk_btn(LV_SYMBOL_IMAGE, TR(LV_SYMBOL_IMAGE "  Copy photo"), msgMenuCopyPhotoCb);
   auto mk_link_btn = [&](const char* icon, const char* label, ChatLinkKind kind) {
     lv_obj_set_user_data(mk_btn(icon, label, messageMenuLinkCb), (void*)(intptr_t)kind);
