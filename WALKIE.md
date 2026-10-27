@@ -27,6 +27,10 @@ D-pad mode it talks only with the composer focused (elsewhere it selects, so
 it holds the card's Talk button). Everywhere else the button clicks as before.
 Turn it off with **Trackball button talks in channel chats** on the card.
 
+Pressed again while the last talk's final packets are still going out, the
+Mic key or the trackball says "Sending the last talk..." and starts the new
+talk as soon as that's done, as long as it's still held.
+
 Without the trackball: hold the Mic key (above), or long-press a channel in
 Chats, choose **Walkie-talkie**, and hold the card's **Talk** button on the
 touchscreen.

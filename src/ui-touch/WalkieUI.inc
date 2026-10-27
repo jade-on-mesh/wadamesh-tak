@@ -414,6 +414,16 @@ static bool     s_tx_direct = false;
 static int      s_tx_sent = 0;          // audio packets sent
 static uint32_t s_tx_last_ms = 0;       // when the last packet went out
 static bool     s_tx_released = false;  // let go (or 20 s, or the mic stopped)
+static uint32_t s_tx_released_ms = 0;   // when it was let go
+// Our last few talks: their packets relayed back to us after the talk has
+// ended (s_tx_sid cleared) are ours, not someone else talking.
+static uint32_t s_own_sids[4] = {};
+static uint8_t  s_own_next = 0;
+static bool ownTalk(uint32_t sid) {
+  for (uint32_t o : s_own_sids)
+    if (sid && o == sid) return true;
+  return false;
+}
 static bool     s_tx_mic_done = false;  // the recording is in s_tx_bits
 static bool     s_tx_failed = false;
 static uint8_t* s_tx_bits = nullptr;    // the finished recording (VoxMic::take)
@@ -493,6 +503,7 @@ static bool txBegin(const char** why) {
   }
   s_tx_sid = 0;
   while (!s_tx_sid) s_tx_sid = esp_random();
+  s_own_sids[s_own_next++ % 4] = s_tx_sid;
   s_tx_sent = 0;
   s_tx_released = s_tx_mic_done = s_tx_failed = false;
   s_tx_mode = WalkieWire::kMode;
@@ -552,6 +563,7 @@ static bool txStartDm(const uint8_t pub[PUB_KEY_SIZE], const char** why) {
 static void txRelease() {
   if (!talking() || s_tx_released) return;
   s_tx_released = true;
+  s_tx_released_ms = millis();
   VoxMic::stop();
 }
 
@@ -599,6 +611,15 @@ static void txTick(uint32_t now) {
   if (!talking()) return;
   // Let go: the finger left the button (read from the touch panel, as the mic does).
   if (!s_tx_released && s_tx_indev && s_tx_indev->proc.state != LV_INDEV_STATE_PRESSED) txRelease();
+  if (!s_tx_mic_done && s_tx_released && now - s_tx_released_ms > 5000 &&
+      VoxMic::state() == VoxMic::kRecording) {
+    // Let go 5 s ago and the recording still hasn't stopped (its job never got
+    // the shared audio worker): end the talk rather than stay "talking" and
+    // refuse every press after it.
+    Serial.printf("[WALKIE] talk %08lx: the mic didn't stop after release, ending it\n", (unsigned long)s_tx_sid);
+    VoxMic::cancel();
+    s_tx_failed = s_tx_mic_done = true;
+  }
   if (!s_tx_mic_done) {
     const VoxMic::State st = VoxMic::state();
     if (st == VoxMic::kReady) {   // let go, or 20 s
@@ -1023,8 +1044,18 @@ static void keyTick(bool held, uint32_t now, bool at_once = false) {
     return;
   }
   if (!s_key_down || s_key_tried || (!at_once && now - s_key_since < 300)) return;
+  if (talking()) {
+    // The last talk is still going out (its last packets, or its mic stopping):
+    // this press starts as soon as it's done, rather than being dropped.
+    static uint32_t told_ms = 0;
+    if (s_tx_released && g_lv.task && now - told_ms > 3000) {
+      told_ms = now;
+      g_lv.task->showAlert(TR("Sending the last talk..."), 1200);
+    }
+    if (!s_tx_released) s_key_tried = true;   // talking from the card's button: leave it be
+    return;
+  }
   s_key_tried = true;
-  if (talking()) return;
   uint8_t pub[PUB_KEY_SIZE];
   const bool dm = s_card ? s_card_ch == kDmCh : openDm(pub);
   if (dm) {   // to that contact alone
@@ -1091,7 +1122,7 @@ static void onPayload(const uint8_t* data, size_t len, int ch) {
   const uint32_t now = millis();
   if (data[0] == WalkieWire::kStartMagic) {
     WalkieWire::Start s;
-    if (!WalkieWire::parseStart(data, len, &s) || s.sid == s_tx_sid) return;
+    if (!WalkieWire::parseStart(data, len, &s) || s.sid == s_tx_sid || ownTalk(s.sid)) return;
     noteTalk(s.sid);
     Heard* h = heardGet(s.sid, ch, now);
     if (!h) return;
@@ -1100,7 +1131,7 @@ static void onPayload(const uint8_t* data, size_t len, int ch) {
     return;
   }
   WalkieWire::Audio a;
-  if (!WalkieWire::parseAudio(data, len, &a) || a.sid == s_tx_sid) return;
+  if (!WalkieWire::parseAudio(data, len, &a) || a.sid == s_tx_sid || ownTalk(a.sid)) return;
   noteTalk(a.sid);
   Heard* h = heardGet(a.sid, ch, now);
   if (!h) return;
@@ -1115,7 +1146,7 @@ static bool onRaw(const uint8_t* data, size_t len) {
   if (!c) return false;   // not from a contact: whatever it is, it isn't ours
 #if CAP_LUA_AUDIO && VOX_CODEC2_AVAILABLE
   const uint32_t now = millis();
-  if (d.audio.sid == s_tx_sid) return true;
+  if (d.audio.sid == s_tx_sid || ownTalk(d.audio.sid)) return true;
   noteTalk(d.audio.sid);
   Heard* h = heardGet(d.audio.sid, kDmCh, now);
   if (!h) return true;
