@@ -46779,7 +46779,10 @@ static void msgMenuCopyCb(lv_event_t* e) {
   closeMsgActionMenu();
 }
 
+#if CAP_TOUCH
 // ---- Select text: part of a message, picked like on a phone ----------------------
+// Touch boards only: without a touchscreen (Pager, M9, Tanmatsu) the menu's Copy
+// works as it always has.
 // The message in a popup, all of it highlighted at first, with a handle under each
 // end of the highlight: drag them to the part you want (the text scrolls under
 // them), or nudge each end a letter at a time with the arrow buttons (boards
@@ -47019,6 +47022,7 @@ static void msgMenuSelectCb(lv_event_t* e) {
   closeMsgActionMenu();
   openSelectText(text);
 }
+#endif  // CAP_TOUCH
 
 // Copy photo: a photo message's photo (pasted in a chat's composer, it's sent
 // there), or a linked picture's link (pasted as text, it shows as the picture).
@@ -47286,7 +47290,7 @@ static void openMessageActionMenu(int msg_idx) {
   // Header row reserves space for the close-X badge so it doesn't sit on a button.
   const int hdr_h  = 24;
 #endif
-  const int nbtn   = (can_ack ? 1 : 0) + (can_mention ? 1 : 0) + (can_web ? 1 : 0) + (can_channel ? 1 : 0) + (can_map ? 1 : 0) + (can_copy_photo ? 1 : 0) + 4 /*Copy+Select+Info+Delete*/ + (can_block ? 1 : 0) + (can_resend ? 1 : 0);
+  const int nbtn   = (can_ack ? 1 : 0) + (can_mention ? 1 : 0) + (can_web ? 1 : 0) + (can_channel ? 1 : 0) + (can_map ? 1 : 0) + (can_copy_photo ? 1 : 0) + (CAP_TOUCH ? 4 : 3) /*Copy+Select (touch)+Info+Delete*/ + (can_block ? 1 : 0) + (can_resend ? 1 : 0);
   const int nrows  = (nbtn + 1) / 2;
   int card_h = hdr_h + nrows * btn_h + (nrows - 1) * gap + 2 * pad;
   // Never exceed the visible area under the status bar; scroll if it ever would
@@ -47359,7 +47363,9 @@ static void openMessageActionMenu(int msg_idx) {
     mk_btn("@", ml, msgMenuMentionCb);
   }
   mk_btn(LV_SYMBOL_COPY, TR(LV_SYMBOL_COPY "  Copy"), msgMenuCopyCb);
+#if CAP_TOUCH
   mk_btn(LV_SYMBOL_EDIT, TR(LV_SYMBOL_EDIT "  Select"), msgMenuSelectCb);
+#endif
   if (can_copy_photo) mk_btn(LV_SYMBOL_IMAGE, TR(LV_SYMBOL_IMAGE "  Copy photo"), msgMenuCopyPhotoCb);
   auto mk_link_btn = [&](const char* icon, const char* label, ChatLinkKind kind) {
     lv_obj_set_user_data(mk_btn(icon, label, messageMenuLinkCb), (void*)(intptr_t)kind);
