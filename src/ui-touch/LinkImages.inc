@@ -268,17 +268,34 @@ static void linkImgTick() {
   if (j.state == 2) {
     const uint32_t id = j.id;
     if (j.raw) {   // a JPEG too big for the full decode: scaled by TJpgDec
+      // TJpgDec scales by 1/2, 1/4 or 1/8 at most, so a big photo (over 1536 px)
+      // never got down to the thumbnail's size and the bubble stayed text while a
+      // tap still opened it: decode to the viewer's size, then shrink from there.
       int w = 0, h = 0;
-      uint8_t* rgb = decodeJpegScaledToRgb565(j.raw, j.raw_len, &w, &h, j.view ? kLiViewSide : kLiThumbSide);
+      uint8_t* rgb = decodeJpegScaledToRgb565(j.raw, j.raw_len, &w, &h, kLiViewSide);
       free(j.raw);
       j.raw = nullptr;
       if (rgb && w > 0 && h > 0) {
         if (j.view) { j.px = (uint16_t*)rgb; }
         else {
-          const size_t n = (size_t)w * h * 2;
-          j.px = (uint16_t*)malloc(n);
-          if (j.px) memcpy(j.px, rgb, n);
+          int tw = w, th = h;
+          if (tw > kLiThumbSide || th > kLiThumbSide) {
+            if (tw >= th) { th = (int)((int64_t)th * kLiThumbSide / tw); tw = kLiThumbSide; }
+            else          { tw = (int)((int64_t)tw * kLiThumbSide / th); th = kLiThumbSide; }
+            if (tw < 1) tw = 1;
+            if (th < 1) th = 1;
+          }
+          j.px = (uint16_t*)malloc((size_t)tw * th * 2);
+          if (j.px) {
+            const uint16_t* src = (const uint16_t*)rgb;
+            for (int y = 0; y < th; y++) {
+              const int sy = (int)((int64_t)y * h / th);
+              for (int x = 0; x < tw; x++) j.px[y * tw + x] = src[(size_t)sy * w + (int)((int64_t)x * w / tw)];
+            }
+          }
           lvglPsramFree(rgb);
+          w = tw;
+          h = th;
         }
         j.w = w;
         j.h = h;
