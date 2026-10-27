@@ -3,7 +3,9 @@
 // Someone posts a link to a picture (https://.../cat.jpg, .png, .gif, .webp, .bmp) in a
 // channel or a DM. With Settings > General > Linked images on, the radio downloads it
 // over Wi-Fi and the bubble shows it above the text; a tap on it opens it full size.
-// Off by default: fetching a link tells that server this radio's address.
+// On by default (fetching a link tells that server this radio's address: turn it off
+// to keep that). The saved value is "linkimg2", so radios that saved the old default
+// (off) get the new one.
 //
 // One picture at a time, on a worker (the shared audio worker when it's free, as the
 // web reader does: TLS needs its 16 KB stack in internal RAM), never the UI loop:
@@ -34,8 +36,8 @@ static constexpr size_t kLiKeepFree = 1536u * 1024u;          // PSRAM left for 
 static int8_t s_li_on = -1;
 static bool linkImgOn() {
   if (s_li_on < 0) {
-    uint8_t v = 0;
-    s_li_on = (touchPrefsGetBlob("linkimg", &v, 1) == 1 && v) ? 1 : 0;
+    uint8_t v = 1;
+    s_li_on = (touchPrefsGetBlob("linkimg2", &v, 1) == 1 && !v) ? 0 : 1;
   }
   return s_li_on == 1;
 }
@@ -44,7 +46,7 @@ static void linkImgToggleCb(lv_event_t* e) {
   const bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
   s_li_on = on ? 1 : 0;
   const uint8_t v = on ? 1 : 0;
-  touchPrefsSetBlob("linkimg", &v, 1);
+  touchPrefsSetBlob("linkimg2", &v, 1);
   ++s_chat_thumb_gen;   // the open chat lays out again: pictures in or out
   g_lv.dirty_timeline = true;
 }
@@ -155,10 +157,14 @@ static void linkImgJobBody() {
     http.setUserAgent("wadamesh");
     WiFiClientSecure scli;
     WiFiClient pcli;
-    const bool https = !strncasecmp(j.url, "https://", 8);
+    // A smaller copy from hosts that make one (Pexels, Unsplash: their originals
+    // are several MB); the link itself everywhere else.
+    char fetch[sizeof j.url + 64];
+    if (!linkimg::fetchUrl(j.url, kLiViewSide, fetch, sizeof fetch)) snprintf(fetch, sizeof fetch, "%s", j.url);
+    const bool https = !strncasecmp(fetch, "https://", 8);
     bool began;
-    if (https) { scli.setInsecure(); began = http.begin(scli, j.url); }
-    else began = http.begin(pcli, j.url);
+    if (https) { scli.setInsecure(); began = http.begin(scli, fetch); }
+    else began = http.begin(pcli, fetch);
     int code = -1;
     bool over = false;
     if (began) {
@@ -262,17 +268,34 @@ static void linkImgTick() {
   if (j.state == 2) {
     const uint32_t id = j.id;
     if (j.raw) {   // a JPEG too big for the full decode: scaled by TJpgDec
+      // TJpgDec scales by 1/2, 1/4 or 1/8 at most, so a big photo (over 1536 px)
+      // never got down to the thumbnail's size and the bubble stayed text while a
+      // tap still opened it: decode to the viewer's size, then shrink from there.
       int w = 0, h = 0;
-      uint8_t* rgb = decodeJpegScaledToRgb565(j.raw, j.raw_len, &w, &h, j.view ? kLiViewSide : kLiThumbSide);
+      uint8_t* rgb = decodeJpegScaledToRgb565(j.raw, j.raw_len, &w, &h, kLiViewSide);
       free(j.raw);
       j.raw = nullptr;
       if (rgb && w > 0 && h > 0) {
         if (j.view) { j.px = (uint16_t*)rgb; }
         else {
-          const size_t n = (size_t)w * h * 2;
-          j.px = (uint16_t*)malloc(n);
-          if (j.px) memcpy(j.px, rgb, n);
+          int tw = w, th = h;
+          if (tw > kLiThumbSide || th > kLiThumbSide) {
+            if (tw >= th) { th = (int)((int64_t)th * kLiThumbSide / tw); tw = kLiThumbSide; }
+            else          { tw = (int)((int64_t)tw * kLiThumbSide / th); th = kLiThumbSide; }
+            if (tw < 1) tw = 1;
+            if (th < 1) th = 1;
+          }
+          j.px = (uint16_t*)malloc((size_t)tw * th * 2);
+          if (j.px) {
+            const uint16_t* src = (const uint16_t*)rgb;
+            for (int y = 0; y < th; y++) {
+              const int sy = (int)((int64_t)y * h / th);
+              for (int x = 0; x < tw; x++) j.px[y * tw + x] = src[(size_t)sy * w + (int)((int64_t)x * w / tw)];
+            }
+          }
           lvglPsramFree(rgb);
+          w = tw;
+          h = th;
         }
         j.w = w;
         j.h = h;
@@ -300,6 +323,13 @@ static void linkImgTick() {
         s_li_retry_ms = millis() + 30000;
       } else {
         s_li_tried[s_li_tried_at++ % (sizeof s_li_tried / sizeof s_li_tried[0])] = id;
+        // A picture that won't come says why, rather than the bubble just staying
+        // text (each link is tried once a boot, so this is once too).
+        if (j.res != linkimg::kOk && g_lv.task) {
+          char msg[96];
+          snprintf(msg, sizeof msg, "%s: %s", TR("Linked picture"), TR(linkImgWhy(j)));
+          g_lv.task->showAlert(msg, 2600);
+        }
       }
     }
     j.px = nullptr;

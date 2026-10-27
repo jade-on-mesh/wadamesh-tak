@@ -101,6 +101,20 @@ int main() {
   CHECK(linkimg::urlId("https://x.org/a.png") == linkimg::urlId("https://x.org/a.png"));
   CHECK(linkimg::urlId("https://x.org/a.png") != linkimg::urlId("https://x.org/b.png"));
   CHECK(linkimg::urlId("") != 0);
+  {   // image hosts that make a smaller copy are asked for one
+    char f[300];
+    CHECK(linkimg::fetchUrl("https://images.pexels.com/photos/30274227/pexels-photo-30274227.jpeg", 1024, f, sizeof f));
+    CHECK(!strcmp(f, "https://images.pexels.com/photos/30274227/pexels-photo-30274227.jpeg?auto=compress&cs=tinysrgb&w=1024"));
+    CHECK(linkimg::fetchUrl("https://images.pexels.com/photos/1/a.jpeg?auto=compress&w=640", 1024, f, sizeof f));
+    CHECK(!strcmp(f, "https://images.pexels.com/photos/1/a.jpeg?auto=compress&w=640"));   // already sized
+    CHECK(linkimg::fetchUrl("https://images.unsplash.com/photo-1?ixlib=rb-4.0.3", 1024, f, sizeof f));
+    CHECK(!strcmp(f, "https://images.unsplash.com/photo-1?ixlib=rb-4.0.3&w=1024&q=75&fm=jpg"));
+    CHECK(linkimg::fetchUrl("https://x.org/cat.jpg#top", 1024, f, sizeof f));
+    CHECK(!strcmp(f, "https://x.org/cat.jpg"));
+    CHECK(linkimg::fetchUrl("https://x.org/cat.jpg", 1024, f, sizeof f) && !strcmp(f, "https://x.org/cat.jpg"));
+    char tiny[20];
+    CHECK(!linkimg::fetchUrl("https://images.pexels.com/photos/1/a.jpeg", 1024, tiny, sizeof tiny));
+  }
 
   // ---- pictures
   picture("jpeg", k_jpeg, sizeof k_jpeg, linkimg::kJpeg, false, true);

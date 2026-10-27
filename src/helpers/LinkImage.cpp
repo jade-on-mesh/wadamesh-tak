@@ -4,6 +4,7 @@
 #include "LinkImage.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #if defined(ESP32)
@@ -137,6 +138,35 @@ bool findUrl(const char* s, char* out, size_t cap) {
     return true;
   }
   return false;
+}
+
+bool fetchUrl(const char* url, int max_side, char* out, size_t cap) {
+  if (!url || !out || cap == 0) return false;
+  const char* host = strstr(url, "://");
+  host = host ? host + 3 : url;
+  const char* q = strchr(url, '?');
+  char extra[96] = "";
+  if (ciPrefix(host, "images.pexels.com/")) {
+    if (!q || (!strstr(q, "w=") && !strstr(q, "h=")))
+      snprintf(extra, sizeof extra, "auto=compress&cs=tinysrgb&w=%d", max_side);
+  } else if (ciPrefix(host, "images.unsplash.com/")) {
+    if (!q || !strstr(q, "w="))
+      snprintf(extra, sizeof extra, "w=%d&q=75&fm=jpg", max_side);
+  }
+  const char* hash = strchr(url, '#');
+  const size_t base = hash ? (size_t)(hash - url) : strlen(url);
+  const size_t ex = strlen(extra);
+  const size_t need = base + (ex ? ex + 1 : 0) + 1;
+  if (need > cap) return false;
+  memcpy(out, url, base);
+  size_t n = base;
+  if (ex) {
+    out[n++] = q && q < url + base ? '&' : '?';
+    memcpy(out + n, extra, ex);
+    n += ex;
+  }
+  out[n] = 0;
+  return true;
 }
 
 uint32_t urlId(const char* url) {
