@@ -104,7 +104,7 @@ int main() {
   {   // image hosts that make a smaller copy are asked for one
     char f[300];
     CHECK(linkimg::fetchUrl("https://images.pexels.com/photos/30274227/pexels-photo-30274227.jpeg", 1024, f, sizeof f));
-    CHECK(!strcmp(f, "https://images.pexels.com/photos/30274227/pexels-photo-30274227.jpeg?auto=compress&cs=tinysrgb&w=1024"));
+    CHECK(!strcmp(f, "https://images.pexels.com/photos/30274227/pexels-photo-30274227.jpeg?auto=compress&cs=tinysrgb&fm=jpg&w=1024"));
     CHECK(linkimg::fetchUrl("https://images.pexels.com/photos/1/a.jpeg?auto=compress&w=640", 1024, f, sizeof f));
     CHECK(!strcmp(f, "https://images.pexels.com/photos/1/a.jpeg?auto=compress&w=640"));   // already sized
     CHECK(linkimg::fetchUrl("https://images.unsplash.com/photo-1?ixlib=rb-4.0.3", 1024, f, sizeof f));

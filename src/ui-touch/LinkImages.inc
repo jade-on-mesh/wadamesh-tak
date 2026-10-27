@@ -29,6 +29,13 @@ static constexpr size_t kLiMaxBytes = 8u << 20;   // 32 MB of PSRAM
 static constexpr size_t kLiMaxBytes = 3u << 20;
 #endif
 static constexpr int kLiViewSide = 1024;                      // the viewer's own limit
+// The width asked of hosts that make a smaller copy (Pexels, Unsplash): twice a
+// small screen is plenty, and a third of the pixels to download and decode.
+#if defined(HAS_TDISPLAY_P4) || defined(HAS_CROWPANEL_P4_101) || defined(HAS_TANMATSU)
+static constexpr int kLiFetchSide = 1024;
+#else
+static constexpr int kLiFetchSide = 640;
+#endif
 static constexpr int kLiThumbSide = 2 * VoxPhotos::kThumbMax;  // saveThumb averages it down
 static constexpr size_t kLiKeepFree = 1536u * 1024u;          // PSRAM left for everything else
 
@@ -92,6 +99,7 @@ struct LiJob {
   int w = 0, h = 0;
   uint8_t* raw = nullptr; // a JPEG too big to decode here: the UI tries it scaled
   size_t raw_len = 0;
+  bool progressive = false;   // ...and the scaled decoder can't do it (progressive)
 };
 static LiJob s_li_job;
 
@@ -122,8 +130,10 @@ class LiSink final : public Stream {
   bool over_ = false;
 };
 
+// .im2: files kept before Pexels links asked for a baseline JPEG may be the
+// progressive copy this can't open; they're left behind, not reopened.
 static void linkImgPath(uint32_t id, char* p, size_t cap) {
-  snprintf(p, cap, "/linkimg/%08lx.img", (unsigned long)id);
+  snprintf(p, cap, "/linkimg/%08lx.im2", (unsigned long)id);
 }
 
 static void* linkImgThumbAlloc(size_t n) { return malloc(n); }
@@ -160,7 +170,7 @@ static void linkImgJobBody() {
     // A smaller copy from hosts that make one (Pexels, Unsplash: their originals
     // are several MB); the link itself everywhere else.
     char fetch[sizeof j.url + 64];
-    if (!linkimg::fetchUrl(j.url, kLiViewSide, fetch, sizeof fetch)) snprintf(fetch, sizeof fetch, "%s", j.url);
+    if (!linkimg::fetchUrl(j.url, kLiFetchSide, fetch, sizeof fetch)) snprintf(fetch, sizeof fetch, "%s", j.url);
     const bool https = !strncasecmp(fetch, "https://", 8);
     bool began;
     if (https) { scli.setInsecure(); began = http.begin(scli, fetch); }
@@ -234,6 +244,7 @@ static bool linkImgStart(bool view, uint32_t id, const char* url, const char* ti
 }
 
 static const char* linkImgWhy(const LiJob& j) {
+  if (j.progressive) return "Progressive JPEG, too big to open here";
   if (j.http < 0) return "No connection to the picture's server";
   if (j.http > 0 && j.http != HTTP_CODE_OK) return "The picture's server said no";
   return linkimg::resultText(j.res);
@@ -273,6 +284,7 @@ static void linkImgTick() {
       // tap still opened it: decode to the viewer's size, then shrink from there.
       int w = 0, h = 0;
       uint8_t* rgb = decodeJpegScaledToRgb565(j.raw, j.raw_len, &w, &h, kLiViewSide);
+      if (!rgb && !strncmp(s_jpgScaleErr, "Progressive", 11)) j.progressive = true;
       free(j.raw);
       j.raw = nullptr;
       if (rgb && w > 0 && h > 0) {

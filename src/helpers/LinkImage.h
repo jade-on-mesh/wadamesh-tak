@@ -24,8 +24,8 @@ enum Kind : uint8_t { kUnknown = 0, kJpeg, kPng, kGif, kWebp, kBmp };
 bool findUrl(const char* text, char* out, size_t cap);
 
 // The link to download for `url`: the same, except on image hosts that make a
-// smaller copy on request (Pexels, Unsplash), which are asked for one about
-// `max_side` pixels wide when the link doesn't already say a size. Their
+// smaller copy on request (Pexels, Unsplash), which are asked for a baseline
+// JPEG about `max_side` pixels wide when the link doesn't already say a size. Their
 // originals run to several MB and 6000 px, more than a standalone downloads.
 // False (and `out` untouched) when it doesn't fit in `cap`.
 bool fetchUrl(const char* url, int max_side, char* out, size_t cap);
