@@ -767,12 +767,23 @@ bool touchPrefsSetColorfulBubbles(bool on);
 
 /** Settings > Theme (standalone keys, so no schema bump and no migration).
  *  Chat icons: 0 the glyph marks, 1 initials in a coloured ball (default 0).
- *  MORE COLORS!: on unless turned off; its style 0 Regular, 1 Neon, 2 Pastel.
+ *  MORE COLORS!: on unless turned off; its style 0 Regular, 1 Neon, 2 Pastel,
+ *  3..7 OTP Messenger's Cyberpunk, Trans, Cascadia, B&W and Acid.
  *  Taste the rainbow: off unless turned on (it implies MORE COLORS!).
  *  The colour looks apply at the next boot; chat icons apply at once. */
 constexpr uint8_t TOUCH_LOOK_REGULAR = 0;
 constexpr uint8_t TOUCH_LOOK_NEON    = 1;
 constexpr uint8_t TOUCH_LOOK_PASTEL  = 2;
+// OTP Messenger's themes as device looks (OtpThemes.h, all but its Default):
+// style 3 + i is kOtpThemes[1 + i].
+constexpr uint8_t TOUCH_LOOK_CYBERPUNK = 3;
+constexpr uint8_t TOUCH_LOOK_TRANS     = 4;
+constexpr uint8_t TOUCH_LOOK_CASCADIA  = 5;
+constexpr uint8_t TOUCH_LOOK_BW        = 6;
+constexpr uint8_t TOUCH_LOOK_ACID      = 7;
+constexpr uint8_t TOUCH_LOOK_OTP_FIRST = TOUCH_LOOK_CYBERPUNK;
+constexpr uint8_t TOUCH_LOOK_LAST      = TOUCH_LOOK_ACID;
+constexpr uint8_t TOUCH_LOOK_COUNT     = TOUCH_LOOK_LAST + 1;
 uint8_t touchPrefsGetChatIcons();
 void    touchPrefsSetChatIcons(uint8_t style);
 bool    touchPrefsGetMoreColors();
