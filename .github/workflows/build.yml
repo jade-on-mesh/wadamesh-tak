@@ -124,6 +124,11 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -DVOX_BRIGHT_NO_NET \
               -o /tmp/test_vox_brighten_net test/test_vox_brighten.cpp src/ui-touch/VoxBrighten.cpp
           /tmp/test_vox_brighten_net test/data/vox
+      - name: Models standalones download (every models/ file the firmware fetches is here, loads and runs)
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -I src \
+              -o /tmp/test_models test/test_models.cpp src/ui-touch/VoxRestoreSmall.cpp -lm
+          /tmp/test_models
       - name: Small AI voice restorer (VoxRestoreSmall against the training kit's numpy reference)
         run: |
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
