@@ -2602,9 +2602,9 @@ void touchPrefsSetMoreColors(bool on) { if (!s_begun) touchPrefsBegin(); prefsPu
 uint8_t touchPrefsGetColorStyle() {
   if (!s_begun) touchPrefsBegin();
   const uint8_t v = s_prefs.getUChar("col_style", TOUCH_LOOK_REGULAR);
-  return v > TOUCH_LOOK_PASTEL ? TOUCH_LOOK_REGULAR : v;
+  return v > TOUCH_LOOK_LAST ? TOUCH_LOOK_REGULAR : v;
 }
-void touchPrefsSetColorStyle(uint8_t style) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("col_style", style > TOUCH_LOOK_PASTEL ? TOUCH_LOOK_REGULAR : style); }
+void touchPrefsSetColorStyle(uint8_t style) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("col_style", style > TOUCH_LOOK_LAST ? TOUCH_LOOK_REGULAR : style); }
 bool touchPrefsGetRainbow() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("col_rb", 0) != 0; }
 void touchPrefsSetRainbow(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("col_rb", on ? 1 : 0); }
 bool touchPrefsGetGlassTiles() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("glass", 1) != 0; }

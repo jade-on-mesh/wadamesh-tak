@@ -970,6 +970,23 @@ static uint32_t lookRainbowFor(int i, int n, bool day, uint8_t style) {
 }
 static uint32_t lookRainbow(int i, int n) { return lookRainbowFor(i, n, s_theme_day, s_look_style); }
 
+#include "OtpThemes.h"
+// An OTP Messenger look's theme (TOUCH_LOOK_CYBERPUNK..ACID), else null.
+static const OtpThemeColors* lookOtp(uint8_t style) {
+  if (style < TOUCH_LOOK_OTP_FIRST || style > TOUCH_LOOK_LAST) return nullptr;
+  return &kOtpThemes[1 + style - TOUCH_LOOK_OTP_FIRST];
+}
+// One of its colours, made to read: by night lifted to at least 70 % bright (Acid's
+// dark red), by day taken down towards black (Trans' pinks, B&W's whites).
+static uint32_t lookOtpInk(uint32_t c, bool day) {
+  if (day) return rgbMix(c, 0x000000u, 115);
+  const int r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
+  const int mx = LV_MAX(r, LV_MAX(g, b)), mn = LV_MIN(r, LV_MIN(g, b));
+  if (mx >= 179) return c;
+  const int s = mx ? (mx - mn) * 100 / mx : 0;
+  return hsvRgb(rgbHue(c), s, 70);
+}
+
 static void lookAdjust(ThemeTokens& t, bool day, bool more, uint8_t style) {
   // Calm: the redesign's own section colours.
   t.hue[HUE_MSG] = t.glow;  t.hue[HUE_PEOPLE] = t.glow;  t.hue[HUE_PLACE] = t.info;
@@ -1013,6 +1030,26 @@ static void lookAdjust(ThemeTokens& t, bool day, bool more, uint8_t style) {
       memcpy(t.hue, h, sizeof h);
       t.link = 0x4E9BE0;
       t.tint = 52;
+    }
+  } else if (const OtpThemeColors* o = lookOtp(style)) {
+    // OTP Messenger's theme: its colours for the lit tone and every section, the
+    // surfaces leaning towards it as Regular's do towards the accent.
+    t.glow = lookOtpInk(o->encrypt, day);
+    t.on_glow = accentLuma(t.glow) > 140 ? 0x101010u : 0xFFFFFFu;
+    const uint32_t h[6] = { t.glow, lookOtpInk(o->decrypt, day), lookOtpInk(o->newpad, day),
+                            lookOtpInk(o->keyphrase, day), lookOtpInk(o->padinfo, day), lookOtpInk(o->ok, day) };
+    memcpy(t.hue, h, sizeof h);
+    t.link = h[HUE_PEOPLE];
+    if (!day) {
+      t.panel = rgbMix(t.panel, t.glow, 12);   t.control = rgbMix(t.control, t.glow, 14);
+      t.control_pressed = rgbMix(t.control_pressed, t.glow, 20);
+      t.field = rgbMix(t.field, t.glow, 12);   t.border = rgbMix(t.border, t.glow, 30);
+      t.raised = rgbMix(t.raised, t.glow, 14); t.hair = rgbMix(t.hair, t.glow, 14);
+      t.track = rgbMix(t.track, t.glow, 20);   t.tertiary = rgbMix(t.tertiary, t.glow, 30);
+      t.sent_bg = rgbMix(t.panel, t.glow, 48);
+      t.tint = 62;
+    } else {
+      t.tint = 46;
     }
   } else {   // Regular
     if (!day) {
@@ -46116,7 +46153,8 @@ static void settingsCatValue(int c, char* out, size_t cap) {
     case CAT_THEME:   // the mode, and the colour look when there is one
       if (s_theme_high_contrast)  snprintf(out, cap, "%s", TR("High contrast"));
       else if (s_look_rainbow)    snprintf(out, cap, "%s", TR("Rainbow"));
-      else if (s_look_more)       snprintf(out, cap, "%s", s_look_style == TOUCH_LOOK_NEON ? TR("Neon")
+      else if (s_look_more)       snprintf(out, cap, "%s", lookOtp(s_look_style) ? TR(lookOtp(s_look_style)->name)
+                                                         : s_look_style == TOUCH_LOOK_NEON ? TR("Neon")
                                                          : s_look_style == TOUCH_LOOK_PASTEL ? TR("Pastel") : TR("Regular"));
       else                        snprintf(out, cap, "%s", s_theme_day ? TR("Day") : TR("Night"));
       break;
@@ -71442,7 +71480,7 @@ static void applyColorLook(bool more, uint8_t style, bool rainbow) {
   if (s_theme_high_contrast) more = rainbow = false;
   if (rainbow) more = true;
   s_look_more = more;
-  s_look_style = style > TOUCH_LOOK_PASTEL ? TOUCH_LOOK_REGULAR : style;
+  s_look_style = style > TOUCH_LOOK_LAST ? TOUCH_LOOK_REGULAR : style;
   s_look_rainbow = rainbow;
   ThemeTokens t;
   themeTokensFromGlobals(t);
@@ -71694,7 +71732,7 @@ struct ThemePageUi {
   lv_obj_t* mode_dot[2]; lv_obj_t* mode_ic[2]; lv_obj_t* mode_lbl[2];
   lv_obj_t* hc_sw;
   lv_obj_t* swatch[kThemeColorN]; lv_obj_t* custom; lv_obj_t* custom_dot; lv_obj_t* accent_note;
-  lv_obj_t* more_sw; lv_obj_t* style[3]; lv_obj_t* style_dot[3][3]; lv_obj_t* rainbow_sw; lv_obj_t* colour_note;
+  lv_obj_t* more_sw; lv_obj_t* style[TOUCH_LOOK_COUNT]; lv_obj_t* style_dot[TOUCH_LOOK_COUNT][3]; lv_obj_t* rainbow_sw; lv_obj_t* colour_note;
   lv_obj_t* bg[5]; lv_obj_t* bg_sw[5]; lv_obj_t* bg_col_btn; lv_obj_t* bg_col_dot;
   lv_obj_t* bg_img_btn; lv_obj_t* bg_img_lbl; lv_obj_t* bg_note; lv_obj_t* glass_sw;
   lv_obj_t* icons[2]; lv_obj_t* icons_av[2];
@@ -72294,7 +72332,7 @@ static void themePageRepaint() {
   }
 
   themeSwitchSet(s_tp.more_sw, more, !hc);
-  for (int i = 0; i < 3; ++i) {
+  for (int i = 0; i < TOUCH_LOOK_COUNT; ++i) {
     if (!s_tp.style[i]) continue;
     themeChoiceStyle(s_tp.style[i], more && s_theme_pend.style == i, more);
     ThemeTokens st;
@@ -72857,12 +72895,15 @@ static void buildThemeSettings() {
     lv_obj_remove_style_all(row);
     lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_size(row, cw, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_style_pad_column(row, SC(6), LV_PART_MAIN);
+    lv_obj_set_style_pad_row(row, SC(6), LV_PART_MAIN);
+    // Its three styles, then OTP Messenger's themes (OtpThemes.h) as looks of their own.
     static const char* const kStyleNames[3] = { "Regular", "Neon", "Pastel" };
     const lv_coord_t tw = (cw - 2 * SC(6)) / 3;
-    for (int i = 0; i < 3; ++i) {
-      lv_obj_t* b = themeChoiceTile(row, tw, TR(kStyleNames[i]), themeStyleCb, (uintptr_t)i);
+    for (int i = 0; i < TOUCH_LOOK_COUNT; ++i) {
+      const char* nm = lookOtp((uint8_t)i) ? lookOtp((uint8_t)i)->name : kStyleNames[i < 3 ? i : 0];
+      lv_obj_t* b = themeChoiceTile(row, tw, TR(nm), themeStyleCb, (uintptr_t)i);
       lv_obj_t* pic = lv_obj_get_child(b, 0);
       for (int k = 0; k < 3; ++k) {
         lv_obj_t* d = lv_obj_create(pic);
