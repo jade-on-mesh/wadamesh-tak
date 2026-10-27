@@ -148,7 +148,9 @@ bool fetchUrl(const char* url, int max_side, char* out, size_t cap) {
   char extra[96] = "";
   if (ciPrefix(host, "images.pexels.com/")) {
     if (!q || (!strstr(q, "w=") && !strstr(q, "h=")))
-      snprintf(extra, sizeof extra, "auto=compress&cs=tinysrgb&w=%d", max_side);
+      // fm=jpg: a baseline JPEG. Its own "compress" serves a progressive one,
+      // which only stb_image decodes, and that needs ~10 bytes a pixel.
+      snprintf(extra, sizeof extra, "auto=compress&cs=tinysrgb&fm=jpg&w=%d", max_side);
   } else if (ciPrefix(host, "images.unsplash.com/")) {
     if (!q || !strstr(q, "w="))
       snprintf(extra, sizeof extra, "w=%d&q=75&fm=jpg", max_side);
