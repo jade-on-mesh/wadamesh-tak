@@ -204,7 +204,8 @@ static void wadameshSetup() {
 #endif
 
   // 5. Radio (raw SX1262/LR2021; reset via the XL9535 inside radio_init).
-  if (!radio_init()) printf("[BOOT] radio_init FAILED\n");
+  const bool radio_ok = radio_init();
+  if (!radio_ok) printf("[BOOT] radio_init FAILED\n");
 
   DisplayDriver* disp = &display;
 
@@ -447,6 +448,9 @@ static void wadameshSetup() {
   printf("[BOOT] setup done\n");
   // #708: without the internal store, everything the user sets up is gone at the next boot.
   if (!g_fs_ok) ui_task.showAlert(TR("No internal storage: identity, channels and contacts can't be saved."), 10000);
+  // Without the LoRa radio nothing is sent or heard, and until now only the serial log said so.
+  if (!radio_ok)
+    ui_task.showAlert(TR("The LoRa radio didn't start: nothing can be sent or heard. Check the radio module and its antenna, then power off and on."), 15000);
 
 #ifdef TDP4_C6_FLASH_HELPER
   // C6-FLASH HELPER BUILD: the P4 must NOT touch the C6 so it can be held in ROM download mode and
