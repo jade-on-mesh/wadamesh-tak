@@ -157,10 +157,14 @@ static void linkImgJobBody() {
     http.setUserAgent("wadamesh");
     WiFiClientSecure scli;
     WiFiClient pcli;
-    const bool https = !strncasecmp(j.url, "https://", 8);
+    // A smaller copy from hosts that make one (Pexels, Unsplash: their originals
+    // are several MB); the link itself everywhere else.
+    char fetch[sizeof j.url + 64];
+    if (!linkimg::fetchUrl(j.url, kLiViewSide, fetch, sizeof fetch)) snprintf(fetch, sizeof fetch, "%s", j.url);
+    const bool https = !strncasecmp(fetch, "https://", 8);
     bool began;
-    if (https) { scli.setInsecure(); began = http.begin(scli, j.url); }
-    else began = http.begin(pcli, j.url);
+    if (https) { scli.setInsecure(); began = http.begin(scli, fetch); }
+    else began = http.begin(pcli, fetch);
     int code = -1;
     bool over = false;
     if (began) {
@@ -302,6 +306,13 @@ static void linkImgTick() {
         s_li_retry_ms = millis() + 30000;
       } else {
         s_li_tried[s_li_tried_at++ % (sizeof s_li_tried / sizeof s_li_tried[0])] = id;
+        // A picture that won't come says why, rather than the bubble just staying
+        // text (each link is tried once a boot, so this is once too).
+        if (j.res != linkimg::kOk && g_lv.task) {
+          char msg[96];
+          snprintf(msg, sizeof msg, "%s: %s", TR("Linked picture"), TR(linkImgWhy(j)));
+          g_lv.task->showAlert(msg, 2600);
+        }
       }
     }
     j.px = nullptr;
