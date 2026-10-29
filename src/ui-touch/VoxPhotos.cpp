@@ -26,6 +26,16 @@ fs::FS* g_fs = nullptr;
 // Folder the files go in: "" (the root) on internal flash, "/meshcomod" when
 // they follow the data store onto the SD card.
 char g_root[24] = "";
+// The overflow store: the SD card, when internal flash has no room left for a
+// photo or clip and none of ours is left to remove. Other data (settings, chat
+// history, OTP pads) can fill internal flash on its own; a Super Sharp photo
+// (~38 KB) then finished downloading and failed with "couldn't store it" on a
+// ThinkNode M9 with a card in it. Files are read from internal flash first,
+// then from here.
+fs::FS* g_fs2 = nullptr;
+char g_root2[24] = "";
+fs::FS* (*g_overflow_fn)() = nullptr;   // mounts the card on demand; nullptr: no card
+uint32_t g_overflow_try_ms = 0;
 uint32_t g_version = 0;
 // Photos and talks whose fetch changed since stateVersion() last looked, and the
 // status each was last seen in: a packet arriving changes only the progress, a
@@ -91,8 +101,50 @@ const Seen* seen(uint32_t sid) {
   return nullptr;
 }
 
-void storePath(uint32_t sid, bool voice, char* out, size_t cap) {
-  snprintf(out, cap, voice ? "%s/vox_%08lx.ve3" : "%s/vox_%08lx.vi1", g_root, (unsigned long)sid);
+// Kinds: 0 the photo (.vi1), 1 a voice clip (.ve3), 2 a photo's thumbnail (.vt1).
+void kindPath(const char* root, uint32_t sid, int kind, char* out, size_t cap) {
+  static const char* const kExt[3] = {".vi1", ".ve3", ".vt1"};
+  snprintf(out, cap, "%s/vox_%08lx%s", root, (unsigned long)sid, kExt[kind < 0 || kind > 2 ? 0 : kind]);
+}
+
+// Opens a stored file for reading: from internal flash, else the overflow.
+File openVox(uint32_t sid, int kind) {
+  char path[48];
+  if (g_fs) {
+    kindPath(g_root, sid, kind, path, sizeof path);
+    // With an overflow, ask first: opening a missing file logs an error.
+    if (!g_fs2 || g_fs->exists(path)) {
+      File f = g_fs->open(path, "r");
+      if (f) return f;
+    }
+  }
+  if (g_fs2) {
+    kindPath(g_root2, sid, kind, path, sizeof path);
+    return g_fs2->open(path, "r");
+  }
+  return File();
+}
+
+bool existsVox(uint32_t sid, int kind) {
+  char path[48];
+  kindPath(g_root, sid, kind, path, sizeof path);
+  if (g_fs && g_fs->exists(path)) return true;
+  if (!g_fs2) return false;
+  kindPath(g_root2, sid, kind, path, sizeof path);
+  return g_fs2->exists(path);
+}
+
+// Removes it from both stores; true if either had it.
+bool removeVox(uint32_t sid, int kind) {
+  char path[48];
+  bool ok = false;
+  kindPath(g_root, sid, kind, path, sizeof path);
+  if (g_fs && g_fs->remove(path)) ok = true;
+  if (g_fs2) {
+    kindPath(g_root2, sid, kind, path, sizeof path);
+    if (g_fs2->exists(path) && g_fs2->remove(path)) ok = true;
+  }
+  return ok;
 }
 
 // Photos and clips live on internal flash and nothing else ever removes them,
@@ -219,13 +271,30 @@ static void idxNote(uint32_t sid, int kind, bool present, uint8_t tw, uint8_t th
     g_idx_ops_lost = true;
 }
 
+static void idxList(fs::FS* fs, const char* root, IdxEntry** pa, int* pn, int* pcap);
 static void idxTask(void* arg) {
   const uint32_t gen = (uint32_t)(uintptr_t)arg;
   IdxEntry* a = nullptr;
   int n = 0, cap = 0;
+  char root[sizeof g_root], root2[sizeof g_root2];
   fs::FS* fs = g_fs;
-  char root[sizeof g_root];
+  fs::FS* fs2 = g_fs2;
   snprintf(root, sizeof root, "%s", g_root);
+  snprintf(root2, sizeof root2, "%s", g_root2);
+  idxList(fs, root, &a, &n, &cap);
+  if (fs2) idxList(fs2, root2, &a, &n, &cap);   // the overflow on the card
+  g_idx_new = a;
+  g_idx_new_n = n;
+  g_idx_new_cap = cap;
+  g_idx_new_gen = gen;
+  g_idx_ready = true;
+  vTaskDelete(nullptr);
+}
+
+static void idxList(fs::FS* fs, const char* root, IdxEntry** pa, int* pn, int* pcap) {
+  IdxEntry*& a = *pa;
+  int& n = *pn;
+  int& cap = *pcap;
   File dir = fs ? fs->open(root[0] ? root : "/") : File();
   if (dir && dir.isDirectory()) {
     for (File f = dir.openNextFile(); f; f = dir.openNextFile()) {
@@ -238,7 +307,9 @@ static void idxTask(void* arg) {
           char hex[9];
           memcpy(hex, b + 4, 8);
           hex[8] = 0;
-          if (IdxEntry* e = idxAdd(&a, &n, &cap, (uint32_t)strtoul(hex, nullptr, 16))) {
+          IdxEntry* e = idxAdd(&a, &n, &cap, (uint32_t)strtoul(hex, nullptr, 16));
+          if (e && (e->kinds & (1u << kind))) e = nullptr;   // internal flash's copy, listed first, is the one read
+          if (e) {
             e->kinds |= (uint8_t)(1u << kind);
             if (kind == 0) e->mtime = (uint32_t)f.getLastWrite();
             if (kind == 2) {   // the thumbnail's size: its first two bytes
@@ -259,12 +330,6 @@ static void idxTask(void* arg) {
     }
     dir.close();
   }
-  g_idx_new = a;
-  g_idx_new_n = n;
-  g_idx_new_cap = cap;
-  g_idx_new_gen = gen;
-  g_idx_ready = true;
-  vTaskDelete(nullptr);
 }
 
 // From tick(): start the pass once a store is set; take its result when done.
@@ -315,16 +380,10 @@ static bool storeHas(uint32_t sid, bool voice) {
     if (h->bits & known) return (h->bits & has) != 0;
   }
   if (g_quick) return false;   // a chat being laid out never waits on the filesystem
-  char path[40];
-  storePath(sid, voice, path, sizeof path);
   ++g_fs_checks;
-  const bool present = g_fs->exists(path);
+  const bool present = existsVox(sid, voice ? 1 : 0);
   haveSet(sid, voice, present);
   return present;
-}
-
-static void thumbPath(uint32_t sid, char* out, size_t cap) {
-  snprintf(out, cap, "%s/vox_%08lx.vt1", g_root, (unsigned long)sid);
 }
 
 static bool isVoxFile(const char* n) {
@@ -338,8 +397,8 @@ static const char* baseName(const char* p) {
   return b ? b + 1 : p;
 }
 
-static bool pruneOldestVox(const char* keep) {
-  File dir = g_fs->open(g_root[0] ? g_root : "/");
+static bool pruneOldestVox(fs::FS* fs, const char* root, const char* keep) {
+  File dir = fs->open(root[0] ? root : "/");
   if (!dir || !dir.isDirectory()) return false;
   char oldest[48] = "";
   time_t oldest_t = 0;
@@ -349,41 +408,86 @@ static bool pruneOldestVox(const char* keep) {
     if (!f.isDirectory() && isVoxFile(nm) && strcmp(nm, baseName(keep))) {
       ++n;
       const time_t t = f.getLastWrite();   // 0 without timestamps: the first listed goes
-      if (!oldest[0] || t < oldest_t) { snprintf(oldest, sizeof oldest, "%s/%s", g_root, nm); oldest_t = t; }
+      if (!oldest[0] || t < oldest_t) { snprintf(oldest, sizeof oldest, "%s/%s", root, nm); oldest_t = t; }
     }
     f.close();
   }
   dir.close();
   if (!oldest[0]) return false;
-  const bool ok = g_fs->remove(oldest);
+  const bool ok = fs->remove(oldest);
   haveSetPath(oldest, false);
   Serial.printf("[VOX] storage full: removed %s to make room (%d stored)\n", oldest, n);
   return ok;
 }
 
-// Writes [lead byte][data] to `path`, making room from the oldest photos and
-// clips when it doesn't fit. False only if it still can't be written: nothing
-// of ours left to remove. It used to give up after 16 removals, and with the
-// store full of small thumbnails (~300 B each) that freed too little for a
-// 30 KB photo: "couldn't store it. Tap to retry." after a full download.
-static bool writeStore(const char* path, const uint8_t* lead, const uint8_t* data, size_t len) {
+// [lead byte][data] to `path` on `fs`; false (and nothing left behind) if it
+// doesn't fit.
+static bool writeTo(fs::FS* fs, const char* path, const uint8_t* lead, const uint8_t* data, size_t len) {
+  File f = fs->open(path, "w");
+  bool ok = (bool)f;
+  if (ok) {
+    ok = (!lead || f.write(lead, 1) == 1) && f.write(data, len) == len;
+    f.close();
+  }
+  if (!ok) fs->remove(path);
+  return ok;
+}
+
+// Writes it to `fs`, making room from the oldest photos and clips there when it
+// doesn't fit. It used to give up after 16 removals, and with the store full of
+// small thumbnails (~300 B each) that freed too little for a 30 KB photo.
+static bool writePruning(fs::FS* fs, const char* root, const char* path, const uint8_t* lead, const uint8_t* data,
+                         size_t len) {
   for (int tries = 0; tries < 1024; ++tries) {
-    File f = g_fs->open(path, "w");
-    bool ok = (bool)f;
-    if (ok) {
-      ok = (!lead || f.write(lead, 1) == 1) && f.write(data, len) == len;
-      f.close();
-    }
-    if (ok) { haveSetPath(path, true); return true; }
-    g_fs->remove(path);
-    haveSetPath(path, false);
-    if (!pruneOldestVox(path)) {
-      Serial.printf("[VOX] can't store %s (%u bytes): no older photos or clips left to remove\n", path,
-                    (unsigned)len + (lead ? 1u : 0u));
-      return false;
-    }
+    if (!pruneOldestVox(fs, root, path)) return false;
+    if (writeTo(fs, path, lead, data, len)) return true;
   }
   return false;
+}
+
+static void useOverflow(fs::FS* fs) {
+  if (!fs || fs == g_fs) return;   // the store is on the card already
+  if (!fs->exists(g_root2)) fs->mkdir(g_root2);
+  g_fs2 = fs;
+  haveClear();   // "not stored" answers may now be on the card
+  g_indexed = false;
+  g_idx_started = false;
+  ++g_idx_gen;
+  Serial.printf("[VOX] SD card for photos and clips that don't fit internal storage (%s)\n", g_root2);
+}
+
+// The card, mounted when first needed (a card put in after boot); at most a try
+// every 30 s while there's none.
+static fs::FS* overflowStore() {
+  if (g_fs2 || !g_overflow_fn) return g_fs2;
+  if (g_overflow_try_ms && millis() - g_overflow_try_ms < 30000) return nullptr;
+  g_overflow_try_ms = millis() | 1;
+  useOverflow(g_overflow_fn());
+  return g_fs2;
+}
+
+// Writes [lead byte][data] as photo, clip or thumbnail `kind` of `sid`: to
+// internal flash; when that is full, to the SD card if there is one (nothing is
+// removed while the card has room); then making room from the oldest photos
+// and clips, internal flash first. False only if it still can't be written:
+// "couldn't store it. Tap to retry." after a full download.
+static bool writeStore(uint32_t sid, int kind, const uint8_t* lead, const uint8_t* data, size_t len) {
+  char path[48], path2[48];
+  kindPath(g_root, sid, kind, path, sizeof path);
+  bool ok = writeTo(g_fs, path, lead, data, len);   // a failure removed any older copy here
+  fs::FS* ov = ok ? nullptr : overflowStore();
+  if (ov) kindPath(g_root2, sid, kind, path2, sizeof path2);
+  if (!ok && ov && writeTo(ov, path2, lead, data, len)) {
+    Serial.printf("[VOX] internal storage full: %s on the SD card (%s)\n", baseName(path2), g_root2);
+    ok = true;
+  }
+  if (!ok) ok = writePruning(g_fs, g_root, path, lead, data, len);
+  if (!ok && ov) ok = writePruning(ov, g_root2, path2, lead, data, len);
+  haveSetKind(sid, kind, ok);
+  if (!ok)
+    Serial.printf("[VOX] can't store %s (%u bytes): full%s, no older photos or clips left to remove\n",
+                  baseName(path), (unsigned)len + (lead ? 1u : 0u), ov ? " here and on the SD card" : " (no SD card)");
+  return ok;
 }
 
 // Case-insensitive name match that ignores emoji variation selectors (U+FE0E,
@@ -478,9 +582,7 @@ class MeshIo : public VoxFetchIo {
     if (!g_fs) return false;
     const Seen* e = seen(sid);
     const bool voice = e && e->kind != VoxWire::kImage;
-    char path[40];
-    storePath(sid, voice, path, sizeof path);
-    if (!writeStore(path, voice ? &e->mode : nullptr, data, len)) return false;
+    if (!writeStore(sid, voice ? 1 : 0, voice ? &e->mode : nullptr, data, len)) return false;
     if (!voice) {   // the UI decodes it in the background for the bubble
       thumbRedoSet(sid, true);   // over the early one from the first packet, if any
       wantThumb(sid);
@@ -605,6 +707,13 @@ void setStore(fs::FS* fs, const char* root) {
   snprintf(g_root, sizeof g_root, "%s", root ? root : "");
 }
 
+void setOverflow(fs::FS* (*mount)(), const char* root) {
+  g_overflow_fn = mount;
+  snprintf(g_root2, sizeof g_root2, "%s", root ? root : "/meshcomod");
+  g_overflow_try_ms = millis() | 1;
+  if (mount) useOverflow(mount());   // at boot, so the index lists what is already there
+}
+
 static VoxPhotos::Latest g_latest[2];   // [0] photo, [1] voice
 static void noteLatest(const char* text, const VoxWire::Envelope& env, const uint8_t* pub, const char* name,
                        int channel) {
@@ -719,9 +828,7 @@ bool loadVoice(uint32_t sid, int* mode, uint8_t** frames, size_t* len) {
 
 bool loadFile(uint32_t sid, bool voice, uint8_t** data, size_t* len) {
   if (!g_fs || !data || !len) return false;
-  char path[40];
-  storePath(sid, voice, path, sizeof path);
-  File f = g_fs->open(path, "r");
+  File f = openVox(sid, voice ? 1 : 0);
   if (!f) return false;
   const size_t n = f.size();
   if (n < 2 || n > 64 * 1024) { f.close(); return false; }   // largest clip: 96 x 156 B
@@ -770,9 +877,7 @@ bool addRecording(uint8_t wire_mode, uint8_t* bits, size_t len, uint32_t ms, cha
   }
   // Stored like a downloaded clip ([wire mode][frames]), so the bubble plays it
   // and VoxServe can answer for it after a reboot too.
-  char path[40];
-  storePath(sid, true, path, sizeof path);
-  const bool ok = writeStore(path, &wire_mode, bits, len);
+  const bool ok = writeStore(sid, 1, &wire_mode, bits, len);
   free(bits);
   if (!ok) return false;
   VoxWire::Envelope env;
@@ -788,10 +893,8 @@ bool addRecording(uint8_t wire_mode, uint8_t* bits, size_t len, uint32_t ms, cha
 
 bool storeHeard(uint32_t sid, uint8_t wire_mode, const uint8_t* bits, size_t len) {
   if (!g_fs || !sid || !bits || len == 0) return false;
-  char path[40];
-  storePath(sid, true, path, sizeof path);
   if (storeHas(sid, true)) return true;
-  if (!writeStore(path, &wire_mode, bits, len)) return false;
+  if (!writeStore(sid, 1, &wire_mode, bits, len)) return false;
   VoxWire::Envelope env;
   env.sid = sid;
   env.kind = VoxWire::kCodec2;
@@ -804,9 +907,7 @@ bool storeHeard(uint32_t sid, uint8_t wire_mode, const uint8_t* bits, size_t len
 
 void discardRecording(uint32_t sid) {
   if (!g_fs || !sid) return;
-  char path[40];
-  storePath(sid, true, path, sizeof path);
-  g_fs->remove(path);
+  removeVox(sid, 1);
   haveSet(sid, true, false);
   bumpState();
   Serial.printf("[VOX] discarded clip %08lx\n", (unsigned long)sid);
@@ -841,9 +942,12 @@ int listPhotos(StoredPhoto* out, int cap) {
     }
     return n;
   }
-  File dir = g_fs->open(g_root[0] ? g_root : "/");
-  if (!dir || !dir.isDirectory()) return 0;
   int n = 0;
+  for (int store = 0; store < 2; ++store) {   // internal flash, then the overflow on the card
+  fs::FS* fs = store ? g_fs2 : g_fs;
+  const char* root = store ? g_root2 : g_root;
+  File dir = fs ? fs->open(root[0] ? root : "/") : File();
+  if (!dir || !dir.isDirectory()) continue;
   for (File f = dir.openNextFile(); f; f = dir.openNextFile()) {
     const char* nm = f.name();
     const char* b = strrchr(nm, '/');
@@ -854,7 +958,10 @@ int listPhotos(StoredPhoto* out, int cap) {
       hex[8] = 0;
       const StoredPhoto p{(uint32_t)strtoul(hex, nullptr, 16), (uint32_t)f.getLastWrite(), (uint32_t)f.size()};
       haveSet(p.sid, false, true);
-      if (n < cap) {
+      bool dup = false;
+      for (int k = 0; k < n && !dup; k++) dup = out[k].sid == p.sid;
+      if (dup) {
+      } else if (n < cap) {
         out[n++] = p;
       } else {   // full: keep the newest (replace the oldest kept)
         int o = 0;
@@ -865,6 +972,7 @@ int listPhotos(StoredPhoto* out, int cap) {
     f.close();
   }
   dir.close();
+  }
   // Newest first (the order the directory lists them in when there are no times).
   for (int i = 1; i < n; i++) {
     const StoredPhoto x = out[i];
@@ -877,9 +985,7 @@ int listPhotos(StoredPhoto* out, int cap) {
 
 bool photoEnvelope(uint32_t sid, char* out, size_t cap) {
   if (!g_fs || !sid || !out) return false;
-  char path[40];
-  storePath(sid, false, path, sizeof path);
-  File f = g_fs->open(path, "r");
+  File f = openVox(sid, 0);
   if (!f) return false;
   const size_t len = f.size();
   uint8_t ver = 0;
@@ -919,9 +1025,7 @@ bool importPhoto(const uint8_t* data, size_t len, uint32_t* sid_out) {
   if ((len + (size_t)pb - 1) / (size_t)pb > (size_t)VoxWire::kMaxPackets) return false;
   uint32_t sid = 0;
   while (!sid) sid = esp_random();
-  char path[40];
-  storePath(sid, false, path, sizeof path);
-  if (!writeStore(path, nullptr, data, len)) return false;
+  if (!writeStore(sid, 0, nullptr, data, len)) return false;
   wantThumb(sid);
   bumpState();
   if (sid_out) *sid_out = sid;
@@ -931,12 +1035,9 @@ bool importPhoto(const uint8_t* data, size_t len, uint32_t* sid_out) {
 static void thumbCacheDrop(uint32_t sid);
 bool deletePhoto(uint32_t sid) {
   if (!g_fs || !sid) return false;
-  char path[40];
-  storePath(sid, false, path, sizeof path);
-  const bool ok = g_fs->remove(path);
+  const bool ok = removeVox(sid, 0);
   haveSet(sid, false, false);
-  thumbPath(sid, path, sizeof path);
-  if (g_fs->remove(path)) haveSetKind(sid, 2, false);
+  if (removeVox(sid, 2)) haveSetKind(sid, 2, false);
   thumbCacheDrop(sid);
   bumpState();
   return ok;
@@ -1008,13 +1109,11 @@ bool thumbSize(uint32_t sid, int* w, int* h) {
   HaveEntry* e = haveFind(sid, false);
   if ((!e || !(e->bits & 16)) && g_quick) return false;   // unknown: no thumbnail for now
   if (!e || !(e->bits & 16)) {
-    char path[40];
-    thumbPath(sid, path, sizeof path);
     ++g_fs_checks;
     uint8_t hdr[2] = {0, 0};
     bool ok = false;
-    if (g_fs->exists(path)) {
-      File f = g_fs->open(path, "r");
+    if (existsVox(sid, 2)) {
+      File f = openVox(sid, 2);
       ok = f && f.read(hdr, 2) == 2 && hdr[0] && hdr[1] && hdr[0] <= kThumbMax && hdr[1] <= kThumbMax &&
            f.size() == 2u + (size_t)hdr[0] * hdr[1] * 2u;
       if (f) f.close();
@@ -1043,9 +1142,7 @@ bool loadThumb(uint32_t sid, int* w, int* h, uint16_t** px) {
     if (h) *h = t.h;
     return true;
   }
-  char path[40];
-  thumbPath(sid, path, sizeof path);
-  File f = g_fs->open(path, "r");
+  File f = openVox(sid, 2);
   if (!f) { haveSetKind(sid, 2, false); return false; }
   const size_t n = (size_t)tw * th * 2u;
   uint16_t* b = (uint16_t*)heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -1097,9 +1194,7 @@ bool saveThumb(uint32_t sid, const uint16_t* src, int sw, int sh) {
       out[y * tw + x] = (uint16_t)(((r / c) << 11) | ((g / c) << 5) | (bl / c));
     }
   }
-  char path[40];
-  thumbPath(sid, path, sizeof path);
-  const bool ok = writeStore(path, nullptr, buf, n);
+  const bool ok = writeStore(sid, 2, nullptr, buf, n);
   if (ok) {
     if (HaveEntry* e = haveFind(sid, true)) { e->tw = (uint8_t)tw; e->th = (uint8_t)th; }
     idxNote(sid, 2, true, (uint8_t)tw, (uint8_t)th);   // writeStore noted it without its size

@@ -88692,6 +88692,10 @@ void UITask::loop() {
 #endif
       if (in_ok) {
         VoxPhotos::setStore(in);
+        // When internal storage is full (settings, chat history and OTP pads
+        // share it), photos and clips go on the SD card instead: a Super Sharp
+        // photo on a ThinkNode M9 downloaded fully, then "couldn't store it".
+        VoxPhotos::setOverflow(backupSdFs, "/meshcomod");
         s_vox_store_set = true;
       } else if (uiDataFsReady() && s_ui_data_fs && s_ui_data_root[0]) {
         VoxPhotos::setStore(s_ui_data_fs, s_ui_data_root);
