@@ -1,6 +1,7 @@
 #include "MyMesh.h"
 #ifdef DISPLAY_CLASS
 #include "ui-touch/VoxPhotos.h"   // MeshCore Open TAK photo fetches
+#include "helpers/MediaMeshReps.h"   // which repeaters run MediaMesh (the map marks them)
 #include "ui-touch/TeamCore.h"
 #include "ui-touch/WalkieWire.h"   // push-to-talk channel data (0x5643, 0x53/0x54)   // Open TAK team positions/alerts/pins (GRP_DATA 0x5654)
 #include "ui-touch/SoundLinkCore.h"   // Sound link: the channel bridge (SoundLinkUI.inc)
@@ -4093,6 +4094,11 @@ void MyMesh::discoverUpsert(const uint8_t* pk, uint8_t pklen, uint8_t node_type,
   if (extra && extra_len) {
     h.r2_len = extra_len > sizeof h.r2 ? (uint8_t)sizeof h.r2 : extra_len;
     memcpy(h.r2, extra, h.r2_len);
+#ifdef DISPLAY_CLASS
+    // Which repeaters run MediaMesh, for the map (MediaMeshReps.h).
+    if (node_type == ADV_TYPE_REPEATER)
+      mmreps::table().noteDiscover(pk, extra, extra_len, getRTCClock()->getCurrentTime());
+#endif
   }
 }
 

@@ -172,6 +172,7 @@ static void* wadaMp3Scratch() { return s_wada_mp3_scratch; }
 #include "VoxVoice.h"         // MeshCore Open TAK voice clips: Codec2 decode (lib/codec2)
 #include "../helpers/BootMem.h"   // internal RAM at start-up, for Memory detail
 #include "../helpers/ForeignImport.h"   // Settings > Backups > From another firmware
+#include "../helpers/MediaMeshReps.h"   // which repeaters run MediaMesh (map ring + badge)
 #include "VoxRestoreSmall.h"  // ...and the small AI voice restorer (a model on the SD card)
 #include "VoxBrighten.h"      // ...and "Brighter voice": the 4-8 kHz band Codec2 leaves out
 #include "VoxMic.h"           // ...and recording them on boards with a microphone (T-Deck)
@@ -25551,7 +25552,22 @@ static void openContactActionSheet(uint32_t mesh_idx, bool is_repeater, const ch
       nick = nickFor(_tc.id.pub_key);
     }
   }
-  const int sub_h = nick ? (int)lv_font_get_line_height(&g_font_12) + 2 : 0;
+  // A repeater known to run MediaMesh: its profile, under the title.
+  char mm_line[64] = "";
+  if (is_repeater) {
+    ContactInfo _mm;
+    mmreps::Info mi;
+    mesh::RTCClock* rtc = the_mesh.getRTCClock();
+    if (the_mesh.getContactByIdx(mesh_idx, _mm) &&
+        mmreps::table().info(_mm.id.pub_key, rtc ? rtc->getCurrentTime() : 0, &mi) && mi.active) {
+      char prof[24];
+      mmreps::describe(mi, prof, sizeof prof);
+      snprintf(mm_line, sizeof mm_line, "MediaMesh%s%s, %s", prof[0] ? " " : "", prof,
+               mi.mode == 2 ? TR("listens and sends") : TR("listens"));
+    }
+  }
+  const int sub_lh = (int)lv_font_get_line_height(&g_font_12) + 2;
+  const int sub_h = (nick ? sub_lh : 0) + (mm_line[0] ? sub_lh : 0);
 #if defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION)
   {
     ContactInfo _lc;
@@ -25646,6 +25662,15 @@ static void openContactActionSheet(uint32_t mesh_idx, bool is_repeater, const ch
     lv_label_set_long_mode(real, LV_LABEL_LONG_DOT);
     lv_obj_set_width(real, card_w - 2 * padding - 32);
     lv_obj_set_pos(real, 0, title_row_h - 4);
+  }
+  if (mm_line[0]) {
+    lv_obj_t* mm = lv_label_create(card);
+    lv_label_set_text(mm, mm_line);
+    lv_obj_set_style_text_color(mm, lv_color_hex(0xD946EF), LV_PART_MAIN);
+    lv_obj_set_style_text_font(mm, &g_font_12, LV_PART_MAIN);
+    lv_label_set_long_mode(mm, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(mm, card_w - 2 * padding - 32);
+    lv_obj_set_pos(mm, 0, title_row_h - 4 + (nick ? sub_lh : 0));
   }
 
   // Scrollable button body below the fixed title/X. The absolute-positioned grid buttons go in here;
@@ -33192,7 +33217,7 @@ static void discoverTimerCb(lv_timer_t* t) {
   if (s_discover_scanning &&
       (s_discover_last_scan_ms == 0 || (now - s_discover_last_scan_ms) >= discoverSweepInterval())) {
     if (the_mesh.getRemainingTxBudget() >= 300) {   // airtime gate: keep a duty-cycle cushion
-      the_mesh.uiStartDiscoverScan(0);              // 0 = all node types
+      the_mesh.uiStartDiscoverScan(0, true);        // 0 = all node types; MediaMesh repeaters say so (map)
       s_discover_last_scan_ms = now;
       if (s_disc_sweep_n < 250) s_disc_sweep_n++;
     }
@@ -41781,6 +41806,7 @@ static bool s_map_show_contacts  = true;
 static bool s_map_tile_debug     = false;  // developer: tile-pipeline diagnostic overlay on the zoom line (off by default)
 static bool s_map_direct_only    = false;  // when true, only 0-hop (directly-heard) contacts appear
 static bool s_map_fav_only       = false;  // when true, only favourite contacts appear (saved as "map_fav")
+static bool s_map_mm_only        = false;  // when true, only repeaters known to run MediaMesh (saved as "map_mm")
 
 // Apply the coords/tile-line visibility flags to the two corner labels. Safe to
 // call before the labels exist (null-guarded); invoked at map build + on toggle.
@@ -41951,6 +41977,8 @@ struct MapMarkerStyles {
   lv_style_t dot[3];    // status dot: <1 h, <1 day, older
   lv_style_t icon;
   lv_style_t link;
+  lv_style_t mm_ring;    // a MediaMesh repeater's rim (fuchsia, as the app's)
+  lv_style_t mm_badge;   // and its badge, top right
 };
 static MapMarkerStyles& mapMarkerStyles() {   // non-const: LVGL 8 takes lv_style_t*
   static MapMarkerStyles* st = nullptr;
@@ -41985,6 +42013,15 @@ static MapMarkerStyles& mapMarkerStyles() {   // non-const: LVGL 8 takes lv_styl
   lv_style_set_line_color(&st->link, lv_color_hex(0x6FA8DA));
   lv_style_set_line_opa(&st->link, LV_OPA_70);
   lv_style_set_line_rounded(&st->link, true);
+  lv_style_init(&st->mm_ring);
+  lv_style_set_border_color(&st->mm_ring, lv_color_hex(0xD946EF));
+  lv_style_set_border_width(&st->mm_ring, 2);
+  lv_style_init(&st->mm_badge);
+  lv_style_set_bg_color(&st->mm_badge, lv_color_hex(0xD946EF));
+  lv_style_set_bg_opa(&st->mm_badge, LV_OPA_COVER);
+  lv_style_set_radius(&st->mm_badge, LV_RADIUS_CIRCLE);
+  lv_style_set_border_color(&st->mm_badge, lv_color_hex(0xFFFFFF));
+  lv_style_set_border_width(&st->mm_badge, 1);
   return *st;
 }
 
@@ -42012,8 +42049,12 @@ static void renderMapMarkers() {
   static uint8_t s_mm_fav[TOUCH_FAVORITES_MAX * TOUCH_FAVORITE_KEY_BYTES];   // static: off the loop stack
   const int mm_fav_n = s_map_fav_only ? touchPrefsCopyFavorites(s_mm_fav) : 0;
 #endif
+  uint32_t mm_now = 0;
+  { mesh::RTCClock* rtc = the_mesh.getRTCClock(); if (rtc) mm_now = rtc->getCurrentTime(); }
   auto mapHidesContact = [&](const ContactInfo& c) -> bool {
     if (s_map_direct_only && pathHops(c.out_path_len) != 0) return true;
+    if (s_map_mm_only &&
+        (c.type != ADV_TYPE_REPEATER || !mmreps::table().isMediaMesh(c.id.pub_key, mm_now))) return true;
 #if defined(ESP32)
     if (s_map_fav_only) {
       for (int f = 0; f < mm_fav_n; ++f)
@@ -42168,6 +42209,19 @@ static void renderMapMarkers() {
     lv_obj_align(st, LV_ALIGN_BOTTOM_RIGHT, 3, 3);
     lv_obj_add_flag(st, LV_OBJ_FLAG_IGNORE_LAYOUT | LV_OBJ_FLAG_FLOATING);
     lv_obj_clear_flag(st, LV_OBJ_FLAG_CLICKABLE);
+    // A repeater known to run MediaMesh (it said so when asked: MediaMeshReps.h):
+    // a fuchsia rim and a badge top right, as the app marks it.
+    if (c.type == ADV_TYPE_REPEATER && mmreps::table().isMediaMesh(c.id.pub_key, mm_now)) {
+      lv_obj_add_style(m.obj, &ms.mm_ring, LV_PART_MAIN);
+      lv_obj_add_flag(m.obj, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+      lv_obj_t* bd = lv_obj_create(m.obj);
+      lv_obj_remove_style_all(bd);
+      lv_obj_add_style(bd, &ms.mm_badge, LV_PART_MAIN);
+      lv_obj_set_size(bd, 9, 9);
+      lv_obj_align(bd, LV_ALIGN_TOP_RIGHT, 4, -4);
+      lv_obj_add_flag(bd, LV_OBJ_FLAG_IGNORE_LAYOUT | LV_OBJ_FLAG_FLOATING);
+      lv_obj_clear_flag(bd, LV_OBJ_FLAG_CLICKABLE);
+    }
     // Markers are NOT clickable themselves — taps go to the canvas, whose
     // RELEASED handler scans all markers within ~16 px of the tap point.
     // This makes overlapping markers selectable (disambiguation sheet) and
@@ -42719,6 +42773,22 @@ static void mapOptFavOnlyCb(lv_event_t* e) {
   renderMapMarkers();
 }
 
+static void mapOptMmOnlyCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+  s_map_mm_only = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+#if defined(ESP32)
+  const uint8_t v = s_map_mm_only ? 1 : 0;
+  touchPrefsSetBlob("map_mm", &v, 1);
+#endif
+  renderMapMarkers();
+  if (s_map_mm_only && g_lv.task) {
+    mesh::RTCClock* rtc = the_mesh.getRTCClock();
+    if (mmreps::table().count(rtc ? rtc->getCurrentTime() : 0) == 0)
+      g_lv.task->showAlert(TR("No MediaMesh repeaters known yet. Find MediaMesh or Discover asks the repeaters in reach."),
+                           4000);
+  }
+}
+
 static void mapZoomControlsApply();   // fwd (defined near the map build) — reposition zoom controls
 // Map zoom-control style toggle (map options popup): ON = +/- buttons, OFF = slider.
 static void mapOptZoomButtonsCb(lv_event_t* e) {
@@ -43262,6 +43332,7 @@ static void openMapOptions() {
       { "Show contacts",       s_map_show_contacts, mapOptContactsCb   },
       { "Direct (0-hop) only", s_map_direct_only,   mapOptDirectOnlyCb },
       { "Favorites only",      s_map_fav_only,      mapOptFavOnlyCb    },
+      { "MediaMesh only",      s_map_mm_only,       mapOptMmOnlyCb     },
 #if CAP_TRACKS
       { "Record track",        trackRecording(),    mapOptTrackCb      },
 #endif
@@ -56669,6 +56740,74 @@ static fs::FS* backupSdFs() {
 #else
   return nullptr;
 #endif
+}
+
+// ---- MediaMesh repeaters (MediaMeshReps.h): kept on internal storage, asked
+// quietly, and the map redrawn when a mark changes.
+static const char* const kMmRepsPath = "/mm_reps";
+static uint32_t mmRepsNow() {
+  mesh::RTCClock* rtc = the_mesh.getRTCClock();
+  return rtc ? rtc->getCurrentTime() : 0;
+}
+static void mmRepsLoad(fs::FS* fs) {
+  if (!fs || !fs->exists(kMmRepsPath)) return;
+  File f = fs->open(kMmRepsPath, "r");
+  if (!f) return;
+  const size_t n = f.size();
+  if (n >= 4 && n <= 4 + (size_t)mmreps::kMax * mmreps::kRecLen) {
+    uint8_t* b = (uint8_t*)malloc(n);
+    if (b) {
+      if (f.read(b, n) == n) mmreps::table().load(b, n, mmRepsNow());
+      free(b);
+    }
+  }
+  f.close();
+}
+static void mmRepsSave(fs::FS* fs) {
+  if (!fs) return;
+  const size_t n = mmreps::table().saveSize();
+  uint8_t* b = (uint8_t*)malloc(n);
+  if (!b) return;
+  if (mmreps::table().save(b, n) == n) {
+    File f = fs->open(kMmRepsPath, "w");
+    if (f) {
+      f.write(b, n);
+      f.close();
+    }
+  }
+  free(b);
+}
+// Each pass: load once, save a minute after a change, redraw the map when a mark
+// changed, and ask the repeaters in reach for their radio2 profile 90 s after
+// boot and then every 30 min (one zero-hop DISCOVER_REQ; not while another scan
+// ran in the last 3 minutes, or with little airtime to spare).
+static void mmRepsTick() {
+  static bool loaded = false;
+  static uint32_t save_ms = 0, ask_ms = 0, seen_ver = 0;
+  const uint32_t now = millis();
+  fs::FS* in = backupInternalFs();
+  if (!loaded && in) {
+    loaded = true;
+    mmRepsLoad(in);
+  }
+  if (mmreps::table().takeDirty()) save_ms = now | 1;
+  if (save_ms && now - save_ms >= 60000) {
+    save_ms = 0;
+    mmRepsSave(in);
+  }
+  if (mmreps::table().version() != seen_ver) {
+    seen_ver = mmreps::table().version();
+    if (mapOnScreen()) renderMapMarkers();
+    else s_map_markers_stale = true;
+  }
+  const uint32_t first = 90000, every = 30u * 60u * 1000u;
+  if (ask_ms == 0 ? now < first : now - ask_ms < every) return;
+  const uint32_t last_scan = the_mesh.discoverScanMs();
+  if (last_scan && now - last_scan < 180000) { ask_ms = now | 1; return; }   // a scan just asked
+  if (s_discover_root || the_mesh.getRemainingTxBudget() < 300) return;   // try again next pass
+  ask_ms = now | 1;
+  the_mesh.uiStartDiscoverScan((uint8_t)(1u << ADV_TYPE_REPEATER), true);
+  Serial.println("[MM] asked the repeaters in reach for MediaMesh");
 }
 static void backupScan() {
   s_backup_count = 0;
@@ -74804,7 +74943,7 @@ static void regionsScanCb(lv_event_t* e) {
   s_region_candidates.clear();
   regionsRenderList();
   the_mesh.discoverClear();
-  if (the_mesh.uiStartDiscoverScan((uint8_t)(1u << ADV_TYPE_REPEATER)) == 0) {
+  if (the_mesh.uiStartDiscoverScan((uint8_t)(1u << ADV_TYPE_REPEATER), true) == 0) {
     if (s_regions_scan_status) lv_label_set_text(s_regions_scan_status, TR("Paused"));
     return;
   }
@@ -82534,6 +82673,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   s_map_tile_debug    = touchPrefsGetMapTileDebug();      // developer: tile-pipeline diagnostic overlay
   s_map_show_contacts = touchPrefsGetMapShowContacts();
   { uint8_t v = 0; s_map_fav_only = touchPrefsGetBlob("map_fav", &v, 1) == 1 && v; }   // map options: Favorites only
+  { uint8_t v = 0; s_map_mm_only = touchPrefsGetBlob("map_mm", &v, 1) == 1 && v; }     // map options: MediaMesh repeaters only
 #if CAP_MAP_PMTILES
   { uint8_t v = 0; s_map_zoom_fit = touchPrefsGetBlob("map_zfit", &v, 1) == 1 && v; }  // map options: map zoom levels only
 #endif
@@ -88704,6 +88844,7 @@ void UITask::loop() {
       }
     }
     uiCp("ui:vox");
+    mmRepsTick();           // which repeaters run MediaMesh: save, redraw, the quiet ask
     VoxPhotos::tick();
 #if VOX_RS_DOWNLOAD
     voxRsModelTick(millis());   // the AI voice restorer's model, fetched over Wi-Fi when it isn't here

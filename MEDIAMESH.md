@@ -155,6 +155,31 @@ epoch,lat,lon,reach,best_margin,repeater,snr,remote_snr,margin
 1760000040,47.601400,-122.300000,none,,,,,
 ```
 
+### MediaMesh repeaters on the map
+
+Repeaters known to run MediaMesh get a fuchsia rim and a fuchsia badge on the
+map, as in MeshCore Open TAK. Their contact sheet shows the profile under the
+name, for example *MediaMesh 250 kHz SF7, listens and sends*. *Map options ›
+MediaMesh only* hides every other node.
+
+A repeater is known from what it answered when asked for its radio2 profile
+(the radio2 flag on DISCOVER_REQ). These ask:
+
+- Find MediaMesh;
+- the coverage map;
+- the Discover app;
+- the Regions scan;
+- a quiet ask 90 s after start-up and then every 30 minutes. It is skipped when
+  another scan asked in the last 3 minutes, while Discover is open, or with
+  little airtime left.
+
+An answer with radio2 off clears the mark. Answers are kept 30 days, in
+`/mm_reps` on internal storage (`src/helpers/MediaMeshReps.h`; test:
+`test/test_mediamesh_reps.cpp`).
+
+The ask is zero-hop, so only repeaters in direct range can answer. A repeater
+further out is marked once it has been in direct range.
+
 ## Repeaters
 
 A repeater running MeshCore with radio profiles
