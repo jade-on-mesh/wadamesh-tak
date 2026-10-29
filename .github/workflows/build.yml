@@ -108,6 +108,11 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_mediamesh_coverage test/test_mediamesh_coverage.cpp
           /tmp/test_mediamesh_coverage
+      - name: MediaMesh repeaters (marks from DISCOVER_RESP, expiry, save/load)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_mediamesh_reps test/test_mediamesh_reps.cpp
+          /tmp/test_mediamesh_reps
       - name: VOX serving clips recorded on the radio (Open TAK's request bytes, simulated mesh)
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
