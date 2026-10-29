@@ -21,6 +21,13 @@ namespace VoxPhotos {
 // `root`: the folder the files go in ("" for the filesystem's root).
 void setStore(fs::FS* fs, const char* root = "");
 
+// Where photos and clips go when internal storage is full: the SD card, in
+// `root`. `mount` returns the card (mounting it on demand) or nullptr without
+// one; it is called now, so files already there are found, and again (at most
+// every 30 s) when a write doesn't fit and no card was found yet. Reads look
+// in internal storage first, then here.
+void setOverflow(fs::FS* (*mount)(), const char* root = "/meshcomod");
+
 // Mesh hooks. onDirectText returns true for a VR3 fetch request (a control
 // message between apps; it never belongs in the chat).
 bool onDirectText(const char* text, const uint8_t sender_pub[32]);
