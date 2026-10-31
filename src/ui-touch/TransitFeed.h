@@ -577,7 +577,8 @@ inline void clockAt(uint32_t sent_epoch, long secs, char* out, size_t cap) {
 namespace detail {
 struct Out {
   char* s;
-  size_t cap, n = 0;
+  size_t cap, n;
+  Out(char* out, size_t c) : s(out), cap(c), n(0) {}
   void add(const char* fmt, ...) __attribute__((format(printf, 2, 3))) {
     if (n + 1 >= cap) return;
     va_list ap;
@@ -605,7 +606,7 @@ struct Out {
 inline size_t describe(const Reply& r, uint32_t elapsed_s, uint32_t sent_epoch, bool full, char* out, size_t cap) {
   if (!cap) return 0;
   out[0] = 0;
-  detail::Out o{out, cap};
+  detail::Out o(out, cap);
   char cd[16], ck[8];
   if (full && r.kind != kPlan && r.kind != kSearch && r.kind != kAlertPost) {
     char ag[8] = "";
