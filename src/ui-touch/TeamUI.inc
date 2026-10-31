@@ -10,6 +10,7 @@
 #include "TeamCore.h"
 #include "TeamSetup.h"
 #include "WatchFeed.h"
+#include "TransitFeed.h"
 #include "MapHighlight.h"
 
 #if defined(HAS_GPS_MOTION)
@@ -209,6 +210,64 @@ static watchfeed::Store* watch() {
     }
   }
   return s_watch;
+}
+
+// Transit bots' replies on watched channels (TransitFeed.h): the joined text
+// of each one on the map, by its watch item, to lay out its card; a reply's
+// first part while the rest (with the stop's position) is on its way; and a
+// parsed reply each for the mesh side and the UI. All in PSRAM, made on the
+// first transit reply.
+static char (*s_tx)[transitfeed::kTextCap] = nullptr;
+struct TxPending {
+  int8_t ch = -1;
+  uint32_t ms = 0, sent = 0;
+  char sender[40] = {0};
+  char text[transitfeed::kTextCap] = {0};
+};
+static TxPending* s_txp = nullptr;
+static transitfeed::Reply* s_txr = nullptr;      // the mesh side's
+static transitfeed::Reply* s_txr_ui = nullptr;   // the Watch page's
+
+static bool txAlloc() {
+  if (!s_tx)
+    s_tx = (char (*)[transitfeed::kTextCap])heap_caps_calloc(watchfeed::kMaxItems, transitfeed::kTextCap,
+                                                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!s_txp) {
+    void* m = heap_caps_malloc(sizeof(TxPending), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (m) s_txp = new (m) TxPending();
+  }
+  if (!s_txr) {
+    void* m = heap_caps_malloc(sizeof(transitfeed::Reply), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (m) s_txr = new (m) transitfeed::Reply();
+  }
+  if (!s_txr_ui) {
+    void* m = heap_caps_malloc(sizeof(transitfeed::Reply), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (m) s_txr_ui = new (m) transitfeed::Reply();
+  }
+  return s_tx && s_txp && s_txr && s_txr_ui;
+}
+
+// Watch item [i]'s transit reply, or nullptr when it isn't one.
+static const char* txText(int i) {
+  return s_tx && i >= 0 && i < watchfeed::kMaxItems && s_tx[i][0] ? s_tx[i] : nullptr;
+}
+static void txSet(int i, const char* t) {
+  if (!s_tx || i < 0 || i >= watchfeed::kMaxItems) return;
+  watchfeed::copyN(s_tx[i], transitfeed::kTextCap, t ? t : "", t ? strlen(t) : 0);
+}
+
+// Watch item [i]'s card text: [full] for its sheet, else the list's few lines.
+// Countdowns run from when the reply was sent. False when it isn't transit.
+static bool txDescribe(const watchfeed::Item& it, int i, bool full, char* out, size_t cap) {
+  const char* t = txText(i);
+  if (!t || !s_txr_ui) return false;
+  ChannelDetails cd;
+  const bool posts = the_mesh.getChannel(it.channel, cd) && transitfeed::transitChannel(cd.name);
+  if (!transitfeed::parse(t, *s_txr_ui, posts)) return false;
+  const uint32_t elapsed = (millis() - it.at_ms) / 1000;
+  const uint32_t now_epoch = s_io.epoch();
+  transitfeed::describe(*s_txr_ui, elapsed, now_epoch > elapsed ? now_epoch - elapsed : 0, full, out, cap);
+  return true;
 }
 
 // New points flash on the map (MapHighlight.h); the time is kept in "maphl".
@@ -1261,6 +1320,13 @@ static void watchSheet(int i) {
   if (it.r.track[0]) watchfeed::droneLabel(it.r, it.has_course, it.course, title, sizeof title);
   else snprintf(title, sizeof title, "%s", it.r.title[0] ? it.r.title : channelName(it.channel));
   rangeTo(it.r.lat, it.r.lon, rb, sizeof rb);
+  // A transit card: the whole reply laid out, countdowns from now.
+  static char tx_body[900];
+  if (txDescribe(it, i, true, tx_body, sizeof tx_body - 120)) {
+    const size_t n = strlen(tx_body);
+    snprintf(tx_body + n, sizeof tx_body - n, "\n%s\n%s \xC2\xB7 %lu min ago", rb, channelName(it.channel),
+             (unsigned long)((millis() - it.at_ms) / 60000));
+  }
   if (it.r.has2) {
     char r2[40];
     rangeTo(it.r.lat2, it.r.lon2, r2, sizeof r2);
@@ -1269,7 +1335,7 @@ static void watchSheet(int i) {
   snprintf(body, sizeof body, "%s%s%s\n%s%s\n%s · %lu min ago", it.r.track[0] ? it.r.track : it.r.body,
            it.r.track[0] && it.r.body[0] ? " · " : "", it.r.track[0] ? it.r.body : "", rb, op,
            channelName(it.channel), (unsigned long)((millis() - it.at_ms) / 60000));
-  lv_obj_t* card = sheetOpen(title, body);
+  lv_obj_t* card = sheetOpen(title, txText(i) ? tx_body : body);
 #if CAP_TAK_EXTRAS
   s_rq_kind = kRqWatch;
   s_rq_ch = it.channel;
@@ -1574,6 +1640,68 @@ int teamHeardBy(uint32_t ts, const char* text, char (*names)[21], double* lat, d
 
 bool teamReachActive() { return teamui::s_core && teamui::s_core->active(); }
 
+// When a watched report happened, on the millis() clock: the sender's time
+// if both clocks are plausible (a report that waited in the mesh is older),
+// else now.
+static uint32_t watchAtMs(uint32_t sent) {
+  using namespace teamui;
+  uint32_t at = millis();
+  const uint32_t now_epoch = s_io.epoch();
+  if (now_epoch && sent > 1700000000UL && sent < now_epoch) {
+    const uint32_t age_ms = (now_epoch - sent) > 4000000UL ? 4000000000UL : (now_epoch - sent) * 1000UL;
+    at = age_ms < at ? at - age_ms : 0;
+  }
+  return at;
+}
+
+// A transit bot's reply on a watched channel (TransitFeed.h): true when it was
+// one. A reply split over messages is joined (same sender, within 2 minutes)
+// and goes on the map once its last part, with the stop's position, is in.
+static bool transitOnText(watchfeed::Store* w, int idx, const char* channel, const char* sender, const char* body,
+                          uint32_t sent) {
+  using namespace teamui;
+  const bool posts = transitfeed::transitChannel(channel);
+  {
+    if (!s_txr) {   // read with this first; the rest is made on the first transit reply
+      void* m = heap_caps_malloc(sizeof(transitfeed::Reply), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+      if (!m) return false;
+      s_txr = new (m) transitfeed::Reply();
+    }
+    if (!transitfeed::parse(body, *s_txr, posts)) return false;
+    const bool part = s_txr->kind == transitfeed::kPart;
+    if (!txAlloc()) return false;
+    TxPending& p = *s_txp;
+    const uint32_t now = millis();
+    if (part && p.ch == idx && !strcmp(p.sender, sender) && now - p.ms < 120000UL) {
+      const size_t n = strlen(p.text);
+      if (n + 2 < sizeof p.text) snprintf(p.text + n, sizeof p.text - n, "\n%s", body);
+    } else {
+      p.ch = (int8_t)idx;
+      p.sent = sent;
+      watchfeed::copyN(p.sender, sizeof p.sender, sender, strlen(sender));
+      watchfeed::copyN(p.text, sizeof p.text, body, strlen(body));
+    }
+    p.ms = now;
+  }
+  TxPending& p = *s_txp;
+  if (!transitfeed::parse(p.text, *s_txr, posts) || !s_txr->has_pos) return true;   // the rest is on its way
+  watchfeed::Report r;
+  transitfeed::toReport(*s_txr, r);
+  const uint32_t at = watchAtMs(p.sent);
+  if (watchfeed::Item* it = w->add(r, (uint8_t)idx, at)) {
+    txSet((int)(it - w->items), p.text);
+    it->reply_hash = quickreply::reportHash(p.sent, sender, body);
+    s_io.changed();
+    if (watchZoomOn() && (uint32_t)(millis() - at) < 30UL * 60UL * 1000UL) {
+      s_zoom_lat = r.lat;
+      s_zoom_lon = r.lon;
+      s_zoom_pending = true;
+    }
+  }
+  p.ch = -1;
+  return true;
+}
+
 void teamOnChannelText(int idx, const char* text, uint32_t sent) {
   using namespace teamui;
   if (idx < 0 || !text) return;
@@ -1602,17 +1730,13 @@ void teamOnChannelText(int idx, const char* text, uint32_t sent) {
     return;
   }
 #endif
+  // A transit bot's reply (BusBot's #transit) becomes a transit card.
+  if (transitOnText(w, idx, cd.name, sender, body, sent)) return;
   if (!watchfeed::parse(body, r)) return;
   if (!r.track[0] && !r.quake_m10 && watchfeed::isIce(cd.name, sender)) watchfeed::tagIce(r);
-  // When it happened: the sender's time if both clocks are plausible (a
-  // report that waited in the mesh is older), else now.
-  uint32_t at = millis();
-  const uint32_t now_epoch = s_io.epoch();
-  if (now_epoch && sent > 1700000000UL && sent < now_epoch) {
-    const uint32_t age_ms = (now_epoch - sent) > 4000000UL ? 4000000000UL : (now_epoch - sent) * 1000UL;
-    at = age_ms < at ? at - age_ms : 0;
-  }
+  const uint32_t at = watchAtMs(sent);
   if (watchfeed::Item* it = w->add(r, (uint8_t)idx, at)) {
+    txSet((int)(it - w->items), nullptr);   // the slot may have held a transit card
     it->reply_hash = quickreply::reportHash(sent, sender, body);
     s_io.changed();
     // Auto-zoom: only a report that is happening now (not a backlog).
@@ -2241,9 +2365,13 @@ static void buildWatch(lv_obj_t* b) {
     rangeTo(it.r.lat, it.r.lon, rb, sizeof rb);
     snprintf(line, sizeof line, "%s  %s", head, rb);
     lbl(card, line, &g_font_14, COLOR_TEXT);
+    const bool tx = txText(order[k]) != nullptr;
     snprintf(line, sizeof line, "%s · %lu min%s%s", channelName(it.channel), (unsigned long)((now - it.at_ms) / 60000),
-             !it.r.track[0] && it.r.body[0] ? " · " : "", it.r.track[0] ? "" : it.r.body);
+             !tx && !it.r.track[0] && it.r.body[0] ? " · " : "", tx || it.r.track[0] ? "" : it.r.body);
     lbl(card, line, &g_font_12, COLOR_SUB);
+    // A transit card's first lines, countdowns as of now.
+    char txl[240];
+    if (tx && txDescribe(it, order[k], false, txl, sizeof txl)) lbl(card, txl, &g_font_12, COLOR_TEXT);
   }
 }
 

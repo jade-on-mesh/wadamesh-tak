@@ -181,6 +181,10 @@ jobs:
         run: g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src test/test_team_setup.cpp -o /tmp/team_setup && /tmp/team_setup
       - name: Watched channels on the map (host test)
         run: g++ -std=c++17 -Wall -I src test/test_watch_feed.cpp -o /tmp/watch_test && /tmp/watch_test
+      - name: Transit cards on watched channels (host test, samples shared with Open TAK)
+        run: >-
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src test/test_transit_feed.cpp
+          -o /tmp/transit_test && /tmp/transit_test
       - name: Flock You signatures, log, cameras, downloads and channel alerts (host test)
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
