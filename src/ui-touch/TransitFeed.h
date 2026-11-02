@@ -184,7 +184,7 @@ inline bool geoLine(Span l, double* lat, double* lon, char* ref, size_t cap) {
   while (watchfeed::isSpace(*e)) e++;
   if (!*e || strchr(e, ' ') != strrchr(e, ' ')) return false;   // "1120" or "ct 1120"
   for (const char* p = e; *p; p++)
-    if (!watchfeed::isAlnum(*p) && *p != ' ' && *p != '-') return false;
+    if (!watchfeed::isAlnum(*p) && *p != ' ' && *p != '-' && *p != '_' && *p != '.') return false;
   if (!watchfeed::validPos(a, b)) return false;
   *lat = a;
   *lon = b;

@@ -102,6 +102,19 @@ static void alerts() {
   CHECK(transitChannel("#transit") && !transitChannel("#icewatch"));
 }
 
+static void soundTransit() {
+  // stop numbers with letters and underscores ("st S_EV")
+  Reply r;
+  CHECK(parse("\xF0\x9F\x9A\x8F Everett Station \xC2\xB7 ST\n\xF0\x9F\x9A\x86 N Line - 12 mins\n"
+              "\xF0\x9F\x93\x8D 47.97500,-122.19700 \xC2\xB7 st S_EV", r));
+  CHECK(r.has_pos);
+  CHECK_STR(r.stop_ref, "st S_EV");
+  CHECK(r.n_arr == 1 && r.arr[0].mode == kTrain);
+  CHECK(parse("\xF0\x9F\x94\x8E everett station:\n\xF0\x9F\x9A\x8F st S_EV Everett Station \xE2\x86\x92 N Line", r));
+  CHECK_STR(r.hits[0].ref, "st S_EV");
+  CHECK_STR(r.hits[0].name, "Everett Station");
+}
+
 static void plan() {
   const char* t =
       "\xF0\x9F\xA7\xAD Arrive 8:25 \xC2\xB7 45 min \xC2\xB7 1 transfer \xC2\xB7 timetable\n"
@@ -178,6 +191,7 @@ int main() {
   tzset();
   stopReply();
   routeReply();
+  soundTransit();
   alerts();
   plan();
   search();
