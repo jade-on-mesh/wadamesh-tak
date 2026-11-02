@@ -176,6 +176,7 @@ static void* wadaMp3Scratch() { return s_wada_mp3_scratch; }
 #include "VoxRestoreSmall.h"  // ...and the small AI voice restorer (a model on the SD card)
 #include "VoxBrighten.h"      // ...and "Brighter voice": the 4-8 kHz band Codec2 leaves out
 #include "VoxMic.h"           // ...and recording them on boards with a microphone (T-Deck)
+#include "PublicMedia.h"       // ...and none of them on Public / #public unless switched on (emergencies)
 #include "OtaResume.h"         // host-tested on-device update copy + Range resume (#689)
 #include "WifiSwitchRejoin.h"  // host-tested: the Wi-Fi switches' one rejoin after turning on
 #include "WifiColdStartGate.h" // host-tested: may a Wi-Fi switch start the radio from cold
@@ -17763,8 +17764,45 @@ static void mediaMeshSaveCb(lv_event_t* e) {
   g_lv.task->showAlert(TR("MediaMesh radio saved"), 1100);
 }
 
+// Photos, voice messages and push-to-talk on Public and #public (PublicMedia.h):
+// off unless switched on in Settings > MediaMesh, which says in red to do that
+// only in an emergency.
+static bool publicMediaAllowed() { return touchPrefsGetPublicMedia(); }
+static bool publicMediaBlocked(const char* channel_name) {
+  return PublicMedia::blocks(channel_name, publicMediaAllowed());
+}
+// Refused on `channel_name` (with the alert), as OTP refuses Public.
+static bool publicMediaRefused(const char* channel_name) {
+  if (!publicMediaBlocked(channel_name)) return false;
+  if (g_lv.task) g_lv.task->showAlert(TR(PublicMedia::kBlockedAlert), 3500);
+  return true;
+}
+
 static void mmcovBuildRows(lv_obj_t* card);   // MediaMeshCoverageUI.inc, with the map further down
+static void buildMediaMeshRadioCards();
+static void publicMediaToggleCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+  const bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+  touchPrefsSetPublicMedia(on);
+  if (g_lv.task)
+    g_lv.task->showAlert(on ? TR("Photos and voice are on for Public and #public. Turn them off when the emergency is over.")
+                            : TR("Photos and voice are off on Public and #public"), on ? 3000 : 1600);
+}
+// Photos, voice messages and push-to-talk on Public and #public (PublicMedia.h):
+// off by default, with a red warning to turn them on only in an emergency.
+static void buildPublicMediaCard() {
+  lv_obj_t* c = setCard("Public and #public");
+  setSwitchRow(c, "Photos and voice on Public",
+               "Photos, voice messages and push-to-talk on Public and #public. Everyone on the mesh shares "
+               "these channels, so this is off by default.",
+               publicMediaAllowed(), publicMediaToggleCb);
+  setNote(c, "Only switch this on in an emergency.", SET_TONE_DANGER);
+}
 static void buildMediaMeshCard() {
+  buildMediaMeshRadioCards();
+  buildPublicMediaCard();
+}
+static void buildMediaMeshRadioCards() {
   lv_obj_t* c = setCard("radio2 (MediaMesh)");
   if (!mediamesh::supported()) {
     s_mm_freq_ta = s_mm_bw_ta = s_mm_sf_ta = s_mm_cr_ta = nullptr;
@@ -28195,6 +28233,9 @@ static lv_obj_t* openFullscreenView(const char* title) {
 // used to skip the scope, so a scoped channel went out on the default one (#614).
 static bool sendGroupMessageScoped(int slot, ChannelDetails& cd, uint32_t ts, const char* sender,
                                    const char* text) {
+  // Every channel post but the composer's comes through here: no photos or voice
+  // on Public / #public while they're off there (PublicMedia.h).
+  if (PublicMedia::isMediaText(text) && publicMediaBlocked(cd.name)) return false;
   char chan_rgn[TOUCH_REGION_SCOPE_MAXLEN] = {0};
   if (slot >= 0) touchPrefsGetChannelScope(slot, chan_rgn, sizeof(chan_rgn));
   const bool pushed = the_mesh.pushChannelScope(chan_rgn);
@@ -63368,6 +63409,7 @@ static void chatPastePhoto() {
     if (g_lv.task) g_lv.task->showAlert(TR("Couldn't send the photo"), 2000);
     return;
   }
+  if (ch && publicMediaRefused(s_paste_name)) return;   // off on Public / #public
   s_paste_sid = sid;
   s_paste_tidx = tidx;
   static char ask[96];
@@ -80162,6 +80204,13 @@ static void voxMicBegin(LvChatPanel* p, bool by_key) {
     g_lv.task->showAlert(TR("Voice needs MediaMesh: radio2 on rx+tx"), 2500);
     return;
   }
+  {
+    // Not on Public / #public unless switched on (PublicMedia.h).
+    bool ch = false; uint16_t unread = 0; uint32_t ts = 0; char name[48] = {0};
+    if (g_lv.task->getThreadInfo(g_lv.task->activeThreadIdx(), ch, unread, ts, name, sizeof name) && ch &&
+        publicMediaRefused(name))
+      return;
+  }
   // Keep notification chimes off while the mic is open (they'd be recorded).
   __atomic_store_n(&s_lua_audio_active, true, __ATOMIC_RELEASE);
   s_mic_owns_audio = true;
@@ -82361,6 +82410,9 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
       showAlert(TR("Channel not found"), 1500);
       return false;
     }
+    // A voice message (or a resent photo or clip) on Public / #public: refused
+    // while photos and voice are off there (PublicMedia.h).
+    if (PublicMedia::isMediaText(truncated) && publicMediaRefused(cd.name)) return false;
     uint32_t ts = the_mesh.getRTCClock()->getCurrentTimeUnique();
     if (ts <= s_last_ui_tx_ts) ts = s_last_ui_tx_ts + 1;
     s_last_ui_tx_ts = ts;

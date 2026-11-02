@@ -133,6 +133,7 @@ static void sendPickedCb(lv_event_t* e) {
   char env[48];
   bool ch = false; uint16_t unread = 0; uint32_t ts = 0; char name[48] = {0};
   const bool known = g_lv.task && g_lv.task->getThreadInfo(tidx, ch, unread, ts, name, sizeof name);
+  if (known && ch && publicMediaRefused(name)) return;   // off on Public / #public (PublicMedia.h)
   if (!known || !VoxPhotos::photoEnvelope(s_send_sid, env, sizeof env) || !sendToThread(tidx, env)) {
     if (g_lv.task) g_lv.task->showAlert(TR("Couldn't send the photo"), 2000);
     return;

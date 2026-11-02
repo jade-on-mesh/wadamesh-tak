@@ -367,6 +367,24 @@ receive-only, they are not sent, and the T-Deck says so when you hold the mic.
 Text, adverts and the rest follow `tx.media`/`radio2.cross` as before. Client
 Repeat, which has no radio2, still sends them on its own frequency.
 
+### Not on Public and #public
+
+Photos, voice messages and push-to-talk are off on Public and `#public`. Those
+are the channels everyone on the mesh shares, and photos and voice there show
+up as clutter for everyone (other apps show them as `IMAGE` / `VOICE` lines).
+Holding the mic, sending or pasting a photo, or talking on the walkie-talkie in
+those chats says so instead. They come back with **Settings > MediaMesh >
+Public and #public > Photos and voice on Public**, which is off by default and
+says in red to switch it on only in an emergency. It's saved on the device.
+
+The channels are the ones OTP refuses (`OtpCore::isPublicChannel`): a name of
+`public` or `#public`, in any case. Every channel post is checked, not only the
+buttons, so a resend, a Lua app or the web remote can't send a photo or voice
+message there either; text and everything else on Public is untouched. The
+rule is in `src/ui-touch/PublicMedia.h` (host test
+`test/test_public_media.cpp`). MeshCore Open TAK has the same switch, in
+Settings > App Settings > Messaging, also off by default.
+
 ### Diagnostics
 
 ```text

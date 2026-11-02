@@ -519,6 +519,11 @@ static bool txBegin(const char** why) {
 // Starts talking on channel `ch`. False with `why` set when it can't.
 static bool txStart(int ch, const char** why) {
 #if WALKIE_CAN_TALK
+  {
+    // Not on Public / #public unless switched on (PublicMedia.h).
+    ChannelDetails cd;
+    if (the_mesh.getChannel(ch, cd) && publicMediaBlocked(cd.name)) { *why = PublicMedia::kBlockedAlert; return false; }
+  }
   if (!talking() && activeOn(ch, millis())) { *why = "Someone is talking"; return false; }
   if (!txBegin(why)) return false;
   s_tx_ch = ch;
