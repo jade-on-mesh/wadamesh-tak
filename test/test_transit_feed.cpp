@@ -144,8 +144,21 @@ static void plan() {
   char out[600];
   describe(r, 0, kSent - 30 * 60, true, out, sizeof out);
   CONTAINS(out, "Arrive 8:25 (in 45 min) \xC2\xB7 45 min \xC2\xB7 1 transfer \xC2\xB7 timetable");
-  CONTAINS(out, "Bus 11 7:50 from 11040, leaves in 10 min\n  to 3rd Ave & Pike St, Bay 2, 8:00");
+  CONTAINS(out, "Bus 11 7:50 from stop 11040, leaves in 10 min\n  to 3rd Ave & Pike St, Bay 2, 8:00");
   CONTAINS(out, "Walk 1 min to stop 1121");
+  // plans that name their stops
+  CHECK(parse("\xF0\x9F\xA7\xAD Arrive 12:58 \xC2\xB7 59 min \xC2\xB7 timetable\n"
+              "\xF0\x9F\x9A\x8B 1 Line 12:04 from Northgate Station \xE2\x86\x92 SeaTac/Airport 12:58\n"
+              "\xF0\x9F\x9A\xB6 2 min to Westlake Station\n"
+              "\xF0\x9F\x93\x8D 47.70266,-122.32832 \xC2\xB7 st 990005", r));
+  CHECK_STR(r.legs[0].route, "1 Line");
+  CHECK_STR(r.legs[0].dep, "12:04");
+  CHECK_STR(r.legs[0].board, "Northgate Station");
+  CHECK_STR(r.legs[0].to, "SeaTac/Airport");
+  CHECK_STR(r.stop_ref, "st 990005");
+  describe(r, 0, 0, true, out, sizeof out);
+  CONTAINS(out, "Rail 1 Line 12:04 from Northgate Station\n  to SeaTac/Airport, 12:58");
+  CONTAINS(out, "Walk 2 min to Westlake Station");
 }
 
 static void search() {

@@ -207,7 +207,7 @@ struct Leg {
   int16_t walk_min = 0;
   char route[12] = {0};
   char dep[6] = {0}, arr[6] = {0};   // "7:50", 12-hour clock
-  char board[12] = {0};
+  char board[32] = {0};   // "Northgate Station" (older replies: a stop number)
   char to[36] = {0};
 };
 struct Hit {
@@ -404,7 +404,11 @@ inline bool parse(const char* t, Reply& r, bool alert_posts = false) {
           long te = colon;
           while ((size_t)te < head.n && head.s[te] != ' ') te++;
           put(g.dep, sizeof g.dep, {head.s + ts, (size_t)(te - ts)});
-          if ((size_t)te < head.n) put(g.board, sizeof g.board, skip({head.s + te, head.n - (size_t)te}, 0));
+          if ((size_t)te < head.n) {
+            Span b = skip({head.s + te, head.n - (size_t)te}, 0);
+            if (b.n > 5 && !memcmp(b.s, "from ", 5)) b = skip(b, 5);
+            put(g.board, sizeof g.board, b);
+          }
           if (ts > 0) put(g.route, sizeof g.route, trimEnd({head.s, (size_t)ts}));
         }
         strong = true;
@@ -481,6 +485,19 @@ inline bool hasHeader(const char* body, bool alert_posts = false) {
 // alert posts count there.
 inline bool transitChannel(const char* name) {
   return name && watchfeed::containsNoCase(name, strlen(name), "transit");
+}
+
+// "1121", "ct 1120", "st S_EV": a stop number rather than a stop's name.
+inline bool isStopNumber(const char* s) {
+  if (!s || !*s) return false;
+  const char* sp = strchr(s, ' ');
+  if (sp && (sp - s > 4 || strchr(sp + 1, ' '))) return false;
+  bool digit = false;
+  for (const char* p = sp ? sp + 1 : s; *p; p++) {
+    if (watchfeed::isDigit(*p)) digit = true;
+    else if (!watchfeed::isAlnum(*p) && *p != '_' && *p != '-' && *p != '.') return false;
+  }
+  return digit;
 }
 
 // ---- for the Watch list, map and sheet --------------------------------------------------------
@@ -653,13 +670,14 @@ inline size_t describe(const Reply& r, uint32_t elapsed_s, uint32_t sent_epoch, 
     const Leg& g = r.legs[i];
     if (g.walk) {
       if (!strcmp(g.to, "destination")) o.line("Walk %d min to your destination", g.walk_min);
-      else o.line("Walk %d min to stop %s", g.walk_min, g.to);
+      else o.line("Walk %d min to %s%s", g.walk_min, isStopNumber(g.to) ? "stop " : "", g.to);
       continue;
     }
     long secs;
     cd[0] = 0;
     if (planOffset(g.dep, sent_epoch, &secs) && secs > (long)elapsed_s) countdown(secs - (long)elapsed_s, cd, sizeof cd);
-    o.line("%s %s %s%s%s%s%s", modeName(g.mode), g.route, g.dep, g.board[0] ? " from " : "", g.board,
+    o.line("%s %s %s%s%s%s%s%s", modeName(g.mode), g.route, g.dep, g.board[0] ? " from " : "",
+           isStopNumber(g.board) ? "stop " : "", g.board,
            cd[0] ? ", leaves in " : "", cd);
     o.line("  to %s%s%s", g.to, g.arr[0] ? ", " : "", g.arr);
   }
