@@ -159,6 +159,14 @@ static void plan() {
   describe(r, 0, 0, true, out, sizeof out);
   CONTAINS(out, "Rail 1 Line 12:04 from Northgate Station\n  to SeaTac/Airport, 12:58");
   CONTAINS(out, "Walk 2 min to Westlake Station");
+  // the no-change alternative, also as the rest of a split reply
+  CHECK(parse("\xF0\x9F\x9A\x8C 545 12:26 from 4th Ave & Pike St \xE2\x86\x92 SR 520 & NE 40th St 12:47\n"
+              "\xE2\x86\xAA\xEF\xB8\x8F or no change: 2 Line 12:22 \xE2\x86\x92 Redmond Technology 1:04\n"
+              "\xF0\x9F\x93\x8D 47.61956,-122.32039 \xC2\xB7 st 99610", r));
+  CHECK(r.kind == kPart);
+  CHECK_STR(r.alt, "2 Line 12:22 \xE2\x86\x92 Redmond Technology 1:04");
+  describe(r, 0, 0, false, out, sizeof out);
+  CONTAINS(out, "Or no change: 2 Line 12:22");
 }
 
 static void search() {

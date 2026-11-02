@@ -87,6 +87,7 @@ namespace detail {
 #define TF_ARROW "\xE2\x86\x92"        // →
 #define TF_DOT "\xC2\xB7"              // ·
 #define TF_VS16 "\xEF\xB8\x8F"         // variation selector
+#define TF_ALT "\xE2\x86\xAA"         // ↪
 
 struct Span {
   const char* s;
@@ -230,6 +231,7 @@ struct Reply {
   uint8_t route_mode = kNoMode;
   char stop_ref[12] = {0};
   char also[24] = {0};
+  char alt[80] = {0};      // a plan's no-change ride, after "↪️ or no change:"
   int n_arr = 0, n_alerts = 0, n_legs = 0, n_hits = 0;
   Arrival arr[kMaxArrivals];
   char alerts[kMaxAlerts][80] = {{0}};
@@ -361,6 +363,13 @@ inline bool parse(const char* t, Reply& r, bool alert_posts = false) {
     if (starts(l, TF_SLEEP) && containsNoCase(l, "no upcoming")) { r.no_trips = true; continue; }
     if (l.n > 5 && !memcmp(l.s, "also:", 5)) {
       put(r.also, sizeof r.also, skip(l, 5));
+      strong = true;
+      continue;
+    }
+    if (starts(l, TF_ALT)) {
+      Span b = skip(l, 3);
+      if (b.n > 14 && !memcmp(b.s, "or no change:", 13)) b = skip(b, 13);
+      put(r.alt, sizeof r.alt, b);
       strong = true;
       continue;
     }
@@ -682,6 +691,7 @@ inline size_t describe(const Reply& r, uint32_t elapsed_s, uint32_t sent_epoch, 
     o.line("  to %s%s%s", g.to, g.arr[0] ? ", " : "", g.arr);
   }
   if (!full && r.n_legs > 2) o.line("+%d more steps", r.n_legs - 2);
+  if (r.alt[0]) o.line("Or no change: %s", r.alt);
   for (int i = 0; i < r.n_hits && (full || i < 2); i++) {
     const Hit& h = r.hits[i];
     o.line("%s %s%s%s", h.ref, h.name, h.dist[0] ? " " TF_DOT " " : "", h.dist);
