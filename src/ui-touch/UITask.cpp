@@ -18410,10 +18410,12 @@ extern uint8_t  g_stall_cnt, g_stall_w;
 static int perfText(char* buf, size_t cap);   // with UITask::loop below
 static int chatOpenText(char* buf, size_t cap);   // with refreshChatDetail
 static int mapRenderText(char* buf, size_t cap);  // with renderMapTiles
+static int emojiPackText(char* buf, size_t cap);  // EmojiPackUI.inc
 static void sysInfoTextLive(char* buf, size_t cap) {
   int p = 0;
   p += perfText(buf, cap);   // where the time goes, first: the slowdown hunt reads it
   p += chatOpenText(buf + p, cap - p);
+  p += emojiPackText(buf + p, cap - p);
   p += mapRenderText(buf + p, cap - p);
 #if defined(ESP32)
   // MediaMesh: what radio2 sent and heard, what never went out, and how much of
@@ -38919,6 +38921,8 @@ static constexpr size_t kVrsDlCap = 4u << 20;    // the model is about 1 MB
 #define VOX_RS_DOWNLOAD 0
 #endif
 
+#include "EmojiPackUI.inc"   // the full emoji set from a file: emojiPackLookup, emojiPackTick (EMOJI.md)
+
 #if WADA_FORK_RELEASES
 #include "ForkUpdate.inc"   // this fork's update check + signed install (GitHub releases)
 #endif
@@ -39343,6 +39347,9 @@ static bool tileWorkerHasWork() {
 #if CAP_PREDICT_TEXT && !PREDICT_BUILTIN_WORDS && defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION) && WADA_FORK_RELEASES
   if (s_pwd_request) return true;
 #endif
+#if EMOJI_PACK_DOWNLOAD
+  if (s_ep_dl_request) return true;
+#endif
   if (__atomic_load_n(&s_wifiscan_request, __ATOMIC_ACQUIRE)) return true;
   return false;
 }
@@ -39579,6 +39586,26 @@ static void tileFetchTaskFn(void* arg) {
       }
       s_vrs_dl_len = got;
       s_vrs_dl_state = ok ? 3 : 4;
+      continue;
+    }
+#endif
+#if EMOJI_PACK_DOWNLOAD
+    // The full emoji set (emojiPackTick asked): this release's, else main's.
+    if (s_ep_dl_request) {
+      s_ep_dl_request = false;
+      char tag[32], url[160];
+      forkupd::tagFor(firmwareReleaseN(), tag, sizeof tag);
+      s_ep_dl_msg[0] = 0;
+      size_t got = 0;
+      snprintf(url, sizeof url, "https://raw.githubusercontent.com/" WADA_FORK_REPO "/%s/emoji/emoji-pack.wep", tag);
+      bool ok = s_ep_dl && forkFetchFile(url, s_ep_dl, emojipack::kMaxBytes, &got, s_ep_dl_msg, sizeof s_ep_dl_msg);
+      if (!ok && s_ep_dl) {
+        snprintf(url, sizeof url, "https://raw.githubusercontent.com/" WADA_FORK_REPO "/main/emoji/emoji-pack.wep");
+        ok = forkFetchFile(url, s_ep_dl, emojipack::kMaxBytes, &got, s_ep_dl_msg, sizeof s_ep_dl_msg);
+      }
+      s_ep_dl_len = got;
+      s_ep_dl_ok = ok;
+      s_ep_dl_done = true;
       continue;
     }
 #endif
@@ -89252,6 +89279,7 @@ void UITask::loop() {
     uiCp("ui:otp");
     OtpMessenger::tick();   // sends, retries, sync checks: whether or not the app is open
     wordsSaveTick(now);     // predictive text: the words you send, to the store
+    emojiPackTick(now);     // the full emoji set: loaded a chunk at a time, or downloaded
     uiCp("ui:team");
     teamui::loopTick();     // beacons, alert repeats, alarm, Bloodhound, map refresh
     if (s_map_markers_stale && mapOnScreen()) renderMapMarkers();   // the map came back into view
