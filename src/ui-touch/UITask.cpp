@@ -12195,6 +12195,22 @@ static uint16_t s_unread_at_open   = 0;
 static bool     s_chat_just_opened = false;
 static int      s_chat_jump_msg_idx = -1;  // ring-slot index to scroll to on open (tapped @mention), or -1
 
+// The open chat lays out only its newest messages: measuring every bubble of a
+// 5000-message SD history (2-3 text measures each, plus photo lookups) stalled the
+// UI for seconds on open. Older ones are laid out a step at a time when the list
+// reaches the top, keeping the message on screen where it was; Jump to oldest
+// lays out the rest. The window runs from its oldest message to the newest, so a
+// message arriving only extends it (the append fast path still applies).
+static constexpr int kChatWinStep = 150;    // laid out on open, and per load-older
+static constexpr int kChatWinMax  = 600;    // on open, at most this many to reach the first unread
+static int          s_chat_win_first_slot = -1;   // ring slot of the oldest message laid out
+static int          s_chat_win_thread     = -1;
+static const void*  s_chat_win_panel      = nullptr;
+static int          s_chat_win_hidden     = 0;    // older messages not laid out yet
+static int          s_chat_win_grow       = 0;    // pending: lay out this many more
+static bool         s_chat_win_all        = false;   // pending: lay out everything (Jump to oldest)
+static int          s_chat_win_shift      = 0;    // logical indexes moved by the last grow (keypad focus)
+
 // Close an open chat/channel detail panel → back to the thread list. Shared by
 // the floating HOME button (backBtnCb) and the left→right swipe-back gesture.
 static void closeChatPanel(LvChatPanel* p) {
@@ -45270,7 +45286,8 @@ static void chatUpdateJumpButtons(LvChatPanel* p) {
   // pinned to the TOP (oldest) instead of the NEW divider / newest message.
   const bool away = chatVirtAwayFromBottom(p);
   if (p->jump_oldest_btn) {
-    if (lv_obj_get_scroll_y(p->msgs) > 30) lv_obj_clear_flag(p->jump_oldest_btn, LV_OBJ_FLAG_HIDDEN);
+    if (lv_obj_get_scroll_y(p->msgs) > 30 || (s_chat_win_hidden > 0 && s_chat_win_panel == p))
+      lv_obj_clear_flag(p->jump_oldest_btn, LV_OBJ_FLAG_HIDDEN);
     else lv_obj_add_flag(p->jump_oldest_btn, LV_OBJ_FLAG_HIDDEN);
   }
   if (p->jump_btn) {
@@ -51404,8 +51421,10 @@ static void chatVirtRenderWindow(LvChatPanel* p, lv_coord_t scroll_y, lv_coord_t
       stable_focus = foc;
     }
   }
+  if (refocus_i >= 0 && s_chat_win_shift > 0) refocus_i += s_chat_win_shift;   // older ones went in above
   const bool nav_detached = navDetachBeforeTreeMutation();
 #endif
+  s_chat_win_shift = 0;
 
   const lv_coord_t saved_scroll_y = scroll_y;
   chatVirtClearBubbleWidgets(p);
@@ -51475,6 +51494,16 @@ static bool         s_chat_virt_render_async_busy = false;
 // tick is immediately followed by _lv_disp_refr_timer walking the same tree.
 // Deleting/recreating floating bubbles there (or even sync lv_obj_del) races
 // layout_update_core → LoadProhibited.  lv_async_call runs after the refresh.
+// At the top of what's laid out, with older messages still waiting: lay out the next
+// step (refreshChatDetail keeps the message on screen in place).
+static void chatWinMaybeGrow(LvChatPanel* p, int i0) {
+  if (!p || s_chat_win_hidden <= 0 || s_chat_win_grow > 0 || s_chat_win_all) return;
+  if (s_chat_win_panel != p || i0 != 0) return;
+  if (lv_obj_get_scroll_y(p->msgs) > 40) return;
+  s_chat_win_grow = kChatWinStep;
+  refreshChatDetailAsync(*p);
+}
+
 static void chatVirtRenderAsyncCb(void*) {
   s_chat_virt_render_async_busy = false;
   LvChatPanel* p = s_chat_virt_render_async_panel;
@@ -51488,6 +51517,7 @@ static void chatVirtRenderAsyncCb(void*) {
   if (!chatVirtNeedReflow(i0, i1)) {
     chatVirtSyncBubblePositions(p);
     chatUpdateJumpButtons(p);
+    chatWinMaybeGrow(p, i0);
     return;
   }
   CHAT_SCROLL_TRACE_PRINTF("[CHAT] re_layout on scroll_end [%d..%d] was [%d..%d]\n",
@@ -51496,6 +51526,7 @@ static void chatVirtRenderAsyncCb(void*) {
   chatVirtRenderWindow(p, scroll_y, nullptr);
   CHAT_SCROLL_TRACE_DO(chatVirtLogTopAnchor("re_layout_after", p, lv_obj_get_scroll_y(p->msgs)));
   chatUpdateJumpButtons(p);
+  chatWinMaybeGrow(p, s_chat_virt.last_i0);
 }
 
 static void chatVirtRenderTimerCb(lv_timer_t* t) {
@@ -51602,6 +51633,11 @@ static void chatVirtQueueScroll(LvChatPanel* p, lv_coord_t target) {
 
 static void chatVirtJumpToOldest(LvChatPanel* p) {
   if (!p || !p->msgs) return;
+  if (s_chat_win_hidden > 0 && s_chat_win_panel == p) {   // the oldest isn't laid out yet
+    s_chat_win_all = true;
+    refreshChatDetailAsync(*p);
+    return;
+  }
   CHAT_SCROLL_TRACE_PRINTF("[CHAT] jump_to_oldest (n=%d virt_h=%d lv_h=%d)\n", s_chat_virt.n,
                            (int)s_chat_virt.virt_total_h, (int)s_chat_virt.lv_total_h);
   chatVirtResetInputForMsgs(p);
@@ -51631,12 +51667,13 @@ static bool chatSeenByUser();   // fwd: screen on, unlocked, not just a glance (
 
 // The last chat open's cost, for About ("Chat open"): how many messages were
 // laid out, how long that took, and how many filesystem lookups it made.
-static int      s_chat_open_msgs = -1;
+static int      s_chat_open_msgs = -1, s_chat_open_hidden = 0;
 static uint32_t s_chat_open_layout_ms = 0, s_chat_open_fs = 0, s_chat_open_at_ms = 0;
 static int chatOpenText(char* buf, size_t cap) {
   if (s_chat_open_msgs < 0 || !cap) return 0;
-  const int n = snprintf(buf, cap, "Last chat open (%lus ago)\n  %d messages, layout %lu ms\n  file checks %lu\n\n",
+  const int n = snprintf(buf, cap, "Last chat open (%lus ago)\n  %d messages (%d older waiting), layout %lu ms\n  file checks %lu\n\n",
                          (unsigned long)((millis() - s_chat_open_at_ms) / 1000), s_chat_open_msgs,
+                         s_chat_open_hidden,
                          (unsigned long)s_chat_open_layout_ms, (unsigned long)s_chat_open_fs);
   return n < 0 ? 0 : (n >= (int)cap ? (int)cap - 1 : n);
 }
@@ -51706,7 +51743,58 @@ static void refreshChatDetail(LvChatPanel& p) {
     return;
   }
 
-  const int n = g_lv.task->getActiveThreadMessageCount(s_chat_msg_idx, s_chat_msg_idx_cap, false);
+  const int n_all = g_lv.task->getActiveThreadMessageCount(s_chat_msg_idx, s_chat_msg_idx_cap, false);
+  // The window (kChatWinStep above): which of the n_all, oldest first, get laid out.
+  const int  win_thread = g_lv.task->activeThreadIdx();
+  const int  win_grow   = s_chat_win_grow;
+  const bool win_all    = s_chat_win_all;
+  s_chat_win_grow = 0;
+  s_chat_win_all  = false;
+  int     win_anchor_slot = -1;   // a grow keeps this message where it is on screen
+  int32_t win_anchor_off  = 0;
+  bool    win_to_top      = false;
+  int     start = 0;
+  if (n_all > 0) {
+    const bool fresh = opening || win_thread != s_chat_win_thread || s_chat_win_panel != &p ||
+                       s_chat_win_first_slot < 0;
+    if (fresh) {
+      start = n_all - kChatWinStep;
+      if (s_unread_at_open > 0) {   // down to the first unread, within reason
+        int u = n_all - static_cast<int>(s_unread_at_open) - 2;
+        if (u < n_all - kChatWinMax) u = n_all - kChatWinMax;
+        if (u < start) start = u;
+      }
+      if (s_chat_jump_msg_idx >= 0) {   // a tapped mention: always include it
+        for (int i = 0; i < n_all; ++i)
+          if (s_chat_msg_idx[i] == s_chat_jump_msg_idx) { if (i - 2 < start) start = i - 2; break; }
+      }
+    } else {
+      start = -1;
+      for (int i = 0; i < n_all; ++i)
+        if (s_chat_msg_idx[i] == s_chat_win_first_slot) { start = i; break; }
+      if (start < 0)   // that message is gone (aged out or deleted): keep as many as were shown
+        start = (s_chat_win_hidden <= 0) ? 0 : n_all - s_chat_virt.n;
+      if (win_all && start > 0) {
+        start = 0;
+        win_to_top = true;
+      } else if (win_grow > 0 && start > 0 && s_chat_virt.offsets && s_chat_virt.panel == &p) {
+        win_anchor_slot = s_chat_msg_idx[start];
+        win_anchor_off  = chatVirtEffectiveVirtTop(&p) - s_chat_virt.offsets[0];
+        start -= win_grow;
+      }
+    }
+    if (start < 0) start = 0;
+    if (start > n_all - 1) start = n_all - 1;
+    if (start > 0)
+      memmove(s_chat_msg_idx, s_chat_msg_idx + start, sizeof(int) * static_cast<size_t>(n_all - start));
+    s_chat_win_first_slot = s_chat_msg_idx[0];
+  } else {
+    s_chat_win_first_slot = -1;
+  }
+  s_chat_win_hidden = start;
+  s_chat_win_thread = win_thread;
+  s_chat_win_panel  = &p;
+  const int n = n_all - start;
 #if TRACE_MESSAGE_SCROLL_ACTIVITY
   if (opening) {
     char tname[UITask::MAX_THREAD_NAME + 1];
@@ -51768,6 +51856,7 @@ static void refreshChatDetail(LvChatPanel& p) {
     const bool lay_ok = chatVirtRebuildLayout(&p, n, divider_i);
     if (opening) {
       s_chat_open_msgs = n;
+      s_chat_open_hidden = s_chat_win_hidden;
       s_chat_open_layout_ms = millis() - lay_t0;
       s_chat_open_fs = VoxPhotos::fsChecks() - lay_fs0;
       s_chat_open_at_ms = millis();
@@ -51819,9 +51908,20 @@ static void refreshChatDetail(LvChatPanel& p) {
     scroll_target = LV_COORD_MAX;
   }
 #if CAP_KEYPAD_NAV
-  if (!s_chat_just_opened)
+  if (!s_chat_just_opened && win_anchor_slot < 0 && !win_to_top)
     scroll_target = chatRefreshKeepCursorVisible(p, scroll_target, chatKeypadFocusIndex(&p));
 #endif
+  if (win_anchor_slot >= 0 && s_chat_virt.offsets) {   // older ones went in above: stay put
+    for (int i = 0; i < n; ++i) {
+      if (s_chat_msg_idx[i] != win_anchor_slot) continue;
+      int32_t v = s_chat_virt.offsets[i] + win_anchor_off;
+      if (v < 0) v = 0;
+      scroll_target = chatVirtVirtToLv(v);
+      s_chat_win_shift = i;
+      break;
+    }
+  }
+  if (win_to_top) scroll_target = 0;
 
   chatVirtResetInputForMsgs(&p);
   chatVirtCancelRenderTimer();
