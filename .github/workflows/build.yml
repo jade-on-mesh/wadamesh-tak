@@ -57,6 +57,11 @@ jobs:
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -I src -o /tmp/test_public_media test/test_public_media.cpp
           /tmp/test_public_media
+      - name: Reactions, as MeshCore Open's (Reactions.h, the app's golden values)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_reactions test/test_reactions.cpp
+          /tmp/test_reactions
       - name: New map points flash (MapHighlight.h)
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \

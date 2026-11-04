@@ -3654,6 +3654,9 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
     const int8_t rssi   = (int8_t)(_radio->getLastRSSI());
     const bool   is_flood = pkt->isRouteFlood();
     uiStashRxMeta(pkt);   // capture route + scope for the per-message Info popup
+    // The sender's own send-time, as a DM's: the bubble shows it, and a reaction
+    // names this message by it (Reactions.h; the app hashes the send-time).
+    _last_sender_ts = timestamp;
     _ui->newMsgFromPubWithMeta(path_len, is_flood, nullptr, channel_name,
                                text, history_count, snr_q4, rssi);
   }
@@ -4716,7 +4719,7 @@ void MyMesh::handleCmdFrame(size_t len) {
         // Mirror the app-sent DM into the on-device touch UI so it shows there too (#46). First
         // handling only — a transport/client retry (skip_radio_send) was already mirrored.
         if (_ui && !skip_radio_send && recipient)
-          _ui->appSentMsgToContact(recipient->id.pub_key, recipient->name, text, expected_ack);
+          _ui->appSentMsgToContact(recipient->id.pub_key, recipient->name, text, expected_ack, 0, msg_timestamp);
 
         // Do not synthesize a private-message "recv" frame from self. That frame has no recipient
         // context and can be rendered by clients as a chat with self.
@@ -4772,7 +4775,7 @@ void MyMesh::handleCmdFrame(size_t len) {
         // ALL boards — this sat behind HAS_TANMATSU from its beta_17 birth, so T-Deck/V4 users
         // never saw their own app-sent channel posts on the device. Repeater echoes of our own
         // flood can't double the bubble: the dispatcher's seen-packet table drops them pre-ingest.
-        if (_ui) { cmd_frame[len] = 0; _ui->appSentMsgToChannel(channel.name, text); }
+        if (_ui) { cmd_frame[len] = 0; _ui->appSentMsgToChannel(channel.name, text, 0, msg_timestamp); }
         // Sent channel messages are not added to shared history / broadcast: channel_idx and
         // frame format are device-specific and clients (e.g. HA) without channel support can
         // misparse or show "text as sender"; also avoids failed-to-sync when versions differ.
