@@ -28288,7 +28288,7 @@ static void termDoSend(bool is_channel, const uint8_t* pub, int16_t chan_slot,
     // Mirror into the on-device chat ring so a terminal / web-chat send shows in the
     // channel thread too (same as a companion-app send via appSentMsgToChannel). Pass the
     // sent fingerprint so repeats-heard shows on the mirrored bubble like a composer send.
-    if (g_lv.task) g_lv.task->appSentMsgToChannel(cd.name, body, the_mesh.uiLastSentFp());
+    if (g_lv.task) g_lv.task->appSentMsgToChannel(cd.name, body, the_mesh.uiLastSentFp(), ts);
   } else {
     ContactInfo* by = the_mesh.lookupContactByPubKey((uint8_t*)pub, PUB_KEY_SIZE);
     if (!by) { termLogAppendC(TERM_C_ERR, nullptr, "contact missing"); return; }
@@ -28304,7 +28304,7 @@ static void termDoSend(bool is_channel, const uint8_t* pub, int16_t chan_slot,
     termLogAppendC(TERM_C_TX, nullptr, r);
     // Mirror into the DM thread + map it to the contact pubkey (delivery state tracks the ack,
     // sent_fp tracks repeats-heard) — same metadata a composer send records.
-    if (g_lv.task) g_lv.task->appSentMsgToContact(by->id.pub_key, disp, body, expected_ack, the_mesh.uiLastSentFp());
+    if (g_lv.task) g_lv.task->appSentMsgToContact(by->id.pub_key, disp, body, expected_ack, the_mesh.uiLastSentFp(), ts);
   }
 }
 
@@ -30837,7 +30837,10 @@ static bool voxLastShow(uint32_t sid, const char* title) {
 
 // What the open chat's layout depends on beyond its messages: thumbnails made,
 // and the photo store's index landing (answers that were "not known yet").
-static uint32_t chatThumbGen() { return s_chat_thumb_gen + VoxPhotos::layoutVersion(); }
+static uint32_t chatThumbGen() {
+  // + reactions: one stored changes its message's bubble height, so lay out again.
+  return s_chat_thumb_gen + VoxPhotos::layoutVersion() + (g_lv.task ? g_lv.task->reactionGen() : 0);
+}
 static void voxThumbLanded() {
   ++s_chat_thumb_gen;
   g_lv.dirty_timeline = true;
@@ -47875,6 +47878,16 @@ static void msgMenuAckCb(lv_event_t* e) {
   composerFocusAfterMenu(p);
 }
 
+static void reactPickerOpen(int slot);   // ReactionsUI.inc, with the team sheets it uses
+static void msgMenuReactCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  lv_indev_t* a = lv_indev_get_act();
+  if (a) lv_indev_wait_release(a);
+  const int slot = s_msg_menu_idx;
+  closeMsgActionMenu();
+  reactPickerOpen(slot);
+}
+
 static void openMessageActionMenu(int msg_idx) {
   if (!g_lv.task) return;
   UITask::UIMessage m;
@@ -47955,7 +47968,7 @@ static void openMessageActionMenu(int msg_idx) {
   // Header row reserves space for the close-X badge so it doesn't sit on a button.
   const int hdr_h  = 24;
 #endif
-  const int nbtn   = (can_ack ? 1 : 0) + (can_mention ? 1 : 0) + (can_web ? 1 : 0) + (can_channel ? 1 : 0) + (can_map ? 1 : 0) + (can_copy_photo ? 1 : 0) + (CAP_TOUCH ? 4 : 3) /*Copy+Select (touch)+Info+Delete*/ + (can_block ? 1 : 0) + (can_resend ? 1 : 0);
+  const int nbtn   = (can_ack ? 1 : 0) + (can_mention ? 1 : 0) + (can_web ? 1 : 0) + (can_channel ? 1 : 0) + (can_map ? 1 : 0) + (can_copy_photo ? 1 : 0) + (CAP_TOUCH ? 5 : 4) /*React+Copy+Select (touch)+Info+Delete*/ + (can_block ? 1 : 0) + (can_resend ? 1 : 0);
   const int nrows  = (nbtn + 1) / 2;
   int card_h = hdr_h + nrows * btn_h + (nrows - 1) * gap + 2 * pad;
   // Never exceed the visible area under the status bar; scroll if it ever would
@@ -48027,6 +48040,12 @@ static void openMessageActionMenu(int msg_idx) {
 #endif
     mk_btn("@", ml, msgMenuMentionCb);
   }
+  // React (Reactions.h): an emoji on this message, as MeshCore Open's reactions.
+#if LV_USE_IMGFONT
+  mk_btn("\xF0\x9F\x91\x8D", TR("React"), msgMenuReactCb);   // 👍 (the colour-emoji font draws it)
+#else
+  mk_btn(LV_SYMBOL_PLUS, TR("React"), msgMenuReactCb);
+#endif
   mk_btn(LV_SYMBOL_COPY, TR(LV_SYMBOL_COPY "  Copy"), msgMenuCopyCb);
 #if CAP_TOUCH
   mk_btn(LV_SYMBOL_EDIT, TR(LV_SYMBOL_EDIT "  Select"), msgMenuSelectCb);
@@ -49181,6 +49200,76 @@ static void voxBubbleTextState(const VoxWire::Envelope& env, bool outgoing, char
   }
 }
 
+// ---- Reactions under their messages (Reactions.h) -----------------------------------------
+// The open chat's reactions, tallied per message they name: rebuilt when a reaction is
+// stored (reactionGen) or another chat opens, never per bubble -- the layout asks for
+// every message's line. A reaction names the newest message with its hash, as the app
+// matches it; each person counts once per emoji.
+struct ReactCacheEntry {
+  uint32_t seq;   // the message's UIMessage::seq
+  reactions::Tally tally;
+};
+static constexpr int kReactCacheMax = 48;      // messages with reactions, per chat
+static constexpr int kReactScanMsgs = 400;     // the newest messages a reaction can name
+static constexpr int kReactScanReacts = 96;    // the newest reactions read
+static ReactCacheEntry* s_react_cache = nullptr;
+static int      s_react_cache_n = 0;
+static int      s_react_cache_thread = -2;
+static uint32_t s_react_cache_gen = 0xFFFFFFFFu;
+
+static void chatReactionsGather() {
+  const int t = g_lv.task->activeThreadIdx();
+  const uint32_t gen = g_lv.task->reactionGen();
+  if (t == s_react_cache_thread && gen == s_react_cache_gen) return;
+  s_react_cache_thread = t;
+  s_react_cache_gen = gen;
+  s_react_cache_n = 0;
+  if (t < 0) return;
+  static auto& ridx = psramStatic<int[kReactScanReacts]>();
+  const int nr = g_lv.task->getThreadReactionIndexes(t, ridx, kReactScanReacts);   // newest first
+  if (nr <= 0) return;
+  if (!s_react_cache) s_react_cache = (ReactCacheEntry*)psAlloc(sizeof(ReactCacheEntry) * kReactCacheMax);
+  if (!s_react_cache) return;
+  static auto& midx = psramStatic<int[kReactScanMsgs]>();
+  static auto& mhash = psramStatic<uint16_t[kReactScanMsgs]>();
+  static auto& mok = psramStatic<bool[kReactScanMsgs]>();
+  const int nm = g_lv.task->getThreadMessageIndexes(t, midx, kReactScanMsgs, true);   // newest first
+  for (int i = 0; i < nm; ++i) mok[i] = g_lv.task->reactionHashOfSlot(midx[i], &mhash[i]);
+  const char* me = the_mesh.getNodePrefs()->node_name;
+  for (int k = nr - 1; k >= 0; --k) {   // oldest first: emoji line up in the order they came
+    UITask::UIMessage r;
+    uint16_t h = 0;
+    int e = -1;
+    if (!g_lv.task->getMessageByIndex(ridx[k], r) || !reactions::parse(r.text, &h, &e)) continue;
+    int target = -1;
+    for (int i = 0; i < nm && target < 0; ++i) if (mok[i] && mhash[i] == h) target = midx[i];
+    if (target < 0) continue;   // names nothing here (the app drops it too)
+    UITask::UIMessage tm;
+    if (!g_lv.task->getMessageByIndex(target, tm)) continue;
+    ReactCacheEntry* ent = nullptr;
+    for (int i = 0; i < s_react_cache_n && !ent; ++i) if (s_react_cache[i].seq == tm.seq) ent = &s_react_cache[i];
+    if (!ent) {
+      if (s_react_cache_n >= kReactCacheMax) continue;
+      ent = &s_react_cache[s_react_cache_n++];
+      *ent = ReactCacheEntry{};
+      ent->seq = tm.seq;
+    }
+    ent->tally.add(e, r.outgoing ? (me && me[0] ? me : "me") : r.sender);
+  }
+}
+
+// "👍 2  ❤️" for the message with this seq, when it has reactions.
+static bool chatReactionText(uint32_t seq, char* out, size_t cap) {
+  if (!g_lv.task || !out || !cap) return false;
+  chatReactionsGather();
+  for (int i = 0; i < s_react_cache_n; ++i) {
+    if (s_react_cache[i].seq != seq || !s_react_cache[i].tally.n) continue;
+    s_react_cache[i].tally.text(out, cap);
+    return out[0] != '\0';
+  }
+  return false;
+}
+
 static void chatParseMessageDisplay(const UITask::UIMessage& m, bool channel_mode,
                                     bool thread_is_room, ChatBubbleDisplay& d) {
   VoxQuick quick;
@@ -49242,6 +49331,18 @@ static void chatParseMessageDisplay(const UITask::UIMessage& m, bool channel_mod
 #if CAP_LINK_IMAGES
   else linkImgBubble(d.show_text, d);   // a picture's link: shown when it's here, asked for when not
 #endif
+  // Reactions on it (Reactions.h): their own line under the text (on the same line,
+  // spaced off, in compact rows). Measure and build both read this, so the bubble's
+  // height includes it.
+  char react_line[sizeof d.san_text];
+  {
+    char tally[96];
+    if (chatReactionText(m.seq, tally, sizeof tally)) {
+      snprintf(react_line, sizeof react_line, "%s%s%s", d.show_text,
+               s_chat_virt.compact_chat ? "   " : "\n", tally);
+      d.show_text = react_line;
+    }
+  }
   // The label is the sender's nickname when it has one; show_sender (its colour, its
   // identity) stays the name it advertises.
   copyUtf8ReplacingMissingGlyphs(&g_font_12, d.san_sender, sizeof(d.san_sender),
@@ -63373,6 +63474,7 @@ __attribute__((unused)) static bool bgListenerResetOnce(const char* key) {
 #if VOX_AV1_AVAILABLE
 // Photos (app drawer -> APPACT_PHOTOS): downloaded mesh photos as a thumbnail grid.
 #include "PhotosUI.inc"
+#include "ReactionsUI.inc"   // a message's React button: the picker, and sending (Reactions.h)
 
 // Paste in a chat's composer with a photo on the clipboard: asks first, then the
 // photo goes to that chat as Photos > Send does (its VI1 envelope; this radio
@@ -79050,7 +79152,7 @@ bool luaHostMeshSendDM(const char* to_name, const char* text, bool* was_room) {
   if (rr == MSG_SEND_FAILED) return false;
   the_mesh.uiRegisterExpectedAck(expected_ack, by->id.pub_key);
   if (g_lv.task)
-    g_lv.task->appSentMsgToContact(by->id.pub_key, by->name, text, expected_ack, the_mesh.uiLastSentFp());
+    g_lv.task->appSentMsgToContact(by->id.pub_key, by->name, text, expected_ack, the_mesh.uiLastSentFp(), ts);
   return true;
 }
 
@@ -79100,7 +79202,7 @@ bool luaHostMeshSendChannel(const char* chan_name, const char* text) {
     uint32_t ts = the_mesh.getRTCClock()->getCurrentTimeUnique();
     const char* sender = the_mesh.getNodePrefs()->node_name;
     if (!sendGroupMessageScoped(i, cd, ts, sender, text)) return false;
-    if (g_lv.task) g_lv.task->appSentMsgToChannel(cd.name, text, the_mesh.uiLastSentFp());
+    if (g_lv.task) g_lv.task->appSentMsgToChannel(cd.name, text, the_mesh.uiLastSentFp(), ts);
     return true;
   }
   return false;   // no such channel on this device
@@ -81805,6 +81907,7 @@ int UITask::consoleHistoryAt(const char* thread, int back, char* sender, size_t 
     int i = (_ui_msg_head - 1 - n + _ui_msg_cap * 2) % _ui_msg_cap;
     const UIMessage& m = _ui_msgs[i];
     if (strncmp(m.thread, thread, MAX_THREAD_NAME) != 0) continue;
+    if (reactions::isReaction(m.text)) continue;   // shown on the touch UI's bubbles, not as lines
     if (seen++ != back) continue;
     snprintf(sender, sc, "%s", m.sender);
     snprintf(text,   tc, "%s", m.text);
@@ -81838,6 +81941,7 @@ uint32_t UITask::newestThreadMessageTs(const char* name, bool channel) const {
     const UIMessage& m = _ui_msgs[slot];
     if (!m.text[0] || m.channel != channel) continue;
     if (strncmp(m.thread, name, MAX_THREAD_NAME) != 0) continue;
+    if (reactions::isReaction(m.text)) continue;   // a reaction doesn't make a chat newer
     return m.ts;
   }
   return 0;
@@ -82177,7 +82281,12 @@ int UITask::appendMessage(const char* thread, const char* sender, const char* te
   if (!_thread_hist_dirty && _thread_msgs[t_idx] < 0xFFFF) ++_thread_msgs[t_idx];
   if (_ui_msg_count < _ui_msg_cap) ++_ui_msg_count;
   _ui_msg_head = (_ui_msg_head + 1) % _ui_msg_cap;
-  _ui_threads[t_idx].last_ts = m.ts;
+  // A reaction (Reactions.h) is stored like a message but isn't one: it doesn't
+  // move the chat up, count as unread or mention anyone; the open chat lays out
+  // again so its message's bubble shows it.
+  const bool is_reaction = reactions::isReaction(m.text);
+  if (is_reaction) { mark_unread = false; ++_react_gen; }
+  else _ui_threads[t_idx].last_ts = m.ts;
   enforceHistoryCap(t_idx);   // keep this chat within the per-chat cap (Settings -> Chats)
   if (mark_unread) _ui_threads[t_idx].unread++;
   if (mark_unread && channel && !outgoing && textMentionsMe(text)) {
@@ -82284,7 +82393,8 @@ int UITask::getThreadMessageIndexes(int thread_idx, int out_indexes[], int max_o
     int idx = (_ui_msg_head - 1 - i + _ui_msg_cap) % _ui_msg_cap;
     const UIMessage& m = _ui_msgs[idx];
     if (strncmp(m.thread, _ui_threads[thread_idx].name, MAX_THREAD_NAME) == 0 &&
-        m.channel == _ui_threads[thread_idx].channel)
+        m.channel == _ui_threads[thread_idx].channel &&
+        !reactions::isReaction(m.text))   // a reaction shows under its message, not as one
       out_indexes[n++] = idx;
   }
   if (!newest_first) {
@@ -82295,6 +82405,65 @@ int UITask::getThreadMessageIndexes(int thread_idx, int out_indexes[], int max_o
     }
   }
   return n;
+}
+
+int UITask::getThreadReactionIndexes(int thread_idx, int out_indexes[], int max_out) const {
+  if (thread_idx < 0 || thread_idx >= MAX_UI_THREADS || !_ui_threads[thread_idx].used || !_ui_msgs) return 0;
+  int n = 0;
+  for (int i = 0; i < _ui_msg_count && n < max_out; ++i) {
+    const int idx = (_ui_msg_head - 1 - i + _ui_msg_cap) % _ui_msg_cap;
+    const UIMessage& m = _ui_msgs[idx];
+    if (m.channel == _ui_threads[thread_idx].channel &&
+        strncmp(m.thread, _ui_threads[thread_idx].name, MAX_THREAD_NAME) == 0 &&
+        reactions::isReaction(m.text))
+      out_indexes[n++] = idx;
+  }
+  return n;
+}
+
+bool UITask::reactionPartsOfSlot(int msg_idx, uint32_t* ts, char* sender, size_t sender_cap,
+                                 bool* has_sender, char* text, size_t text_cap, bool* channel) const {
+  if (!_ui_msgs || msg_idx < 0 || msg_idx >= _ui_msg_cap) return false;
+  const UIMessage& m = _ui_msgs[msg_idx];
+  if (!m.thread[0] || !m.text[0]) return false;
+  // A room (a DM thread with a room server) names each post's author, as a channel
+  // does; a plain 1:1 chat names nobody (the app hashes with no sender there).
+  bool room = false;
+  if (!m.channel) {
+    const int t = findThreadByName(m.thread, false);
+    if (t >= 0) {
+      ContactInfo* c = the_mesh.lookupContactByPubKey(_ui_threads[t].mesh_contact_pub, PUB_KEY_SIZE);
+      room = c && c->type == ADV_TYPE_ROOM;
+    }
+  }
+  const char* body = m.text;
+  char split_name[MAX_SENDER_NAME + 1] = "";
+  const char* who = m.outgoing ? (_node_prefs && _node_prefs->node_name[0] ? _node_prefs->node_name : "me")
+                               : m.sender;
+  // Older stored channel posts kept "Name: text" whole (sender empty or "rx"):
+  // split them the way their bubble does.
+  if (!m.outgoing && (m.channel || room) &&
+      (!m.sender[0] || (m.sender[0] == 'r' && m.sender[1] == 'x' && !m.sender[2]))) {
+    body = ChannelSenderSplit::split(m.text, split_name, sizeof split_name);
+    if (split_name[0]) who = split_name;
+  }
+  if (ts) *ts = m.ts;
+  if (channel) *channel = m.channel;
+  const bool named = m.channel || room;
+  if (has_sender) *has_sender = named;
+  if (sender && sender_cap) snprintf(sender, sender_cap, "%s", named ? who : "");
+  if (text && text_cap) snprintf(text, text_cap, "%s", body);
+  return true;
+}
+
+bool UITask::reactionHashOfSlot(int msg_idx, uint16_t* hash) const {
+  uint32_t ts = 0;
+  bool named = false, ch = false;
+  char who[MAX_SENDER_NAME + 1];
+  char text[MAX_MSG_TEXT + 1];
+  if (!reactionPartsOfSlot(msg_idx, &ts, who, sizeof who, &named, text, sizeof text, &ch)) return false;
+  if (hash) *hash = reactions::hashOfMessage(ts, named ? who : nullptr, text, ch);
+  return true;
 }
 
 void UITask::setActiveThread(int idx, bool channel_mode) {
@@ -82438,8 +82607,12 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
       showAlert(TR("Send failed"), 1200);
       return false;
     }
-    appendMessage(_ui_threads[_active_thread_idx].name, sender, truncated, true, true, false,
-                  0, DELIV_NONE, 0, 0, 0, 0, nullptr, 0, the_mesh.uiLastSentFp());
+    {
+      const int slot = _ui_msg_head;   // appendMessage writes _ui_msgs[head]
+      if (appendMessage(_ui_threads[_active_thread_idx].name, sender, truncated, true, true, false,
+                        0, DELIV_NONE, 0, 0, 0, 0, nullptr, 0, the_mesh.uiLastSentFp()) >= 0)
+        _ui_msgs[slot].ts = ts;   // the send-time on the air: a reaction names the message by it
+    }
     if (!override_text) resetComposer();   // a resend must not wipe a half-typed draft
     showAlert(TR("Sent"), 900);
     return true;
@@ -82529,8 +82702,12 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
   // Register the ACK hash so when the recipient acks the DM, processAck
   // matches it and fires UITask::onMessageAcked → bubble flips to ✓✓.
   the_mesh.uiRegisterExpectedAck(expected_ack, recipient.id.pub_key);
-  appendMessage(_ui_threads[_active_thread_idx].name, sender, truncated, false, true, false,
-                expected_ack, DELIV_SENT, 0, 0, 0, 0, nullptr, 0, the_mesh.uiLastSentFp());
+  {
+    const int slot = _ui_msg_head;   // appendMessage writes _ui_msgs[head]
+    if (appendMessage(_ui_threads[_active_thread_idx].name, sender, truncated, false, true, false,
+                      expected_ack, DELIV_SENT, 0, 0, 0, 0, nullptr, 0, the_mesh.uiLastSentFp()) >= 0)
+      _ui_msgs[slot].ts = ts;   // the send-time on the air: a reaction names the message by it
+  }
   if (!override_text) resetComposer();   // a resend must not wipe a half-typed draft
   showAlert(TR("Sent"), 900);
   return true;
@@ -84052,6 +84229,7 @@ bool UITask::deleteMessageBySlot(int msg_idx) {
   if (msg_idx < 0 || msg_idx >= _ui_msg_cap) return false;
   UIMessage& m = _ui_msgs[msg_idx];
   if (!m.thread[0]) return false;                // free or already tombstoned
+  ++_react_gen;                                   // its reactions (or it, a reaction) go too
   m.thread[0] = '\0';
   m.text[0]   = '\0';
   m.sender[0] = '\0';
@@ -84062,6 +84240,7 @@ bool UITask::deleteMessageBySlot(int msg_idx) {
 
 int UITask::clearThreadHistory(int thread_idx) {
   if (thread_idx < 0 || thread_idx >= MAX_UI_THREADS || !_ui_threads[thread_idx].used) return 0;
+  ++_react_gen;
   int cleared = 0;
   for (int i = 0; i < _ui_msg_count; ++i) {
     const int idx = (_ui_msg_head - 1 - i + _ui_msg_cap) % _ui_msg_cap;
@@ -87080,6 +87259,48 @@ void UITask::newMsgImpl(uint8_t path_len, const char* from_name, const char* tex
   }
 #endif
 
+  // Reactions (Reactions.h, as MeshCore Open's): stored silently and shown under the
+  // message they name, never as a message of their own -- no chime, glance or unread.
+  // The app's "r:HASH:II" is kept as it is (the app drops one that names no message,
+  // so a stray one stays hidden here too). A MeshCore One reaction is kept in the
+  // app's format when it names a message in this chat; one that doesn't is shown as
+  // the text it is, as the app shows it.
+  {
+    char norm[12];
+    const char* rtext = reactions::isReaction(body) ? body : nullptr;
+    const int rt = findThreadByName(thread, channel);
+    reactions::Mc1 mc;
+    const int mc_emoji = (!rtext && rt >= 0 && reactions::parseMc1(body, &mc)) ? reactions::emojiIndex(mc.emoji) : -1;
+    if (mc_emoji >= 0) {
+      int idx[128];
+      const int n = getThreadMessageIndexes(rt, idx, 128, true);   // newest first
+      for (int i = 0; i < n && !rtext; ++i) {
+        uint32_t ts = 0;
+        bool named = false, ch = false;
+        char who[MAX_SENDER_NAME + 1];
+        char txt[MAX_MSG_TEXT + 1];
+        if (!reactionPartsOfSlot(idx[i], &ts, who, sizeof who, &named, txt, sizeof txt, &ch)) continue;
+        char h[9];
+        reactions::hashMc1(ts, ch ? reactions::replyBody(txt) : txt, h);
+        if (strcmp(h, mc.hash) != 0) continue;
+        if (strcmp(mc.has_name ? mc.name : "", named ? who : "") != 0) continue;   // as the app's "hash:name"
+        reactions::format(reactions::hashOfMessage(ts, named ? who : nullptr, txt, ch), mc_emoji, norm, sizeof norm);
+        rtext = norm;
+      }
+    }
+    if (rtext) {
+      the_mesh.uiConsumeLastSenderTs();   // a reaction's own send-time names nothing here
+      if (rt >= 0) {                      // no chat yet: nothing in it to react to
+        appendMessage(thread, sender, rtext, channel, false, false /*mark_unread*/,
+                      0 /*ack_hash*/, DELIV_NONE, meta_flags, path_len, snr_q4, rssi);
+#if defined(HAS_TOUCH_UI)
+        g_lv.dirty_timeline = true;
+#endif
+      }
+      return;
+    }
+  }
+
 #if defined(ATTAKY_MESH_SERIES)
   if (g_last_event == UIEventType::contactMessage) {
     attakyNotificationStart(touchPrefsGetAttakyNotifyDmColor());
@@ -87406,15 +87627,19 @@ void UITask::newRoomMsgFromPubWithMeta(uint8_t path_len, bool is_flood,
 }
 
 void UITask::appSentMsgToContact(const uint8_t* to_pub, const char* to_name, const char* text,
-                                 uint32_t ack_hash, uint32_t sent_fp) {
+                                 uint32_t ack_hash, uint32_t sent_fp, uint32_t sent_ts) {
   if (!to_name || !to_name[0] || !text || !text[0]) return;
   const char* sender = (_node_prefs && _node_prefs->node_name[0]) ? _node_prefs->node_name : "me";
   // Mirror an app-originated DM as a local outgoing bubble in the recipient's thread (#46) — the
   // on-device UI is otherwise the only message consumer that never sees sends made from the
   // companion app. appendMessage creates the thread if it doesn't exist and refreshes the view.
   // sent_fp links a locally-originated send (web/terminal) to the repeats-heard ring (0 = none).
-  appendMessage(to_name, sender, text, false /*channel*/, true /*outgoing*/, false /*mark_unread*/,
-                ack_hash, DELIV_SENT, 0, 0, 0, 0, nullptr, 0, sent_fp);
+  {
+    const int slot = _ui_msg_head;   // appendMessage writes _ui_msgs[head]
+    if (appendMessage(to_name, sender, text, false /*channel*/, true /*outgoing*/, false /*mark_unread*/,
+                      ack_hash, DELIV_SENT, 0, 0, 0, 0, nullptr, 0, sent_fp) >= 0 && sent_ts)
+      _ui_msgs[slot].ts = sent_ts;   // its send-time on the air, which a reaction names it by
+  }
   // Lock the thread to the contact's pubkey so a reply typed on-device resolves it (mirrors the
   // receive path above).
   const int t = findThreadByName(to_name, false);
@@ -87429,15 +87654,18 @@ void UITask::appSentMsgToContact(const uint8_t* to_pub, const char* to_name, con
   syncThreadMeshSlots(to_name, false);
 }
 
-void UITask::appSentMsgToChannel(const char* channel_name, const char* text, uint32_t sent_fp) {
+void UITask::appSentMsgToChannel(const char* channel_name, const char* text, uint32_t sent_fp,
+                                 uint32_t sent_ts) {
   if (!channel_name || !channel_name[0] || !text || !text[0]) return;
   const char* sender = (_node_prefs && _node_prefs->node_name[0]) ? _node_prefs->node_name : "me";
   // Mirror an app-originated channel message as a local outgoing bubble in the channel thread — the
   // channel-send command otherwise never tells the on-device UI about companion sends (the DM path
   // does, via appSentMsgToContact above). appendMessage creates the thread + refreshes the view.
   // sent_fp links a locally-originated send (web/terminal) to the repeats-heard ring (0 = none).
-  appendMessage(channel_name, sender, text, true /*channel*/, true /*outgoing*/, false /*mark_unread*/,
-                0 /*ack_hash*/, DELIV_SENT, 0, 0, 0, 0, nullptr, 0, sent_fp);
+  const int slot = _ui_msg_head;   // appendMessage writes _ui_msgs[head]
+  if (appendMessage(channel_name, sender, text, true /*channel*/, true /*outgoing*/, false /*mark_unread*/,
+                    0 /*ack_hash*/, DELIV_SENT, 0, 0, 0, 0, nullptr, 0, sent_fp) >= 0 && sent_ts)
+    _ui_msgs[slot].ts = sent_ts;   // its send-time on the air, which a reaction names it by
 }
 
 void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {

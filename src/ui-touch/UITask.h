@@ -22,6 +22,7 @@
 #include "../AbstractUITask.h"
 #include "../NodePrefs.h"
 #include "SharedPins.h"
+#include "Reactions.h"   // message reactions, as MeshCore Open's
 
 struct ContactInfo;
 
@@ -176,6 +177,7 @@ private:
   char _alert[80];
   unsigned long _alert_expiry;
   int _msgcount;
+  uint32_t _react_gen = 0;   // reactionGen(): bumped when a reaction is stored
   /** Next UIMessage::seq to hand out. Seeded by the loader (max loaded seq + 1),
    *  strictly monotonic for the session. See UIMessage::seq. */
   uint32_t _ui_seq_next = 1;
@@ -368,7 +370,20 @@ public:
   bool getThreadInfo(int idx, bool& channel, uint16_t& unread, uint32_t& ts, char* name, size_t name_len) const;
   int  getActiveThreadMessageCount(int out_indexes[], int max_out, bool newest_first) const;
   bool getMessageByIndex(int msg_idx, UIMessage& out) const;
-  int  getThreadMessageIndexes(int thread_idx, int out_indexes[], int max_out, bool newest_first) const;   // read any thread's message ring slots (no active-thread side effect)
+  int  getThreadMessageIndexes(int thread_idx, int out_indexes[], int max_out, bool newest_first) const;   // read any thread's message ring slots (no active-thread side effect); reactions left out
+  /** Reactions (Reactions.h). Reactions are stored as messages of their own
+   *  ("r:HASH:II"), which getThreadMessageIndexes leaves out: this reads them. */
+  int  getThreadReactionIndexes(int thread_idx, int out_indexes[], int max_out) const;   // newest first
+  /** What the app hashes the message in ring slot `msg_idx` by: its send time, its
+   *  sender (channels and rooms; *has_sender false in a 1:1 chat) and its text as the
+   *  app keeps it. False for a slot with no message. */
+  bool reactionPartsOfSlot(int msg_idx, uint32_t* ts, char* sender, size_t sender_cap,
+                           bool* has_sender, char* text, size_t text_cap, bool* channel) const;
+  /** The app's hash of the message in ring slot `msg_idx` (Reactions.h). */
+  bool reactionHashOfSlot(int msg_idx, uint16_t* hash) const;
+  /** Changes whenever a reaction is stored or chats are cleared: the open chat
+   *  lays out again (its bubbles' heights change). */
+  uint32_t reactionGen() const { return _react_gen; }
   bool deleteMessageBySlot(int msg_idx);          // tombstone one ring slot (long-press Delete)
   int  clearThreadHistory(int thread_idx);        // tombstone every message of a thread; returns count
   const char* getComposerBuffer() const { return _compose_buf; }
@@ -454,6 +469,7 @@ public:
       const UIMessage& m = _ui_msgs[slot];
       if (!m.text[0] || m.channel != ch) continue;
       if (strncmp(m.thread, nm, MAX_THREAD_NAME) != 0) continue;
+      if (reactions::isReaction(m.text)) continue;   // a reaction isn't the last message
       if (sender && sender_cap) { strncpy(sender, m.sender, sender_cap - 1); sender[sender_cap - 1] = '\0'; }
       if (text && text_cap)     { strncpy(text,   m.text,   text_cap - 1);   text[text_cap - 1] = '\0'; }
       if (outgoing) *outgoing = m.outgoing;
@@ -621,8 +637,9 @@ public:
                                  const char* text, int msgcount,
                                  int8_t snr_q4, int8_t rssi) override;
   void appSentMsgToContact(const uint8_t* to_pub, const char* to_name, const char* text,
-                           uint32_t ack_hash, uint32_t sent_fp = 0) override;
-  void appSentMsgToChannel(const char* channel_name, const char* text, uint32_t sent_fp = 0) override;
+                           uint32_t ack_hash, uint32_t sent_fp = 0, uint32_t sent_ts = 0) override;
+  void appSentMsgToChannel(const char* channel_name, const char* text, uint32_t sent_fp = 0,
+                           uint32_t sent_ts = 0) override;
   void notify(UIEventType t = UIEventType::none) override;
   void logRxFrame(float snr, float rssi, const uint8_t* raw, int len) override;
   void discoveredContact(const ContactInfo& contact, bool is_new, uint8_t path_len) override;
