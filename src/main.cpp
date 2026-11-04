@@ -1853,7 +1853,9 @@ void loop() {
   extern void stallLog(const char* tag, uint32_t dur_ms);
   extern const char* g_ui_stall_tag;
   extern uint16_t    g_ui_stall_max;
-#define STALL_SCOPE(tag, call) { uint32_t _st0 = millis(); call; uint32_t _sdt = millis() - _st0; if (_sdt >= 200) stallLog(tag, _sdt); }
+  extern void perfOutside(const char* tag, uint32_t us);   // its own line in About > Busy
+#define STALL_SCOPE(tag, call) { const uint32_t _su0 = micros(); uint32_t _st0 = millis(); call; \
+    perfOutside(tag, micros() - _su0); uint32_t _sdt = millis() - _st0; if (_sdt >= 200) stallLog(tag, _sdt); }
   { uint32_t _ui0 = millis();
     ui_task.loop();
     uint32_t _uidt = millis() - _ui0;
@@ -1863,6 +1865,7 @@ void loop() {
 #ifdef MULTI_TRANSPORT_COMPANION
 #ifdef DISPLAY_CLASS
   uint32_t _wf0 = millis();   // beta_31 tracer: time the whole Wi-Fi state machine + SNTP span
+  const uint32_t _wfu0 = micros();
 #endif
   static bool wifi_started = false;
   static uint32_t last_wifi_retry_ms = 0;
@@ -2235,7 +2238,7 @@ void loop() {
 #endif
   }
 #ifdef DISPLAY_CLASS
-  { uint32_t _wfdt = millis() - _wf0; if (_wfdt >= 200) stallLog("wifi-sm", _wfdt); }
+  { perfOutside("wifi-sm", micros() - _wfu0); uint32_t _wfdt = millis() - _wf0; if (_wfdt >= 200) stallLog("wifi-sm", _wfdt); }
 #endif
   // Defer TCP and WebSocket until after splash dismisses so the_mesh.loop() never blocks on accept() before ui_task.loop() runs.
   static const uint32_t TCP_DEFER_MS = 5000;   // 5 s: don't start TCP/WS until version screen has dismissed
