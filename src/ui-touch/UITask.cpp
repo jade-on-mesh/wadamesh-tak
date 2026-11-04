@@ -87527,14 +87527,24 @@ static void perfAdd(const char* tag, uint32_t us) {
     }
   }
 }
+// The main loop's own sections (mesh, mqtt, wifi-sm...), timed in main.cpp: each gets
+// its own line in Busy, and comes out of "ui:idle", which used to hold all of them.
+static uint32_t s_perf_outside_us = 0;
+void perfOutside(const char* tag, uint32_t us) {
+  perfAdd(tag, us);
+  s_perf_outside_us += us;
+}
+// Packets the radio heard in the last window: how busy the mesh was while Busy was measured.
+static uint32_t s_perf_rx0 = 0, s_perf_last_rx = 0;
 static void perfLoopEnd(uint32_t now_us) {
   static uint32_t win0 = 0;
   s_perf_loops++;
-  if (!win0) win0 = now_us;
+  if (!win0) { win0 = now_us; s_perf_rx0 = radio_driver.getPacketsRecv(); }
   if (now_us - win0 < 10000000u) return;
   memcpy(s_perf_last, s_perf, sizeof s_perf);
   s_perf_last_win_us = now_us - win0;
   s_perf_last_loops = s_perf_loops;
+  { const uint32_t rx = radio_driver.getPacketsRecv(); s_perf_last_rx = rx - s_perf_rx0; s_perf_rx0 = rx; }
   memset(s_perf, 0, sizeof s_perf);
   s_perf_loops = 0;
   win0 = now_us;
@@ -87542,8 +87552,9 @@ static void perfLoopEnd(uint32_t now_us) {
 // "Busy (last 10 s): 23 loops/s; ui:lvgl 41%, ui:tak 9% ..."
 static int perfText(char* buf, size_t cap) {
   if (!s_perf_last_win_us) return snprintf(buf, cap, "Busy\n  measuring...\n\n");
-  int p = snprintf(buf, cap, "Busy (last 10 s, %lu loops/s)\n",
-                   (unsigned long)(s_perf_last_loops * 1000000ull / s_perf_last_win_us));
+  int p = snprintf(buf, cap, "Busy (last 10 s, %lu loops/s, %lu packets heard)\n",
+                   (unsigned long)(s_perf_last_loops * 1000000ull / s_perf_last_win_us),
+                   (unsigned long)s_perf_last_rx);
   bool used[kPerfSlots] = {false};
   for (int k = 0; k < 6; k++) {
     int best = -1;
@@ -88118,7 +88129,11 @@ void UITask::loop() {
   }
 #endif
   g_ui_stall_max = 0; g_ui_stall_tag = ""; s_ui_cp_tag = "ui:head"; s_ui_cp_t0 = now;
-  { const uint32_t nus = (uint32_t)micros(); perfAdd("ui:idle", nus - s_ui_cp_us); s_ui_cp_us = nus; perfLoopEnd(nus); }
+  { const uint32_t nus = (uint32_t)micros();
+    const uint32_t gap = nus - s_ui_cp_us;   // since the last pass: main.cpp's sections + what's left
+    perfAdd("ui:idle", gap > s_perf_outside_us ? gap - s_perf_outside_us : 0);
+    s_perf_outside_us = 0;
+    s_ui_cp_us = nus; perfLoopEnd(nus); }
 #if defined(ESP32)
   // Persist the clock floor every 15 min (coalesced into the next prefs snapshot).
   // Power loss costs at most this window of floor progress — a soft reset keeps the
@@ -88996,16 +89011,38 @@ void UITask::loop() {
     refreshContactsList();
   }
   uiCp("ui:thrlist");
-  if (g_lv.dirty_threads && heavy_ok) {
-    refreshThreadLists();
-    g_lv.dirty_threads = false;
+  {
+    // The Chats list is rebuilt in full (every row deleted and made again) when what
+    // it shows changes, and on a busy mesh that's every message, on every channel.
+    // It used to happen whichever tab was open, often several times a second. Now
+    // only while the list is on screen, and at most once a second; the flag stays
+    // set, so the list is brought up to date the moment it comes into view.
+    static unsigned long s_thr_rebuild_ms = 0;
+    static bool s_thr_was_visible = false;
+    const bool visible = (!_screen_off || s_remote_mode) && getActiveTab() == CHAT_INBOX_TAB_INDEX && !hasChatDetailOpen();
+    if (g_lv.dirty_threads && heavy_ok && visible &&
+        (!s_thr_was_visible || now - s_thr_rebuild_ms >= 1000)) {
+      refreshThreadLists();
+      g_lv.dirty_threads = false;
+      s_thr_rebuild_ms = now;
+    }
+    s_thr_was_visible = visible;
   }
   uiCp("ui:chat");
-  if (g_lv.dirty_timeline && heavy_ok) {
-    // Only repaint the detail that is currently open.
-    if (g_lv.dm.detail_open) refreshChatDetailAsync(g_lv.dm);
-    if (g_lv.ch.detail_open) refreshChatDetailAsync(g_lv.ch);
-    g_lv.dirty_timeline = false;
+  {
+    // Every message on any channel, every repeat heard of one we sent, and every
+    // delivery tick marks the open chat dirty, and each refresh scans the whole
+    // message store and repaints what's in view. On a busy mesh that came in bursts
+    // of several a second. At most four a second now, and none while the screen is
+    // off (waking re-checks the open chat anyway); the flag stays set meanwhile.
+    static unsigned long s_tl_refresh_ms = 0;
+    if (g_lv.dirty_timeline && heavy_ok && (!_screen_off || s_remote_mode) && now - s_tl_refresh_ms >= 250) {
+      // Only repaint the detail that is currently open.
+      if (g_lv.dm.detail_open) refreshChatDetailAsync(g_lv.dm);
+      if (g_lv.ch.detail_open) refreshChatDetailAsync(g_lv.ch);
+      g_lv.dirty_timeline = false;
+      s_tl_refresh_ms = now;
+    }
   }
   // Jump arrows dim to 50% one second after the last scroll activity (every
   // scroll tick re-brightens them via chatUpdateJumpButtons).
