@@ -580,10 +580,21 @@ const Wada = (() => {
 /* ================= Keymind Cascade tab ================= */
 const Cascade = (() => {
   const ROLE_HELP = {
-    companion: "A companion pairs with the MeshCore app on your phone or computer, over Bluetooth, USB or Wi-Fi.",
+    companion: "A companion pairs with the MeshCore app on your phone or computer. Keymind Cascade's Full Companion is one build with Bluetooth and USB both on (and Wi-Fi on ESP32 boards, off until you turn it on), so there's no separate Bluetooth version to pick.",
     repeater: "A repeater relays traffic for everyone, usually mounted high and running unattended.",
   };
   const TYPE_LABEL = { esp32: "ESP32", nrf52: "nRF52", noflash: "Other" };
+  // How a companion build connects (Keymind's Full Companion has every transport the
+  // board has: it can't be built without Bluetooth). Shown on the build, so a Full
+  // Companion doesn't read as a USB-only build.
+  const TRANSPORTS = (fw, type) =>
+    fw.role === "companionFull" ? (type === "esp32" ? "Bluetooth + USB + Wi-Fi" : "Bluetooth + USB")
+    : fw.role === "companionBle" ? "Bluetooth" : fw.role === "companionUsb" ? "USB only" : "";
+  const TRANSPORT_NOTE = (fw, type) =>
+    fw.role === "companionFull" ? (type === "esp32"
+      ? "Bluetooth and USB, both on; Wi-Fi too, off until you turn it on (set wifi.enabled 1)"
+      : "Bluetooth and USB, both on")
+    : fw.role === "companionBle" ? "Bluetooth" : fw.role === "companionUsb" ? "USB only (no Bluetooth)" : "";
   let devices = [], loaded = false, loading = null, version = "";
   let mirror = {};   // catalog URL -> {path, size, digest}: ESP32 images copied to Pages by flasher-pages
   let role = "companion", chipFilter = "", query = "", dev = null, fwSel = null;
@@ -646,7 +657,8 @@ const Cascade = (() => {
     if (!fwSel || !fws.includes(fwSel)) fwSel = fws[0];
     for (const fw of fws) {
       const el = document.createElement("button"); el.type = "button"; el.className = "variant"; el.setAttribute("role", "radio"); el.setAttribute("aria-checked", String(fw === fwSel));
-      el.innerHTML = `<span class="dot"></span><span><span class="vt">${esc(fw.title)}</span><span class="vs mono">${esc(fw.sub)}</span></span>`;
+      const tr = TRANSPORTS(fw, dev.type);
+      el.innerHTML = `<span class="dot"></span><span><span class="vt">${esc(fw.title)}${tr ? ` <span class="chip">${esc(tr)}</span>` : ""}</span><span class="vs mono">${esc(fw.sub)}</span></span>`;
       el.onclick = () => { fwSel = fw; renderVariants(); };
       vb.append(el);
     }
@@ -654,7 +666,7 @@ const Cascade = (() => {
     for (const p of fwSel.notes.split(/\n\s*\n/)) { const m = /^([A-Z][A-Z -]+?) - ([\s\S]*)$/.exec(p.trim()); if (m) notes[m[1]] = m[2].trim(); }
     const meta = $("cMeta");
     const add = (k, v) => { if (!v) return; const dt = document.createElement("dt"); dt.textContent = k; const dd = document.createElement("dd"); dd.textContent = v; meta.append(dt, dd); };
-    add("Board", dev.name); add("Exact build", notes["EXACT TARGET"]?.split(".")[0]); add("Updates later via", notes["SELF-UPDATE"]?.replace(/^Verified methods:\s*/, "").replace(/\.$/, ""));
+    add("Board", dev.name); add("Connects over", TRANSPORT_NOTE(fwSel, dev.type)); add("Exact build", notes["EXACT TARGET"]?.split(".")[0]); add("Updates later via", notes["SELF-UPDATE"]?.replace(/^Verified methods:\s*/, "").replace(/\.$/, ""));
     add("Capacity", notes["CAPACITY"]);
     const links = $("cLinks");
     const link = (href, text) => { if (!href) return; const a = document.createElement("a"); a.href = href; a.target = "_blank"; a.rel = "noopener"; a.textContent = text; links.append(a); };
