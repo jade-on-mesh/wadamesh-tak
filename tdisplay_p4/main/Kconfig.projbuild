@@ -1,0 +1,23 @@
+# esp-hosted's newer manifests add USB-host transports as dependencies gated on
+# these options ("rules: - if: $CONFIG{ESP_HOSTED_HOST_USB_..._MANIFEST} == 1").
+# Neither esp-hosted copy this build resolves defines them, so the component
+# manager stopped the P4 build: "Missing required kconfig option after retry"
+# (from 2026-11-05, with the same pinned image and component versions as the
+# day before). The P4 talks to its C6 over SDIO, never USB, so they are off.
+# Integers, as the rules compare them ("== 1"): a bool fails the manifest check
+# ("Invalid boolean \"1\" in \"if\" clause").
+menu "Wadamesh: esp-hosted USB host (unused on the P4)"
+
+config ESP_HOSTED_HOST_USB_CDC_ACM_MANIFEST
+    int "Pull in usb_host_cdc_acm for esp-hosted (1 = yes)"
+    default 0
+
+config ESP_HOSTED_HOST_USB_RNDIS_MANIFEST
+    int "Pull in iot_usbh_rndis for esp-hosted (1 = yes)"
+    default 0
+
+config ESP_HOSTED_HOST_USB_CHERRYUSB_MANIFEST
+    int "Pull in cherryusb for esp-hosted (1 = yes)"
+    default 0
+
+endmenu
