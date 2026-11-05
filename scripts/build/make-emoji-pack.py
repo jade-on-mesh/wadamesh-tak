@@ -8,8 +8,13 @@
 #
 #   git clone --depth 1 --branch v2.051 --filter=blob:none --sparse \
 #       https://github.com/googlefonts/noto-emoji.git noto && \
-#       git -C noto sparse-checkout set png/128
-#   python3 scripts/build/make-emoji-pack.py noto/png/128
+#       git -C noto sparse-checkout set png/128 third_party/region-flags/png
+#       git -C noto sparse-checkout set png/128 third_party/region-flags/png
+#   python3 scripts/build/make-emoji-pack.py noto/png/128 noto/third_party/region-flags/png
+#
+# Flags: Noto's png/128 has none; its region-flags/png has one per ISO code (US.png).
+# Each is stored under FlagText.h's key for its two regional indicators (past the
+# last Unicode codepoint), which is the letter LVGL reads a flag as.
 #
 # Images are made exactly as add-emoji.py makes the baked ones (16 px, RGB565 +
 # alpha) and packed as pack-emoji.py packs them (alpha plane, then the visible
@@ -39,7 +44,15 @@ PX = 16
 # combiner, the tag characters of subdivision flags.
 ZERO = list(range(0x1F3FB, 0x1F400)) + [0x20E3] + list(range(0xE0020, 0xE0080))
 # Checked by the test: a few the chat showed as boxes, and the edges.
-SAMPLES = [0x1F420, 0x1F41F, 0x2615, 0x1F947, 0x1F3C0, 0x1F3B5, 0x1F600, 0x1FAF6]
+FLAG_BASE = 0x110000   # FlagText.h key(a, b) = FLAG_BASE + a * 26 + b (letters 0..25)
+
+
+def flag_key(iso):
+    return FLAG_BASE + (ord(iso[0]) - 65) * 26 + (ord(iso[1]) - 65)
+
+
+SAMPLES = [0x1F420, 0x1F41F, 0x2615, 0x1F947, 0x1F3C0, 0x1F3B5, 0x1F600, 0x1FAF6,
+           flag_key("US"), flag_key("LS"), flag_key("CA"), flag_key("JP")]
 
 
 def to_rgb565a8(img):
@@ -161,9 +174,9 @@ def fnv(b):
 
 
 def main():
-    if len(sys.argv) != 2:
-        sys.exit("usage: make-emoji-pack.py <noto-emoji/png/128>")
-    src = sys.argv[1]
+    if len(sys.argv) != 3:
+        sys.exit("usage: make-emoji-pack.py <noto-emoji/png/128> <noto-emoji/third_party/region-flags/png>")
+    src, flags = sys.argv[1], sys.argv[2]
     imgs = {}
     for fn in sorted(os.listdir(src)):
         m = re.fullmatch(r"emoji_u([0-9a-f]+)\.png", fn)
@@ -175,6 +188,14 @@ def main():
         imgs[cp] = os.path.join(src, fn)
     if len(imgs) < 1000:
         sys.exit("make-emoji-pack: only %d images in %s" % (len(imgs), src))
+    nflags = 0
+    for fn in sorted(os.listdir(flags)):
+        m = re.fullmatch(r"([A-Z]{2})\.png", fn)
+        if m:
+            imgs[flag_key(m.group(1))] = os.path.join(flags, fn)
+            nflags += 1
+    if nflags < 200:
+        sys.exit("make-emoji-pack: only %d flags in %s" % (nflags, flags))
 
     entries, data, hashes = [], bytearray(), {}
     for cp in sorted(set(imgs) | set(ZERO)):
@@ -209,7 +230,8 @@ def main():
         for cp in SAMPLES:
             f.write("  { 0x%Xu, 0x%08Xu },\n" % (cp, hashes[cp]))
         f.write("};\n")
-    print("emoji-pack.wep: %d entries (%d images), %d bytes" % (len(entries), drawn, len(blob)))
+        f.write("static const uint16_t kPackFlags = %d;\n" % nflags)
+    print("emoji-pack.wep: %d entries (%d images, %d flags), %d bytes" % (len(entries), drawn, nflags, len(blob)))
 
 
 if __name__ == "__main__":

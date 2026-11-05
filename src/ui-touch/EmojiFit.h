@@ -21,6 +21,7 @@
 
 #include "lvgl.h"
 #include "emoji_data.h"
+#include "FlagText.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -115,8 +116,30 @@ static const lv_img_dsc_t* sized(uint32_t cp, const lv_img_dsc_t* base, int px) 
 // Path callback: the image for an emoji codepoint, at the size its text calls for,
 // copied into the imgfont's scratch dsc; false for everything else, so LVGL keeps
 // walking the chain.
+// The emoji pack's own image for a codepoint, past the baked set (EmojiPackUI.inc
+// sets it once the pack is in use): a lone regional-indicator letter draws as its
+// letter, not as the baked Lesotho flag keyed on L.
+static const lv_img_dsc_t* (*s_pack_only)(uint32_t) = nullptr;
+
+// The image for a letter LVGL hands the font: a codepoint, or a flag (FlagText.h).
+static const lv_img_dsc_t* imageFor(uint32_t unicode) {
+  if (flagtext::isKey(unicode)) {
+    const lv_img_dsc_t* d = emojiGlyphLookup(unicode);   // the pack's flags
+    // Lesotho is baked (on its L, with S drawn as nothing), so it shows without the pack.
+    if (!d && unicode == flagtext::key(0x1F1F1, 0x1F1F8)) d = emojiGlyphLookup(0x1F1F1);
+    return d;
+  }
+  if (flagtext::isRi(unicode)) {   // a letter on its own, not in a pair
+    if (s_pack_only) {
+      if (const lv_img_dsc_t* d = s_pack_only(unicode)) return d;
+    }
+    if (unicode == 0x1F1F1) return nullptr;   // not the baked Lesotho flag: that is LS only
+  }
+  return emojiGlyphLookup(unicode);
+}
+
 static bool pathCb(const lv_font_t* font, void* img_src, uint16_t /*len*/, uint32_t unicode, uint32_t /*next*/) {
-  const lv_img_dsc_t* d = emojiGlyphLookup(unicode);
+  const lv_img_dsc_t* d = imageFor(unicode);
   // Skin-tone modifiers (U+1F3FB-1F3FF) have no baked image: draw them as the
   // invisible zero glyph (the same one U+FE0F maps to), so a toned thumbs-up
   // shows as the plain one (upstream #673).

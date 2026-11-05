@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "Utf8Text.h"
+#include "FlagText.h"
 
 namespace AvatarText {
 
@@ -125,7 +126,17 @@ inline bool firstEmoji(const char* name, char* out, size_t cap, HasGlyph visible
   const size_t len = strlen(name);
   for (size_t i = 0; i < len;) {
     const size_t at = i;
-    const uint32_t c = next(name, len, i);
+    uint32_t c = next(name, len, i);
+    // A flag is two regional indicators, drawn as one picture under one key
+    // (FlagText.h): the pair is the emoji, when there is a picture for it.
+    if (flagtext::isRi(c) && i < len) {
+      size_t j = i;
+      const uint32_t c2 = next(name, len, j);
+      if (flagtext::isRi(c2) && visible(flagtext::key(c, c2), ctx)) {
+        c = flagtext::key(c, c2);
+        i = j;
+      }
+    }
     if (c < 0x2000 || !visible(c, ctx)) continue;
     const size_t n = i - at;
     if (n >= cap) return false;

@@ -101,6 +101,7 @@ static bool epUse(uint8_t* buf, size_t len, uint8_t src) {
   s_ep_src = src;
   s_ep_ok = true;
   s_ep_state = 2;
+  emojifit::s_pack_only = emojiPackLookup;   // a lone flag letter draws as its letter
   Serial.printf("[EMOJI] full set in use: %u emoji, %u bytes, from %s\n", (unsigned)v.count,
                 (unsigned)len, src == 1 ? "the store" : src == 2 ? "SD" : "download");
   voxThumbLanded();   // lay out the open chat again: its emoji have widths now

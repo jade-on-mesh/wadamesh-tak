@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "ui-touch/EmojiPack.h"
+#include "ui-touch/FlagText.h"
 #include "emoji_pack_file_expected.h"
 
 static uint32_t fnv(const uint8_t* b, size_t n) {
@@ -39,7 +40,7 @@ int main(int argc, char** argv) {
 
   // Every image unpacks; the zero-width ones are skin tones, keycap, tags.
   uint8_t px[16 * 16 * 3], tmp[16 * 16 * 3];
-  int drawn = 0;
+  int drawn = 0, flags = 0;
   for (int i = 0; i < v.count; ++i) {
     const emojipack::Entry e = emojipack::entryAt(v, i);
     assert(emojipack::find(v, e.cp) == i);
@@ -49,8 +50,14 @@ int main(int argc, char** argv) {
     }
     assert(emojipack::unpack(v, i, px, tmp));
     ++drawn;
+    flags += flagtext::isKey(e.cp);
   }
   assert(drawn == kPackDrawn);
+  assert(flags == kPackFlags);
+  // The flags LVGL reads (FlagText.h keys): Lesotho, the one baked, and others.
+  assert(emojipack::find(v, flagtext::key(0x1F1F1, 0x1F1F8)) >= 0);   // LS
+  assert(emojipack::find(v, flagtext::key(0x1F1FA, 0x1F1F8)) >= 0);   // US
+  assert(emojipack::find(v, flagtext::key(0x1F1F8, 0x1F1EA)) >= 0);   // SE
 
   for (const auto& s : kPackSamples) {
     const int i = emojipack::find(v, s.cp);
