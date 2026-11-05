@@ -1,0 +1,1732 @@
+{
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Ebyte_EoRa-S3_Repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Ebyte_EoRa-S3_Repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2019880,
+  "digest": "sha256:8f1f89edf020e6140893a3ea7df47b8aef1595bb880e7233203fb09d3e72e7f2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GEPRC_Linkflow_900_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GEPRC_Linkflow_900_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1688584,
+  "digest": "sha256:35b1ab5befd4b447c99fbf3ea8e25f558119d68bdcd222ebcdce299a7afb7d15"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Generic_E22_sx1262_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Generic_E22_sx1262_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1697304,
+  "digest": "sha256:37800572d991eab0c0634434a4b53633aa3de519671d38bba079b53bc5daf19f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Generic_E22_sx1268_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Generic_E22_sx1268_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1689080,
+  "digest": "sha256:cc80f65ef59d5533678f28995559290e26c933307cb2c792d4b1f6a6b8a0bb4a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Generic_ESPNOW_repeatr-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Generic_ESPNOW_repeatr-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1644952,
+  "digest": "sha256:7f2482f52ba3331ef039c8eaedfba0c8f9008663648ffcb67e05f0cc5ad39176"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_E213_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_E213_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2150376,
+  "digest": "sha256:1bd647c724ac30c19b97af632eb89576f20d621766c8d850ac6989c31f5baffb"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_E290_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_E290_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2148696,
+  "digest": "sha256:eefc9a6692a52e73c87071b19b1da774895d840543e28e940a8bbe8de97754be"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_T190_repeater_-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_T190_repeater_-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2106504,
+  "digest": "sha256:5456ed4c2054908c52fe69854751dacd77e51d59715c3e05259a02d32f9c1cf9"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_WSL3_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_WSL3_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2122824,
+  "digest": "sha256:0ab67e06413b8094207ddee3ba55f8e8f5c3cc133a19091ec4f7b70179cb5fda"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_Wireless_Paper_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_Wireless_Paper_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2118920,
+  "digest": "sha256:29b1838470dfb7ba0d38cc9347e3e0a1235e75fe211c0147988c9df49a8a00a5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_Wireless_Tracker_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_Wireless_Tracker_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2190056,
+  "digest": "sha256:ce6192e826b4351dbf27a1de83265bdb83b5cce82995263df089f61b003c54b1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_ct62_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_ct62_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1763112,
+  "digest": "sha256:1802c754f9f3c8d1edd70ba3a1d28565ffcfe0e5ac36ffcfb24faf996d22a0e8"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_v2_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_v2_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1790200,
+  "digest": "sha256:248f4390e5316e877e4964ff86959750157cd18a62d915e66118568ba6ddaada"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_v3_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_v3_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2148088,
+  "digest": "sha256:53a07445155402c982bdeb522d007289321f0212f1f463ae8493a81ec86b3ddd"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T3S3_sx1262_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T3S3_sx1262_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2019848,
+  "digest": "sha256:f398f7a8a047c7fc85203a66169d65e9c2f7ab48c4492afafb4fe48475b43307"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T3S3_sx1276_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T3S3_sx1276_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2007864,
+  "digest": "sha256:4f07efad1c7af634780f2a66d082fa41e558d789a0b8dd31d838982a8b94e8c5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TBeam_1W_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TBeam_1W_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2129272,
+  "digest": "sha256:b8b302ff17a320c6037cdeac7ae15fdf192c0d5b01b7a1d92eca6dad2cb5c337"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TDeck_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TDeck_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1813416,
+  "digest": "sha256:3958c59fa7f9178c54c8f643f86aa9c6c7391a10f2a0aed129337897703cd226"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TETH_Elite_sx1262_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TETH_Elite_sx1262_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2078712,
+  "digest": "sha256:6e6100d928791fcb4dbe5ce80c1a7c0d2839789e2201a307bbd8d662e824e3bc"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TLora_V2_1_1_6_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TLora_V2_1_1_6_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1758728,
+  "digest": "sha256:5afc4752df2fd2d61ed9ae59157d263cab40daf2ffb4097244a0411cc875c0d5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TLora_V2_1_1_6_repeater_observer_mqtt_-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TLora_V2_1_1_6_repeater_observer_mqtt_-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1947256,
+  "digest": "sha256:5ffde6bb0a597ebcaa8e2560ffca03a20791b3ccbcd18cd81744e3c183ce1054"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_Tlora_C6_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_Tlora_C6_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1986648,
+  "digest": "sha256:f06dc4200e9de3ed24f1189e8e0e8daca675882a8ffb869a75ac882b1ef32953"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/M5Stack_Unit_C6L_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/M5Stack_Unit_C6L_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1920056,
+  "digest": "sha256:6c6fbb6b3d9c53b2c4e20e71c864b9c0894b45864f6944340d0e9aeee00485d0"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/MKE_s3_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/MKE_s3_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1831496,
+  "digest": "sha256:421331a0affa8caa862efe709a57a4673e791c8feb11a4f002c200f3376b248d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshadventurer_sx1262_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshadventurer_sx1262_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1736472,
+  "digest": "sha256:3fe6ffa5be0eb8009c01e05b24a51b482456127097547b7e3319284028cf4648"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshadventurer_sx1268_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshadventurer_sx1268_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1728648,
+  "digest": "sha256:cecfacd3ad126fcff4101936ab60167b2f5b251c26416ec9e9ebe0285e484382"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshimi_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshimi_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1913576,
+  "digest": "sha256:f03aa2590b3f1172af5ea4373720cce1a9abe18ac9a1822912d39c3badd19fa8"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3112_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3112_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2179960,
+  "digest": "sha256:ead567f710d466231bbdb6e8c754259d9f93e1a2f3febd29619d1064560bf109"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCapIndicator-LoRa-N16R2_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCapIndicator-LoRa-N16R2_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1828568,
+  "digest": "sha256:c300f7f380e9b228b33ce569ad2e1bc2305b859eaf3a3a36baf14b300ea65ce9"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCapIndicator-LoRa_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCapIndicator-LoRa_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1829592,
+  "digest": "sha256:5125112e0978fcfc21fb8cc964724a401935d2d499072fd4bb7a0a84e5328b1f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Station_G2_repeater_observer_mqtt-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Station_G2_repeater_observer_mqtt-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2181064,
+  "digest": "sha256:9423ca58eeaf30bbf4f6db311dd1502e8d44d043fc83421c5832ae9af0a60ba2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Station_G3_ESP32_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Station_G3_ESP32_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2199896,
+  "digest": "sha256:2d36048d990f3b439e4238766547da2e8ae8eef925b3b3a6e3bf47ea87f23a4a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/T_Beam_S3_Supreme_SX1262_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/T_Beam_S3_Supreme_SX1262_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2160216,
+  "digest": "sha256:f4bb641258bf62299620de61739dca3bede20948ff29a00179520758ad66d1a4"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tbeam_SX1262_repeater_observer_mqtt-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tbeam_SX1262_repeater_observer_mqtt-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2078440,
+  "digest": "sha256:4d76d1f953190576ef89872061a6a5ee083fb2bb5162f9d2e7d2896c337275c5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tbeam_SX1276_repeater_observer_mqtt-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tbeam_SX1276_repeater_observer_mqtt-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2064952,
+  "digest": "sha256:7e55d2a74ebfd73432dd6915056da1d7561496c5b175d4c2af36f08419eff42c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tenstar_C3_sx1262_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tenstar_C3_sx1262_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1763304,
+  "digest": "sha256:8080ff208920ab474bb2e3c03e34844c3d7f30602f408635f42cab41f49286e4"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tenstar_C3_sx1268_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tenstar_C3_sx1268_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1754312,
+  "digest": "sha256:60b6072c266e423fde91cc21ded74da2026273a9699a2ab115563ad45b467311"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M2_Repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M2_Repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1672728,
+  "digest": "sha256:0f33badc0b524d0477f701ef85dcbc0e9a63ac2276bafd60e4a89224eb3632a6"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M5_Repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M5_Repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1699320,
+  "digest": "sha256:3d4fe1844e737abc62dd0e8cedb1e0cbe5d73b3fca3ea95ec166bce1cd0211af"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M7_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M7_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2074072,
+  "digest": "sha256:ac43ea4c88c3ba0689744fa5562af0e222692b2a8d0c45fd4ea87fc1a33217d5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M9_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M9_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1823288,
+  "digest": "sha256:384e6f4d1916d694922aefd6a37adec0d461426f485d059bd9171505d242f081"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WHY2025_badge_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WHY2025_badge_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2065096,
+  "digest": "sha256:fe2e60f39327d21539d8b7e647d6b119313964401e475fe1a2c0eff6fae336cc"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Waveshare_S3_LR1121_repeater_observer_mqtt-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Waveshare_S3_LR1121_repeater_observer_mqtt-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1983608,
+  "digest": "sha256:db93bb9f2d01ef5bb7c3101a07a116a6025a0874cf03cd5ced7d6277ba40654d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Wio_Tracker_L2_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Wio_Tracker_L2_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1927160,
+  "digest": "sha256:e21c51c7a318a3fb1bf69f3df1daa3008bf463eced74defb679616a3e272811b"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_C3_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_C3_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1785624,
+  "digest": "sha256:3ec12b2689f7b12861dd8cccf38a4f76e89ad32d243ce3b2347c2a167e27d29a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_C6_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_C6_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1986632,
+  "digest": "sha256:ab296d3c561fc9b8cd455ba3f0e0115d5eda4470260e9a5a8159ee3e817dc2ad"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_S3_WIO_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_S3_WIO_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2108760,
+  "digest": "sha256:71af8c8f7bbf8aaec4101ce4b097a42f24157ee1d04f9012ef13dbaad79a0b41"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_S3_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_S3_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2130904,
+  "digest": "sha256:8a8d938915ff4221e87ccf9e58ed2f18c35b287829dbf1b883dc12120d1f778c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_rc32_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_rc32_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2402360,
+  "digest": "sha256:27877d92199b3fd48695dac0b4ee6eebd7fd9f4fc7e95c6ddbf360b21eb3581a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_tracker_v1_1_repeater_observer_mqtt-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_tracker_v1_1_repeater_observer_mqtt-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2199448,
+  "digest": "sha256:4845e58859f8379e3fefb99ae646149b14f8eab2d3c95c5cf6f5c45dd61b20e5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_tracker_v2_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_tracker_v2_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2201224,
+  "digest": "sha256:96ffab5090b1af779625b50bd33d155502db984ab6a8dd0a513dc14eab9ad19a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_tracker_v2_repeater_bridge_rs232-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_tracker_v2_repeater_bridge_rs232-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1840136,
+  "digest": "sha256:ed8f3c4be6a2807bbe7dacc0760d99a7acf5ebb11b35350551cbe3d0269ce140"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_r8_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_r8_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2189896,
+  "digest": "sha256:2915179ff20bea1bb1025d04db0493b295ea3ac85ca9cb2635d965b6a131a4a5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_r8_tft_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_r8_tft_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2198760,
+  "digest": "sha256:fd16d9d45d3f38cbcad41453bda90ea5d53a42d061d1fbce319a9f1a08d893ff"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2187064,
+  "digest": "sha256:1f3e7388fde2a3d392fac2adb75dba5005e2342c5741da593d7b1353187d383b"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_tft_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_tft_repeater-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1831656,
+  "digest": "sha256:47b6d97af461d9c7f2e0eeaf146a4f2eb38cbd8744e6957924bab932628d0eff"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/meshnology_w12_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/meshnology_w12_repeater-full-usb-wifi-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2190712,
+  "digest": "sha256:bced6b955497a1846d9699cbe3677eeae84b62d04e1b28f319d62aae8274c18a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/nibble_screen_connect_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/nibble_screen_connect_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1681128,
+  "digest": "sha256:1a237fb7f09b80eae826e917bd03e647249252d6ca3c3440717cb698093afefe"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/nibble_zero_connect_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/full-profiles-v1.18.0.1-halo-keymind-cascade-dev-03214a16/nibble_zero_connect_repeater_-full-logging-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 1681208,
+  "digest": "sha256:fd045d0693db9480fe69b5dba92c488c931cfd9611948eed5bd1c4d602f91d60"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_unified_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_unified_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 687579,
+  "digest": "sha256:1a7b9b97bcb9e587b8e9b6e004fc301a5def1b3bf615f44d7f3cbc49d2a3ec1c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_unified_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_unified_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 634611,
+  "digest": "sha256:2628134fde0198120133f15dca96618daec4ff8e130ce0eced6ead3080ab3072"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_unified_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_unified_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 733491,
+  "digest": "sha256:70d5f0adffccf3b44820d6d78e04a7702baa97f09acc5cb0908dd9547d641584"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_unified_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_unified_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 680522,
+  "digest": "sha256:1df43232cdf1db56b08a58ff579863b02e88a5d89356effe3ff65a3bf92a06fd"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_w25q16_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_w25q16_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 629315,
+  "digest": "sha256:c7c9ee83432189a5423777e3f3f24de4786d5d1b870512a334cb4755f924f58c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_w25q16_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_w25q16_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 576403,
+  "digest": "sha256:6d96735e9417bfd60fcb99b85485f75ac832b8fa53d3026b628748cf48022de5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_w25q16_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_w25q16_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 675998,
+  "digest": "sha256:18aff7d775ba733580ef4cba1bac4b87e3d8b624397c57b5bad11b472783c6bf"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_w25q16_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_w25q16_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 623054,
+  "digest": "sha256:d73cbdbb8bc8460c41f982e9677cf79bf9de3dd0887a1bb4e27b1f3546bdd191"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_WisMesh_Tag_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_WisMesh_Tag_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 571567,
+  "digest": "sha256:915adae9e903b4083e49c97bf1af6a2c2828b3e5c85efc71314b9e67195a2dab"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_WisMesh_Tag_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_WisMesh_Tag_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 542411,
+  "digest": "sha256:4e5eba4d1621a76fa28b810e738bfd1f240055ebac3eecaadff5d92b9bf15b51"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_WisMesh_Tag_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_WisMesh_Tag_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 617599,
+  "digest": "sha256:30b7cabbef7b90bd37c34094189e5ed3f9e5e2e825337a6076b30b2eaed14210"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_WisMesh_Tag_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_WisMesh_Tag_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 588458,
+  "digest": "sha256:a654c47fbd35c1ec4fd58939269946be5152739dfe2c0b0a94b459709f2fae6f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCap_Solar_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCap_Solar_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 581983,
+  "digest": "sha256:c096b355695616d5ce9fbae68cf2b8d373e0b3426e7658f21b732ef81298f3c0"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCap_Solar_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCap_Solar_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 552309,
+  "digest": "sha256:1a328a9b48e71207f75d6be8e6d0e2ac507fc2ca1a5ccce50cd6e5a5dea4bb77"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCap_Solar_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCap_Solar_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 628615,
+  "digest": "sha256:0494136bd75a089ab09ea55bb762df681a20b12c58885617a904f4df06b5870f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCap_Solar_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCap_Solar_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 598943,
+  "digest": "sha256:b4e137105230a1f8a106cbdecfbe66e6026234635252b1ceddb9cc5701506e49"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M1_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M1_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 545059,
+  "digest": "sha256:f0f2224f8cdb02b21a6383a7eaff31fe86c09295b3e16a8b9fbc9a4c9fabaaba"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M1_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M1_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 545059,
+  "digest": "sha256:dec3802e67295bb3249a9ecd4e8bcf440afea5e575970a7ca6571f0b79475dd5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M1_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M1_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 591659,
+  "digest": "sha256:4d08109d5e810cc647abccaff368c81ac84406ca6d6baacd314375711dc9eb8f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M1_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M1_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 591658,
+  "digest": "sha256:8a2e107130072b9190118e171b085b293712aaedd7345444ad91835e8561af49"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M3_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M3_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 531246,
+  "digest": "sha256:161b2b975961130fdc93b7173aa19aabb37cd1bccce893af59ffc84a4e436f4b"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M3_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M3_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 531247,
+  "digest": "sha256:a0ff64373e2442eb56aada13abdac45771a42b9060b8699954c73b4052509464"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M3_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M3_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 577231,
+  "digest": "sha256:28e1ecf36fc387d55506b2d37fe8d3c1b0b4e52ec79d4cc465c3df5787da376a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M3_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M3_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 577231,
+  "digest": "sha256:307a3cfd6c666b307b9c31801eaaab3b39f064ec1127456ff774291f2d6f9128"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M4_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M4_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 526110,
+  "digest": "sha256:0a73feb3fd1bcf2c2d694029c83a8e33e118c1045b9a3fb294761787cc1497b7"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M4_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M4_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 526111,
+  "digest": "sha256:2d28c847675048022be573e41f5c35fd1a513034dbfbd899e68148bf852fb85c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M6_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M6_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 577059,
+  "digest": "sha256:611c4b25e9f6b2e49e742e801a1790bed65f0b84cfa9fe4e4b16fae8250a7d3d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M6_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M6_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 547323,
+  "digest": "sha256:c6cf512f4680c9a94e6073c8355f75baff83d778ad0aa6820953e515a20d97f6"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M6_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M6_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 623659,
+  "digest": "sha256:13bd9ca7985d518ec1773fb788051b3039afb577a444221d0b97d195a5233e60"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M6_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M6_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 593939,
+  "digest": "sha256:413772c5704db7cac2dda3b52d5a1a95df0b8c3caabab15f66728e6cdc38a7f2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M8_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M8_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 517691,
+  "digest": "sha256:39756684becac5aa0f745c45eba6dd80926fdcdba71ec34d5e1dc7f9f101cd7d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M8_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M8_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 517691,
+  "digest": "sha256:063e5608ac9d6556d2942934bbed828c6670ad83b0aefb9c8c0c20ac2ea40feb"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1-1W_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1-1W_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 574487,
+  "digest": "sha256:b34803b3ca836ed1eee66a985296131775b56949dd18e58ff1b9e1f6cd66aaa6"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1-1W_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1-1W_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 546203,
+  "digest": "sha256:8a5dae33b88b54c6f17c1c927680b55bc57daf15796804cf1566f27ac7a1a7ac"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1-1W_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1-1W_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 620583,
+  "digest": "sha256:0ac58b987b15103ed6b569917a63c13514cfe11d6974ce45ef6f80ce3893e6f8"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1-1W_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1-1W_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 592267,
+  "digest": "sha256:4055457a3c299b8241ba37ddceb7b722b91686ef774314339922281e5604eeeb"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 590215,
+  "digest": "sha256:535726f42e6c483bf8d31e8f566d505e27e7d2314e3d41123a950b0ff20ce907"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 561643,
+  "digest": "sha256:d9e442e93ccb62068c3380689ae8c7df6a7b3cd349de119d422b2e01dc4281c8"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 636879,
+  "digest": "sha256:ca94596d3ffad1fdce2d4822b0be3be48d47aac838ea6fe945e5ba8fd4b6197a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 608290,
+  "digest": "sha256:286c24570b7ad943db04734e6a013f4f02f144024283d78254a3916cf16271d1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_nrf52_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_nrf52_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 594903,
+  "digest": "sha256:5763b01ba51b6e1ddc32a1e774224a0752f9bbbc718c0a02989ee180639d7623"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_nrf52_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_nrf52_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 565259,
+  "digest": "sha256:f873821a12259783a4b1c49988f8ad88670cdaf8cabe75152cd4b1ffa4d588cb"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_nrf52_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_nrf52_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 641018,
+  "digest": "sha256:d9ac6c6ef0be83336322ab58187879d529cb525cef9c32d71f1109d85443c947"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_nrf52_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_nrf52_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 611359,
+  "digest": "sha256:990117b48b98293d26dde00d71a14655dac8e3f4975b0e0a70fc9be134f557ae"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_handheld_nrf_e22_30dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_handheld_nrf_e22_30dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 568755,
+  "digest": "sha256:408f5ff036d132a5b91026dc646556bfb53789da460a37a4fef8e324f73101dc"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_handheld_nrf_e22_30dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_handheld_nrf_e22_30dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 539131,
+  "digest": "sha256:3f1edd34275b49ee83237b3a6dcf4998807039cfab9f63a0174e6d235142a291"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_handheld_nrf_e22_30dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_handheld_nrf_e22_30dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 614839,
+  "digest": "sha256:d4a50bdf3de95f8bd7d87a88b4d33f1d39c06d70579f6ae1e2316067e41052e7"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_handheld_nrf_e22_30dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_handheld_nrf_e22_30dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 585215,
+  "digest": "sha256:f81274a48c1d99fdeb079ee40b0f00f94de2a73f9ddc862da1f9f9a6938cd500"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_22dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_22dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 573723,
+  "digest": "sha256:ce8e1b254459a2f83e09d9dc02c645337930f6a31eac7f3c2342466a67882afe"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_22dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_22dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 544239,
+  "digest": "sha256:b0ceb4b47943b70797c7811ee689c29a4526441573e3492aeca147754c6ab4c1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_22dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_22dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 619822,
+  "digest": "sha256:69a13eae40e4ea41bf9736e1c507a9029320da20ef54ef4450d4d86d20521ceb"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_22dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_22dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 590338,
+  "digest": "sha256:f11f4d07a2b3e5514cde1d2309bdcecfb7792ed0e7ee2aca9d86ee76915563cf"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_30dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_30dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 573723,
+  "digest": "sha256:de391c33640d7126dd0f82552504dfedc61b46c8dd398dc149717600b9e8ffec"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_30dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_30dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 544239,
+  "digest": "sha256:3aadc585d2085a06e584128546361ea25ca330167883ea9a33967dac5a111fc2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_30dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_30dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 619823,
+  "digest": "sha256:c65871c9b01827d131be1cb3e8a5f3c483b5b047ecc7c80603b8dd04c77b2a11"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_30dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_30dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 590339,
+  "digest": "sha256:602778a8f6e89ef0e0a8b99dc3f7c03316a8b4a05ea04aabf1e1bfe4946c3d6a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_33dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_33dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 573723,
+  "digest": "sha256:e6b486667435f382367ce893694941a6d2ab79c96eb0a6fe8519054bbc988ca2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_33dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_33dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 544239,
+  "digest": "sha256:ff02b6ff56ae2a034156738feb71e5106ef30ee34a21d1232e246d9755af48f5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_33dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_33dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 619823,
+  "digest": "sha256:155b0ff19e53cb7af61ff40838eac7b7fcb337f46f29797e78608e918facc172"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_33dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_33dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 590339,
+  "digest": "sha256:fedceb169ec884a384e62c9735d650bd4bc317a79c6452aa3d03bcd499ec07df"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_22dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_22dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 582851,
+  "digest": "sha256:6e09dda41de119cb6bb3c4a27634e2fd28064f8b56309d6f795ea3bebc4cf7fc"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_22dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_22dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 553175,
+  "digest": "sha256:8010f74aa708e03a0feeb27453e06766c071b02a76fa5c3c211038b0d76e52e5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_22dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_22dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 628931,
+  "digest": "sha256:daef484e1604acde980aa5d0970e27bce2be9f002311fdd8ad983182087b4ad9"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_22dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_22dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 599351,
+  "digest": "sha256:5f4812e7ac00f0fa5927fd899718ee182a9bda4cf7a577ed4ef84f79fe0e3a4e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_30dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_30dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 582850,
+  "digest": "sha256:0b19e69005512c073a3f9db72acceecb5899aebde6ad23a58e109425e5c8e256"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_30dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_30dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 553175,
+  "digest": "sha256:200928685262c97fdc233f77a45f6dc8e76a1f266b80706e0042bc21c1bbdebc"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_30dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_30dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 628931,
+  "digest": "sha256:77bfc0b54476076529dd1dd72d024beb320de04d28528a2a8c91bc3e658270d6"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_30dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_30dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 599351,
+  "digest": "sha256:e0f1bc5c8a95370779d3a8549064a1ef69b59381c65f4a5b798a4968540adc58"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_33dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_33dbm_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 582851,
+  "digest": "sha256:b7a2a5c154e33a102e6d56467271e7bb1d95fb2a98d3c5a2d4b8d86b18eeffa8"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_33dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_33dbm_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 553175,
+  "digest": "sha256:c0dac35d0427591e76f0a00c6743b7861e4ce53dcb5e1cf79343089e1e0b1f77"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_33dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_33dbm_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 628931,
+  "digest": "sha256:ef22ff93b26d0b69427dd66dde64b679bf6cedc5671dec71857159b755b9a24a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_33dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_33dbm_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 599351,
+  "digest": "sha256:725d9443e271186fbacf5b571fd95d8cf82193024aad35379dffbb5856edc4d1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_duo_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_duo_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 510319,
+  "digest": "sha256:39e9f1dfe1a3275c7b8b5fc69f4bcee68181fe5f8adfe4bae4b1844beb4cb5ac"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_duo_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_duo_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 510319,
+  "digest": "sha256:623f85d81a48c24d55ec7f007bd38e3c4f7d2518fc29131c40c2e711cda6e710"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_uno_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_uno_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 520159,
+  "digest": "sha256:7bcaf7874a55bdfb581fa531c8cfaf5e24f86e133eab4ace24dbdcd157acfb25"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_uno_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_uno_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 520158,
+  "digest": "sha256:09a8b47017cbc6699947ecadffd2225061d2af1e8a23877442ec0bb965230d7e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_30S_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_30S_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 616019,
+  "digest": "sha256:8162dabe8341caa517ec9773ba380018fd02f156cbd0f01152ddf7ab54448300"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_30S_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_30S_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 586231,
+  "digest": "sha256:90c9a59308969b6c7f982fb283ea232ce96138af35e6792d52b577397da1e03e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_30S_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_30S_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 662183,
+  "digest": "sha256:9dfec62609a491c7a51ecc4ba9bb1c0f52757abae9b3b6f145bd2349995a6b15"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_30S_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_30S_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 632331,
+  "digest": "sha256:27db5bcc8195581f5aa4bc163cd552bbe37cc9b5163d813ca808cd88794a09d6"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_33S_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_33S_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 616051,
+  "digest": "sha256:3c81d6893c06045117796d9936125bb35f2e452c5e1f71fc207f880a8a5b4e13"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_33S_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_33S_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 586231,
+  "digest": "sha256:70f0c18195bb1d7e60e8a9a42071670977d38fc74533fdaa72d9ebd37b89dcbf"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_33S_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_33S_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 662183,
+  "digest": "sha256:e9f764e98636834cc617657edc6c679d272baa1e058583d16addbf1e2f6e7f6d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_33S_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_33S_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 632330,
+  "digest": "sha256:6702c92cdfa7e569fd022fde6927f18e69f2c6c87c051a1c095bd18d2f6f21f9"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/t1000e_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/t1000e_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 528051,
+  "digest": "sha256:b6a3c5063e0c92483c5f784af4423360035a8b18cb27a8185be05d3f43fd0c33"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/t1000e_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/t1000e_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 528051,
+  "digest": "sha256:c7d3ad8413cb36e6f090e67e9f0ed5ee110c483b3ec1df538cab24a349502323"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/t1000e_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/t1000e_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 574099,
+  "digest": "sha256:c4dcafd44cc9a2b1ba6262ad7e5f5eb1ec7c6a55cf5dd39c973edcb56e62d8a3"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/t1000e_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-2-v1.18.0.1-halo-keymind-cascade-dev-03214a16/t1000e_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 574099,
+  "digest": "sha256:0cf86f9bb144741be06eb4be443e43a9d162f09aee4a242ddfd243f554148448"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_30S_Mesh_Kit_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_30S_Mesh_Kit_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 602555,
+  "digest": "sha256:143ba78c8d43fdecd8dc5da78f5ab8026ae87aa66b040a0335ce8b728c541978"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_30S_Mesh_Kit_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_30S_Mesh_Kit_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 573730,
+  "digest": "sha256:e0cc049b8d3bf3aa8931fd306d1b6ee7ee15b328fbb589f7d9a471ec592bbd8e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_30S_Mesh_Kit_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_30S_Mesh_Kit_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 648567,
+  "digest": "sha256:c1cc877135d63bef683dd5f2cab48c770d2b2884d8f845904adf3fa4424d6899"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_30S_Mesh_Kit_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_30S_Mesh_Kit_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 619711,
+  "digest": "sha256:a0c12a60e05d68d268b1a4f4912bc06c365c6f4299bb7413edef6b4091d9051c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_EVB_Pro_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_EVB_Pro_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 569546,
+  "digest": "sha256:31110e628acdf3ded795383222b7f39c38f7df68f5b44b4b313bc0c7f6989077"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_EVB_Pro_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_EVB_Pro_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 540251,
+  "digest": "sha256:f6bacb5df1a0fe2f1f6b64e4cf98088a1ddb09527157c13f3a0da0f1c68f1902"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_EVB_Pro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_EVB_Pro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 615579,
+  "digest": "sha256:480fcf74c8483b0ea3475d577dbffc381ee4b2b16a726373840e96a4bde72c45"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_EVB_Pro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_EVB_Pro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 586267,
+  "digest": "sha256:a5c8f2a3b93b0ea255eb18c036b0ccbf44a5631ae25aefd61b6ec68f4697b258"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Tracker_Pro_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Tracker_Pro_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 583543,
+  "digest": "sha256:5e4b0f7108162010695be5d16250883ea7904a8963fcd5c72e0d500ff95ab9ec"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Tracker_Pro_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Tracker_Pro_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 554551,
+  "digest": "sha256:da3a75148c0c554897aee27eabc7bb78d2f62d33dd4d84d11d8b3f9e09b1beb6"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Tracker_Pro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Tracker_Pro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 629555,
+  "digest": "sha256:65814cd30023d91104bd5da51e03a601577ee6235c31cdf3d88499ced30acb22"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Tracker_Pro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Tracker_Pro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 600561,
+  "digest": "sha256:03d58f9166165d4b6bb4e14a7782128a18c6260d0ba2a920b5896af5613fca9d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_mesh_solar_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_mesh_solar_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 548435,
+  "digest": "sha256:5859947fcc572415e086ee8e01e4733d11bef983df571398244281e74533e112"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_mesh_solar_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_mesh_solar_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 548435,
+  "digest": "sha256:dde3f9d8ca23587ee9fd093408047f00cc2306e4b2ba84c45b6d7560630d75d5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t096_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t096_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 604947,
+  "digest": "sha256:6bd5ed9cf8bdfbd46beb5fd2ec1abae15c526fae2eee104ffb07d00da1b37f47"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t096_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t096_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 575925,
+  "digest": "sha256:b84234164bec24098b482bb5935a227542ac2cdce7a38ae0a00d90d8498e2756"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t096_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t096_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 650943,
+  "digest": "sha256:13e40783217be427d13e62dbefabc3250bda4ece0e0c14e010da3109519e93e4"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t096_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t096_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 621891,
+  "digest": "sha256:5563479b31b0027d3c0ae1887cf374f9318c52c2f115d951fdd27274b41cf1ff"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t114_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t114_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 609606,
+  "digest": "sha256:4ff7ccf1932440eef3eff10f55783a97a6bbdcc291b8b166fa5e3e235813b82d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t114_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t114_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 580570,
+  "digest": "sha256:bb8a2f3b2881979440cdde3f206e5107bd73bcd790662efa72bd4c80559250e1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t114_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t114_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 655586,
+  "digest": "sha256:7bcb8fa80ab60592cab5d272c6c3eff0c2de5ec4e89959f353d61508533ab61f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t114_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t114_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 626566,
+  "digest": "sha256:36448e330c5ed7e7c35fcd01d8fa8a44eaef2484ee426f213c1c87b99011e744"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t1_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t1_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 588411,
+  "digest": "sha256:a2b840955ff780c8d685852dbc44e30e72a1f32a310943f3787b567616ec8c99"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t1_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t1_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 559423,
+  "digest": "sha256:544e1390bf85faefeccd45d90a03790da97bc8ddc5889daf3faa62ed9830902f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t1_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t1_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 634391,
+  "digest": "sha256:8184b259e341edf25f28414c2c60e41bc57aa0b0524d2f597d838398814962dc"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t1_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t1_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 605467,
+  "digest": "sha256:e1e217c074ae4c92e0c5f834b7d1fe18b90fbf3e54c105d3073c17d59e135287"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_tower_v2_sdcard_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_tower_v2_sdcard_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 578955,
+  "digest": "sha256:3584a4c5db53a9f9b9de3aea8cf17b45e4b7bfccff375750a32bd08e71d40f9b"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_tower_v2_sdcard_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_tower_v2_sdcard_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 578955,
+  "digest": "sha256:9ce2aa2d208cfb853a016c4c5cb85dc0518de749bd95e2832f875f114f6956ae"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_tower_v2_sdcard_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_tower_v2_sdcard_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 625071,
+  "digest": "sha256:42359f1abb69fab0eb500638c9d11f455630d8ee255935255d59c6467f48c17a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_tower_v2_sdcard_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_tower_v2_sdcard_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 625071,
+  "digest": "sha256:795e7bcef8076f0ffd964413b62dfecec44a6c46a5708466a34666e8c7008110"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/KeepteenLT1_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/KeepteenLT1_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 549811,
+  "digest": "sha256:fec5ff7a10ddcb8514d083982bf39193b4bee49a1add41deb345dd2093331454"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/KeepteenLT1_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/KeepteenLT1_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 549811,
+  "digest": "sha256:29fa74a46c55206faefb77ac7134ee5c8cc9b921c9d987e68eae1ee03f81f749"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/KeepteenLT1_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/KeepteenLT1_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 595822,
+  "digest": "sha256:4016dfd5f6c3a95427679c73820d008e33fdd45bb921c5e4b794f1ac3779427c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/KeepteenLT1_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/KeepteenLT1_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 595823,
+  "digest": "sha256:4880d36d30f52793d4eb163cbe304dadbe3c1f6be712d212c94a021a36a827aa"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo-Lite_repeater_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo-Lite_repeater_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 559595,
+  "digest": "sha256:c15d16f6fff758d951c88afa18b00a748a091819bd40a539f33c60bde6f3501f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo-Lite_repeater_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo-Lite_repeater_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 559595,
+  "digest": "sha256:ccc8b625584f502de5a700524ad91158e8ab222eee5026bceb63e73b13e9abc6"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo-Lite_repeater_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo-Lite_repeater_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 606307,
+  "digest": "sha256:04d03658d03914da7940d0cd8305eaef3e1f20908588060422cffebf63bbda94"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo-Lite_repeater_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo-Lite_repeater_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 606307,
+  "digest": "sha256:0e830ac15c127a741320f1535d79cd7da01f432382fdad00578176668b75bce7"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_Card_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_Card_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 547158,
+  "digest": "sha256:6b5966f904cca2f25e6a7ea1c6e26e4e182d906d5997a572c05856684072155e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_Card_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_Card_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 547158,
+  "digest": "sha256:d5a87d0993e119981f5d107a76cbb50915e99a7f91280c6cda9fc80657a0727b"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_repeater-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 580591,
+  "digest": "sha256:8213d412c764a5cccbf505aa9e7b82be0986eda4fb8837c2f8ec28327f1c63d9"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_repeater-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 573395,
+  "digest": "sha256:2a7a1e871763ea8240b70f465dd9c83558c754e7b2dae7b7447572ca018ca4db"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_repeater-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 627239,
+  "digest": "sha256:2322eaa82402cc22678c47c8cb61b904a65cc3a5cdefaddbc3316134d7876951"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_repeater-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 620059,
+  "digest": "sha256:dce2306d776b231c4a2d533defcec14123a94fdcdb730a2ed7bc0f778318f11e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T_Impulse_Plus_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T_Impulse_Plus_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 561291,
+  "digest": "sha256:961b4a4e38c0e2657e2beded97329fc10a6621a8f247fe52c7317cfaa6637954"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T_Impulse_Plus_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T_Impulse_Plus_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 531943,
+  "digest": "sha256:64786f875395d45d500e11bd7c58e36c0a4e5479520aaaea4f8f7850e584cc91"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/MeshTracker_X1_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/MeshTracker_X1_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 524611,
+  "digest": "sha256:641417e61908d30d0293f9228b7816b9ae9bc0a977b272a145eebecaa2b7c607"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/MeshTracker_X1_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/MeshTracker_X1_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 524611,
+  "digest": "sha256:e5f98d06dd13e9235bae25c560c778f7ac5a2755ad88ddbe01576834f74ca7e6"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Mesh_pocket_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Mesh_pocket_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 544875,
+  "digest": "sha256:9199fb31bbb7347fa455ecc56e9e12b3d0a18539784e53fba3bd2f74f2dc2d8e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Mesh_pocket_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Mesh_pocket_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 544875,
+  "digest": "sha256:9e86a5655421a19dcd258772f842efce3d0724d95601113d1996cc336d15049f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Mesh_pocket_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Mesh_pocket_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 590875,
+  "digest": "sha256:e579b7c8eee1756fa2956497359990adc2ebfb5bbb66a0b0c58a5076de6127fe"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Mesh_pocket_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Mesh_pocket_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 590875,
+  "digest": "sha256:87bc747e39fe24c3630775d1d1ee203b40ac8442199e883396646bb7508adf30"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Minewsemi_me25ls01_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Minewsemi_me25ls01_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 531295,
+  "digest": "sha256:b10b8327cefe6027bb9fe741390174bcbcca32785408fe38b212b6419d83c8d8"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Minewsemi_me25ls01_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Minewsemi_me25ls01_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 520571,
+  "digest": "sha256:b643eb70177d8582da00f604e4b0ee7d34bb6300b9348eb87e0395a6115cc2de"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Minewsemi_me25ls01_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Minewsemi_me25ls01_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 577343,
+  "digest": "sha256:34187154217d74d712a8533d76738a75f133fb5224748b91cb22b054834e7271"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Minewsemi_me25ls01_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Minewsemi_me25ls01_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 566583,
+  "digest": "sha256:1a1202bb0531b1bd9fa714616ef3c6f35f2acb2afbf62a877788d625bb35f166"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Nano_G2_Ultra_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Nano_G2_Ultra_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 543875,
+  "digest": "sha256:57586bb1b004bee905c949097dd2c3611c6628c84774f1f35c9241cb98f956b1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Nano_G2_Ultra_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/Nano_G2_Ultra_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 543875,
+  "digest": "sha256:e0c7e736d3ef246e27052dead1ee981820e8dac8020569463c7681a460c1b79a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ProMicro_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ProMicro_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 577983,
+  "digest": "sha256:1b52fbb8eed6ad0efc1c4bcee291c6081d196d80a7f9fca7d0c5a81828e5a0cf"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ProMicro_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ProMicro_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 565107,
+  "digest": "sha256:bfe0c794e2a42b6b8a175c86545da1911973b5524025408c7106bf82e64dbf21"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ProMicro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ProMicro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 624011,
+  "digest": "sha256:206adc8bd1b1b853c8b1c907a7fd5c4c31ec4306449f43723f4a234f2518a5c2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ProMicro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/ProMicro_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 611118,
+  "digest": "sha256:b73c616b94e10ff9250589192847615d7f4baa63f3061875e10692aceaffccb8"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/R1Neo_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/R1Neo_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 575491,
+  "digest": "sha256:001c8b931679c0d4f3d362eb615bd5d950da09186d70a245366a83ef1fe22b3d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/R1Neo_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/R1Neo_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 546371,
+  "digest": "sha256:9dc419949ad00ed2d2623bea6e88ae98d91e83c556f2476076cd9925db292b98"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/R1Neo_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/R1Neo_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 621471,
+  "digest": "sha256:e787c536f2eb0e47f307f164fe098761de4341a0cf7c9446c3a3978038ecfc92"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/R1Neo_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/R1Neo_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 592383,
+  "digest": "sha256:7962981e68ad2398249599fb31b42424cc5192140d26417f7d186eb5f579b13d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_bridge_rs232_serial1-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_bridge_rs232_serial1-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 629247,
+  "digest": "sha256:080ed605dc7c6941446aca5fef517fff5de61a2da5c323419ce1bbca9afcd009"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_bridge_rs232_serial1-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_bridge_rs232_serial1-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 576658,
+  "digest": "sha256:92c235036f887e0d5efb371f273c861af7efc5f5cf67a5dce4987c6c2c768ec1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_bridge_rs232_serial1-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_bridge_rs232_serial1-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 675307,
+  "digest": "sha256:5b9af78a1e0c551832f9123f821919cb8a95c3d930272aba65d6ee69422ffda8"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_bridge_rs232_serial1-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_bridge_rs232_serial1-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 622719,
+  "digest": "sha256:42495471c5c15857c6aa4b150da40197e31e4a16ff79b21d6711780911ab7a9c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 627890,
+  "digest": "sha256:d6081be36f63560b2e4a2093e01332edd60d00bc5f05d78a49475522648f6d8e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 575623,
+  "digest": "sha256:d14ff34209c5ead5a312682ad566cd235aef641e77ff7b04927e526b9cd9bbe1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 673870,
+  "digest": "sha256:ccce04fdcc6c1a01d65c93c9ec2d7d44e066a50de4d4904b877f4e8665b6f0ec"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 621667,
+  "digest": "sha256:a14758362392d006a7a190380ae6463f3240c18c5ea4e18e5610b6ab4e07bd94"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_rak13302_w25q16_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_rak13302_w25q16_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 630298,
+  "digest": "sha256:6e7d5585da520051a50ecda6284266e5ac903687b2ef2c819cba60b8c6912bc7"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_rak13302_w25q16_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_rak13302_w25q16_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 578011,
+  "digest": "sha256:76a228f235264c94bed2e8bb2f1715563eabdd4b424b0a1b3d98155eaea17170"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_rak13302_w25q16_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_rak13302_w25q16_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 676951,
+  "digest": "sha256:a0a753bdc0564dff44914860843862789ff38505bf867abaa00f68bd5c00cb60"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_rak13302_w25q16_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_rak13302_w25q16_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 624663,
+  "digest": "sha256:f221b278f430811ad2a7f47a2f472d5dc443b7ddeb439c6bc1652c53ad2b8c5b"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_unified_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_unified_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 639739,
+  "digest": "sha256:530a1977a10b1ed93e03094de647ea70e0ec810892dd43225a8dc2ad096edb69"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_unified_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_unified_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 587419,
+  "digest": "sha256:61ee0251f5d4e66c0fb5d812c7c1f714d08ae253c6b67fb60fc0d576e7f239e3"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_unified_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_unified_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 685647,
+  "digest": "sha256:d3fc1ad934f79a63115c05ed2ac319fb9fad469e05415f3acb9b67411541fc19"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_unified_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_repeater_unified_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 633311,
+  "digest": "sha256:3df965c7cfa5899c3b556a99cfea71caf1ae23cc507f4695caf47022cd55505e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial1_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial1_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 564667,
+  "digest": "sha256:6a9a46600b2314b1f60e4a174c4d55c2baaf5f43d0f5e1d53e113c05f7ce600a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial1_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial1_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 564667,
+  "digest": "sha256:70a3de8626be799dc90b5e734fdf095864aed617374f31edc9fa7d078c49299b"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial1_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial1_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 610663,
+  "digest": "sha256:45c511454cb79f06de4e039762099c4f21b7de14eb72c52b9c7d38a1ebaeff51"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial1_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial1_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 610663,
+  "digest": "sha256:b8046a405c4e11f4e8e8fc8659130ef2af1121df7bb85aded631476a8739465d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial2_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial2_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 594347,
+  "digest": "sha256:d16726284a62c93e4ef918e9ff2a193748f7bb6425dcc35f2272f6ecf2f4b2d7"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial2_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial2_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 594346,
+  "digest": "sha256:5e53ce529732fcd610b9779f44a9dc24789a6eace1ff0025982815189b6678a2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial2_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial2_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 640295,
+  "digest": "sha256:6ff1cbe008daa2417e12942ff9f59f09ca5dbeb8620d4e9c1cf04f0fa2c96ef2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial2_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_bridge_rs232_serial2_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 640295,
+  "digest": "sha256:fdd45f169b69c1afff95f87f40ee27bfd0de0bf47395ccf297dc96a66b46da02"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_ethernet-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_ethernet-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 658051,
+  "digest": "sha256:f3df2f46a2554bbe04e474b22d985ffc2bcad5fdab23241c3cf75f3d4ae312f9"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_ethernet-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_ethernet-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 603033,
+  "digest": "sha256:f8f1a2f49485d0dcf7dd45a85a9ebc335d7b7a1d093185a76fdfed408d2223f7"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_ethernet-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_ethernet-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 704115,
+  "digest": "sha256:353652c6a94f1acf9e7376758b0b4107c4ce1ba0bb4ed97bf01da6148450fb24"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_ethernet-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_ethernet-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 649111,
+  "digest": "sha256:8017c9e1df998b8e6739a8dcc785fc015fdb20891b4aefcc9a360b4bbad6fe0a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_lora_ota_no_external_sensors-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 687563,
+  "digest": "sha256:1272a6b1638c8a7b0b189f99ca4836d0569bd0b20f84dfa20f68e6fb576905f5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_lora_ota_no_external_sensors-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 634611,
+  "digest": "sha256:0b291ab90953f07ea6601513721361d6b4a00ca9663e15a7c99f27749c17429f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 733491,
+  "digest": "sha256:c84a0fd05b35ded096acc1a4f0ed9841c190cb57b9cb8467724d9ef09bd902b2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_lora_ota_no_external_sensors-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 680523,
+  "digest": "sha256:3faeea78a1c9ba87b8400b8cb42e2464fc7a40e42655f3f4fbc43fa8bb25a246"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_rak15001_slot_c_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_rak15001_slot_c_lora_ota-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 629258,
+  "digest": "sha256:9404a9b4bafde7ae31126bc957121f49691a2438bbd1026c57fe17a8dba553ba"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_rak15001_slot_c_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_rak15001_slot_c_lora_ota-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 576407,
+  "digest": "sha256:6107d6ea9609afa66310d224c9b2a15ca4616ece98a06d4f780457fc07515cbe"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_rak15001_slot_c_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_rak15001_slot_c_lora_ota-with-bootloader-2.4.12-full-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 675927,
+  "digest": "sha256:ef947b3c7c0b6f5083b528bb769081ad8fb30cff51b3313a2b1e63f2eaa6a17d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_rak15001_slot_c_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/lora-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_repeater_rak15001_slot_c_lora_ota-with-bootloader-2.4.12-reduced-ota-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 623063,
+  "digest": "sha256:f9d2135c491d780bbff0e216ee93c5c3b26177130d4e3c0dc55b26b51e4b7b0b"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Ebyte_EoRa-S3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Ebyte_EoRa-S3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2265912,
+  "digest": "sha256:dd1a9c37f9f4fa3bff374a0b7e6b1682bf4eb844bfb603da4c1f959106cebf81"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_30S_Mesh_Kit_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_30S_Mesh_Kit_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 651583,
+  "digest": "sha256:946051d68f12df2ac8983024eaccd476a245396364a671342fce05fa3ad7bdd1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Tracker_Pro_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Tracker_Pro_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 632079,
+  "digest": "sha256:1d33ba23c5a6634cf5f739bff3183a1eb937c45c573b7b5b8f677fbf29914a83"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Watch13_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/GAT562_Mesh_Watch13_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 622827,
+  "digest": "sha256:9582f6828fe0d18c938dad26be7097a03039e6928c0876f4400e5e483cb48fbe"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Generic_ESPNOW_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Generic_ESPNOW_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2297752,
+  "digest": "sha256:5738482d9ed8dc7a4f0be1267be2b3accc7bd688ca86a7f3f35a62770999e5ba"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_E213_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_E213_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2293496,
+  "digest": "sha256:5f79443ee6991dd95f4b4c4467dfb03c8a437a2df4c3514a3dc6a678f84c0d02"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_E290_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_E290_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2291800,
+  "digest": "sha256:dcec0010d5d6e7c8db0b3913b6cf6e57c70bace13a2afe7cb8a5eff17f92f314"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_T190_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_T190_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2266168,
+  "digest": "sha256:2fb5b46c92a67350538c8fbd0ae2d6589f735fd24ea8557236b8e899ade32240"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_WSL3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_WSL3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2286152,
+  "digest": "sha256:126a81e595697c299f195510c51fc0b6c4f3556a98523378e4bc99f333c0ecb9"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_Wireless_Paper_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_Wireless_Paper_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2277464,
+  "digest": "sha256:3628bdbd730de5e938b84fd4bcda8cbbb2f2365f72dc91864dd6717dd6f36230"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_Wireless_Tracker_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_Wireless_Tracker_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2331896,
+  "digest": "sha256:6522590a42945ad5592f43f4bce8911a35bd814d7c537a1f9cfcaaa020b5b5c2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_ct62_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_ct62_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2406824,
+  "digest": "sha256:58f693966efc37a97be4e8f8e8f0b9f4c8d57330375dd92420048958c806aee5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_mesh_solar_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_mesh_solar_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 583831,
+  "digest": "sha256:4a5e6d0de2728a4dc293b0c3da55e665afaa4d2a0c5ff8b7aa8eab3f1bbce6d6"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t096_companion_radio_full_femon-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t096_companion_radio_full_femon-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 661510,
+  "digest": "sha256:714dbd35e26aa2491017f9f9b32a0d4d6c8eb30d4b0ddf8349516b158aabab8f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t114_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t114_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 649134,
+  "digest": "sha256:bff98d854e572cfc8ab0a1d198e35424652857a6a7fae2dfdba701ee29a78a0a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t1_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_t1_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 660786,
+  "digest": "sha256:b534f144118fcdfe85beba5610c4fb070950f8cc2e6199e9d658efe393b4ffe2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_tower_v2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_tower_v2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 594219,
+  "digest": "sha256:7ad22d4ad3242c84be08d7482bc17e7d181b66b8e603aaee0f5a1e4d5cdec259"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_v2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_v2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2495400,
+  "digest": "sha256:68c3143871e9fd9c86beb0b1874bf7be7d9e38652f75994a211f137fede7005c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_v3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Heltec_v3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2150088,
+  "digest": "sha256:d0f1480a9ba28c23d538847504fc77516b198497875fff50590cda08745422ad"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/KeepteenLT1_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/KeepteenLT1_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 596507,
+  "digest": "sha256:9b5143f8a978a67cefe61e92ce91ee6887435e769fc40e3eb854faa9eb4c625a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo-Lite_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo-Lite_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 611907,
+  "digest": "sha256:d2c8a15a54cbdddd90687382c341d1ad9a5a23a77f4bd184eb93d540496e32a3"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_Card_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_Card_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 591547,
+  "digest": "sha256:a0762313706645f13720fa5ebedc1ba82500f65513ee50b95faed0f9a6b5bb45"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T-Echo_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 616763,
+  "digest": "sha256:252d12d78d37e1651f2895a3b923e8cef96f4c09850368710812539c10cb8e2c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T3S3_sx1262_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T3S3_sx1262_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2265880,
+  "digest": "sha256:11ab63dff818b935d3c529a534d4a4dae3cbadbb876ffe6d4dcc8c86eb149c56"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T3S3_sx1276_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T3S3_sx1276_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2254632,
+  "digest": "sha256:b78c211fb8eb49c844e9cbd137da476de244852af6b8fd537d1602488e6d207d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TBeam_1W_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TBeam_1W_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2291672,
+  "digest": "sha256:a5b6bc0213124926464edab0cba5fa12967f103b15b6edd2d1a1f1b7f7d0bb26"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TDeck_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TDeck_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2307608,
+  "digest": "sha256:8fa6ad8f699683fe996c97cac2111e434e290a40414cc71f12033d8fb954628b"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TETH_Elite_sx1262_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TETH_Elite_sx1262_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2201880,
+  "digest": "sha256:f335bffcb46c2d809a5600a8977cda08a45139119207ecba821c6db63c490e27"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TLora_V2_1_1_6_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_TLora_V2_1_1_6_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2541592,
+  "digest": "sha256:c2705a4822fb035d9435dae29754b4324c200c36f4ca1dd4c41f582a1e3e4e34"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T_Impulse_Plus_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_T_Impulse_Plus_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 626242,
+  "digest": "sha256:fa5a7e75cb011413296892d71a05160db40ffdf0f743f3dff9641767ba37112e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_Tlora_C6_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/LilyGo_Tlora_C6_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2783752,
+  "digest": "sha256:3be005dc00d2e29e2518d18c5aa58609185150a164676ddefcfb994aeb4e1153"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/M5Stack_Unit_C6L_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/M5Stack_Unit_C6L_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2783560,
+  "digest": "sha256:d68e7c49f21f8cbb4f9cd5633f53392d5003c2567f04c3fcb140580f32aef9b1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/MKE_s3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/MKE_s3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2341208,
+  "digest": "sha256:d6d03269bb63b399475fbce3f947e2fc00ce809a9b7ab6fdd332c612b8203eaa"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/MeshTracker_X1_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/MeshTracker_X1_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 629695,
+  "digest": "sha256:5b114b6cd2b69bb1abcdc902277024701de873e40accc32a2b1d66944d4f1cea"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Mesh_pocket_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Mesh_pocket_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 702943,
+  "digest": "sha256:ccbc5dab04e1688b5be54f48c9e2e97619ef701ab5e1b23867fead73ffa2b850"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshadventurer_sx1262_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshadventurer_sx1262_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2523000,
+  "digest": "sha256:a8ccaac1cc790a42848278b0450397ecd7c267d8377aee7d06cf2e38e2768535"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshadventurer_sx1268_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshadventurer_sx1268_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2515672,
+  "digest": "sha256:520bfd6d603d87f3ef971bc287ab8273ffedde2294d7c2243e872c24c85b0ae1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshimi_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshimi_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2783816,
+  "digest": "sha256:1144c734d780bedc24787b42fc1a83cce2e3a43e82083ebf9f8aa2513c8f9017"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshtiny_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Meshtiny_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 588318,
+  "digest": "sha256:01af80bdffc8923a711343d661812a4c21ab9d7c64ea62d2359fffa0e347a018"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Minewsemi_me25ls01_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Minewsemi_me25ls01_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 568867,
+  "digest": "sha256:351715f5efa7f27477d54af2b3635e81321e3a0cf670030eb98c0decda85abae"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Nano_G2_Ultra_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Nano_G2_Ultra_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 596187,
+  "digest": "sha256:95ae3bc1fd87abefa28998b59bbcf39ee725ab2f3e31e9abddba03a48ba968a1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ProMicro_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ProMicro_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 612031,
+  "digest": "sha256:53263421e29f94a8d7e3c97aaec629634dd10ae38efb37096f907aa8b373dcb6"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/R1Neo_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/R1Neo_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 657607,
+  "digest": "sha256:65e9608b93b83f940fa79f329e279fa6b897f6f2b5b5acc54538ef26045cc2eb"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3112_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3112_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2299688,
+  "digest": "sha256:bcc4919d77f5a46e8eaf07a9896194f9e7f201b59d78481be18755e74d123b65"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_3401_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 682407,
+  "digest": "sha256:18b92ca69b13c4a39ada869588fabaa534ac130e72767facfcbfa960e440d8a5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_4631_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 713382,
+  "digest": "sha256:d2b71ecb3f0b4069a51af484b3bc89d9df03dc023f9106964690ce40809ba334"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_WisMesh_Tag_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/RAK_WisMesh_Tag_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 652774,
+  "digest": "sha256:bf1146f86f6ab67723c7d112244c35c436acd82b3e95afe49d68f2b944c9a900"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCapIndicator-ESPNow_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCapIndicator-ESPNow_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2387112,
+  "digest": "sha256:a125737cd9dbc1fbe17d9395bb3164858790e966178e723ad3d2366b333c8b80"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCapIndicator-LoRa-N16R2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCapIndicator-LoRa-N16R2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2474184,
+  "digest": "sha256:516ca2bfab905e08a3dd8db930eb2408ebf53a8479593150387b955fabb21063"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCapIndicator-LoRa_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCapIndicator-LoRa_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2475160,
+  "digest": "sha256:2e5aa8ca9692ba7ee4cfdf3dbbf28d80b905bb5334107283ea65432b0f9d2d63"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCap_Solar_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/SenseCap_Solar_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 592055,
+  "digest": "sha256:158076b36a2ccd51c49c93c30faef5b0ff2b89e67f03a5e6b3ba6f536b1cfc3c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Station_G2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Station_G2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2309352,
+  "digest": "sha256:6019708ff9a34da84410826bacd6833ab447326a4a2f75683320c7f246a05d15"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Station_G3_ESP32_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Station_G3_ESP32_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2341960,
+  "digest": "sha256:d40a4b70e9c0c3e15baf12b23a622134a2764a47aaa1d1a65ee66cd1f43a65da"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/T_Beam_S3_Supreme_SX1262_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/T_Beam_S3_Supreme_SX1262_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2321608,
+  "digest": "sha256:75c7ef36ceef7c94724c597b39beb2f61612b5da0d3e2049d1e285b14ec186c5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tbeam_SX1262_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tbeam_SX1262_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2504472,
+  "digest": "sha256:561850918d1b16cc9a7f6c41d84e01624e18463ad202e118e9d8c62b0491181f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tbeam_SX1276_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Tbeam_SX1276_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2491432,
+  "digest": "sha256:db6963de10d5e03855043f2594e688536167fb814884df12fe2c1c74db72697f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M1_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M1_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 607891,
+  "digest": "sha256:4372899372ad91c7247a53cebf5cbc44222f2d91d3334f557ec0a2de82eb8f3c"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2280664,
+  "digest": "sha256:e8c4419af7c60d571c6e4bce3d7b93d8f84fe1db8cc2086ccdcce1cd5e19ec35"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 616591,
+  "digest": "sha256:dfdcf2473cb606a383335068bc424498a1cc62a88ff48eaddef7894e215edb92"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M4_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M4_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 570751,
+  "digest": "sha256:32ab8192508831289e7a85152b427a89997c5eb3cd650ffc6c3ad90131d895f0"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M5_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M5_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2305112,
+  "digest": "sha256:1f0f9cfa19e6b94f1727e4de26f17728c371767719f7c5e596c31dec297bffb4"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M6_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M6_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 597003,
+  "digest": "sha256:e650da9bf8aa45c8463bb7f2dfefb4c4cbd725c90ae12f9f619c5ffdd43c1327"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M7_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M7_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2256696,
+  "digest": "sha256:7cf415f49d7bc762db5db25e40026fa4457a55cbef33deb8e1e0f2a9830b7d70"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M8_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M8_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 606107,
+  "digest": "sha256:acc6c660e5eda5e63cbca04fcc5877f91d39c489ef4e958e30275f4110ff1d39"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M9_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ThinkNode_M9_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2323048,
+  "digest": "sha256:78f91f1fab0fed0cc9c78a7bc2f6636a2867ae5384e45fbdc537782d878122b6"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/WHY2025_badge_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/WHY2025_badge_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2783464,
+  "digest": "sha256:c05c8ff366e79efcd1c1c58ad88ded7395fad4056f407322d903d03fa780465e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Waveshare_S3_LR1121_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Waveshare_S3_LR1121_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2197960,
+  "digest": "sha256:94d933aba45c20126078f971f4ef0adee08b0da768d4ddc4c4c57f911d1f9738"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1-1W_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1-1W_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 627051,
+  "digest": "sha256:1b7fd6769fa4d05822cf38a72213a84b371213dda07d6d1cff7f4565298a65c2"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1Eink_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1Eink_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 643423,
+  "digest": "sha256:3776a4f406c07cd272f81a2235b710e7e6feb129bb6bdff9c649f742c1fe0d0d"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/WioTrackerL1_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 626671,
+  "digest": "sha256:ccc0117ebcc4afda5a89a17982f53798cf31e1e740de7e64ec7d569629037c89"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Wio_Tracker_L2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Wio_Tracker_L2_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2419160,
+  "digest": "sha256:311922f24657f7bd211e70602a2773bd6da904f6a80207059557337d4b17d217"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_C3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_C3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2395896,
+  "digest": "sha256:bb3b979f575085a5c9d95a88499636fc30a84912c54b05c83aa721d29cff6303"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_C6_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_C6_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2783768,
+  "digest": "sha256:6b5a16c52f4292d4b2a880cd26144953e67daa40baaa1b37e928fc43bfa3ba5a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_S3_WIO_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_S3_WIO_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2316888,
+  "digest": "sha256:c7a9a7aca7e61a89f87dbafe71ae2408892eea25c22070398ca31c0a007b608a"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_S3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_S3_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2298168,
+  "digest": "sha256:4b42a25305b80e8e08c554fb10180d41c3c74d47ed42be846a485202d92ccece"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_nrf52_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/Xiao_nrf52_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 600163,
+  "digest": "sha256:7a46352b8f052b39d8a72d617c6846abf17aa1b551b210e8e455192e46ae60b0"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_rc32_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_rc32_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2168296,
+  "digest": "sha256:3a94dc2e397cae8b6fbd4e0dbed12fe35f56235936c3e78250605226743b33b1"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_tracker_v2_companion_radio_full_femon-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_tracker_v2_companion_radio_full_femon-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2359464,
+  "digest": "sha256:bf4a066d26124f4afbd060129a90ab4759b58b8ebf4519c3212e2139728834e4"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_2_v4_3_companion_radio_full_femon-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_2_v4_3_companion_radio_full_femon-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2593000,
+  "digest": "sha256:cebd2fbad83291904714d023e01c0aa99891e9df59d29026be552ce0bcf33197"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_r8_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_r8_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2330712,
+  "digest": "sha256:a79cde5c86ac1491cb5848100b096c991e05b4d9e6e134a23101c9dc5a1415ce"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_r8_tft_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_r8_tft_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2334472,
+  "digest": "sha256:bd9779ae32395f559caebb965bee1616898cfbd6567506b8adcc4dc1ec4a40fd"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_tft_companion_radio_full_femon-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/heltec_v4_tft_companion_radio_full_femon-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2328056,
+  "digest": "sha256:e16a7828ed84d4b0490d46a285fd36d477b2c27fc7e28590164dbff47817f724"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_handheld_nrf_e22_30dbm_096_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_handheld_nrf_e22_30dbm_096_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 614475,
+  "digest": "sha256:324509b9f760170d3e19d7705dea4f603bb2551477e6bde63190e5add8a6918f"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_22dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_22dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 602411,
+  "digest": "sha256:1df936ca43334c053e808418648efafaf227c001129bb437726c947cbe2cb27b"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_30dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_30dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 602411,
+  "digest": "sha256:6000e2b4a6de3252887e316eb76f848fbbb053d2c618342a4d70a0dded672ed3"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_33dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_nano_nrf_33dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 602411,
+  "digest": "sha256:808a88df452367b5b5d36fa7bfad515b889fdbc96031391f8b4d6aac30369738"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_22dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_22dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 614863,
+  "digest": "sha256:fe125e44d5372fe7bf700e3dbc85114bc61e9a6743dfeafbad9fb237e811e312"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_30dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_30dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 614862,
+  "digest": "sha256:531fb10fc98234a1abeeb757698e9966c25c87dbb29ba0cfce4eb3d0be4e12cd"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_33dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/ikoka_stick_nrf_33dbm_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 614863,
+  "digest": "sha256:9fe902ffd689a7c1cb84a69af01a60b634cfff6978afe3f89df98aa3961af9a5"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/meshnology_w12_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/meshnology_w12_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2330280,
+  "digest": "sha256:7ad2b29181296d92135ce1f06a1e87c9c1b1dab322b2f10a048e0ca17a386b59"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_duo_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_duo_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 587887,
+  "digest": "sha256:366eac063c981e74c43e9ca3c21e4fb1045fc494426f57dce133bf6b459de482"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_uno_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/muzi_base_uno_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 597219,
+  "digest": "sha256:6a20f57f4ba19f027ba870937d069a09b3750ba4aec24432e1d8d72fdfba732e"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/nibble_screen_connect_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/nibble_screen_connect_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2271736,
+  "digest": "sha256:cbc0caf63a8f09c58f8c54014fbd73529010e22b31d601f5e295667fa5258322"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/nibble_zero_connect_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/nibble_zero_connect_companion_radio_full_-v1.18.0.1-halo-keymind-cascade-dev-03214a16-merged.bin",
+  "size": 2271928,
+  "digest": "sha256:6b441e2f86b484badf1fa29e5b20a4c00af4030341c88c2e6996f9f86707cf59"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_30S_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_30S_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 596842,
+  "digest": "sha256:012f561ceb1a754a3398444834070ede863f25d4b9bd67de104d67dc87a621d7"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_33S_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/solarxiao_33S_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 596843,
+  "digest": "sha256:2f8ed6091d7ea34c104a399611b4a4527fba195c51f8813becd70c84838dfeba"
+ },
+ "https://github.com/mikecarper/MeshCore/releases/download/v1.18.0.1-halo-keymind-cascade-dev-03214a16/t1000e_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip": {
+  "path": "keymind/v1.18.0.1-halo-keymind-cascade-dev-03214a16/t1000e_companion_radio_full-v1.18.0.1-halo-keymind-cascade-dev-03214a16.zip",
+  "size": 610723,
+  "digest": "sha256:fb76fda86f299a3586938e4222e4721b2180fdfbbce316eb1ab65a9f97b8b5e9"
+ }
+}
