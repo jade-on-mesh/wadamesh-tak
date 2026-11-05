@@ -9,8 +9,11 @@
 #   git clone --depth 1 --branch v2.051 --filter=blob:none --sparse \
 #       https://github.com/googlefonts/noto-emoji.git noto && \
 #       git -C noto sparse-checkout set png/128 third_party/region-flags/png
-#       git -C noto sparse-checkout set png/128 third_party/region-flags/png
-#   python3 scripts/build/make-emoji-pack.py noto/png/128 noto/third_party/region-flags/png
+#   curl -LO https://raw.githubusercontent.com/unicode-org/unicodetools/main/unicodetools/data/emoji/15.1/emoji-test.txt
+#   curl -L -o annotations.json https://raw.githubusercontent.com/unicode-org/cldr-json/main/cldr-json/cldr-annotations-full/annotations/en/annotations.json
+#   curl -L -o derived.json https://raw.githubusercontent.com/unicode-org/cldr-json/main/cldr-json/cldr-annotations-derived-full/annotationsDerived/en/annotations.json
+#   python3 scripts/build/make-emoji-pack.py noto/png/128 noto/third_party/region-flags/png \
+#       emoji-test.txt annotations.json derived.json
 #
 # Flags: Noto's png/128 has none; its region-flags/png has one per ISO code (US.png).
 # Each is stored under FlagText.h's key for its two regional indicators (past the
@@ -20,15 +23,23 @@
 # alpha) and packed as pack-emoji.py packs them (alpha plane, then the visible
 # pixels' RGB565, each through the same LZ), so the firmware unpacks both alike.
 #
+# Names, for the picker's search: each emoji's Unicode name and CLDR English keywords
+# ("tropical fish|animal fish fishes tropical"; a flag's also has its ISO code), and
+# the text to insert for it (Unicode's fully-qualified form: U+2764 U+FE0F for ❤️,
+# both letters for a flag).
+#
 # File (little-endian):
 #   0   "WEP1"
-#   4   u16 version (1)    6  u16 count
+#   4   u16 version (2)    6  u16 count
 #   8   u32 data offset (from the start of the file)
-#   12  count x 16-byte entries, sorted by codepoint:
+#   12  u32 names offset (from the start of the file)
+#   16  count x 16-byte entries, sorted by codepoint:
 #         u32 cp, u32 offset (from the data offset), u16 zlen, u16 alen, u8 w, u8 h, u16 0
 #       w = h = 0: drawn as nothing (a skin-tone modifier, a keycap or tag
 #       character): the emoji before it shows on its own instead of a box.
 #   ... data
+#   names: count x u32 (from the names offset; 0xFFFFFFFF: no name, not searchable),
+#          then for each named entry: UTF-8 to insert, NUL, lowercase search text, NUL
 #
 # Also writes test/emoji_pack_file_expected.h for test/test_emoji_pack_file.cpp.
 import os, re, struct, sys
@@ -173,10 +184,41 @@ def fnv(b):
     return h
 
 
+def load_names(test_txt, ann_json, derived_json):
+    """{key: (utf8 to insert, search text)} for single-codepoint emoji and flags."""
+    import json
+    ann = json.load(open(ann_json, encoding="utf-8"))["annotations"]["annotations"]
+    der = json.load(open(derived_json, encoding="utf-8"))["annotationsDerived"]["annotations"]
+    out = {}
+    for line in open(test_txt, encoding="utf-8"):
+        m = re.match(r"([0-9A-F ]+?)\s*;\s*fully-qualified\s*#\s*\S+\s+E[\d.]+\s+(.*)$", line)
+        if not m:
+            continue
+        cps = [int(x, 16) for x in m.group(1).split()]
+        name = m.group(2).strip().lower()
+        if len(cps) == 2 and all(0x1F1E6 <= c <= 0x1F1FF for c in cps):
+            iso = "".join(chr(65 + c - 0x1F1E6) for c in cps)
+            key = flag_key(iso)
+            extra = [iso.lower()]
+        elif len(cps) == 1 or (len(cps) == 2 and cps[1] == 0xFE0F):
+            key = cps[0]
+            extra = []
+        else:
+            continue   # sequences: drawn from their parts, not offered on their own
+        bare = "".join(chr(c) for c in cps if c != 0xFE0F)
+        a = ann.get(bare) or der.get(bare) or {}
+        kws = [k.lower() for k in a.get("default", []) if k.lower() != name] + extra
+        text = name + "|" + " ".join(kws)
+        out[key] = ("".join(chr(c) for c in cps), text)
+    return out
+
+
 def main():
-    if len(sys.argv) != 3:
-        sys.exit("usage: make-emoji-pack.py <noto-emoji/png/128> <noto-emoji/third_party/region-flags/png>")
+    if len(sys.argv) != 6:
+        sys.exit("usage: make-emoji-pack.py <noto png/128> <noto region-flags/png> "
+                 "<emoji-test.txt> <annotations.json> <derived annotations.json>")
     src, flags = sys.argv[1], sys.argv[2]
+    names = load_names(sys.argv[3], sys.argv[4], sys.argv[5])
     imgs = {}
     for fn in sorted(os.listdir(src)):
         m = re.fullmatch(r"emoji_u([0-9a-f]+)\.png", fn)
@@ -212,9 +254,21 @@ def main():
         data += z
         hashes[cp] = fnv(px)
 
-    head = struct.pack("<4sHHI", b"WEP1", 1, len(entries), 12 + 16 * len(entries))
+    data_off = 16 + 16 * len(entries)
+    names_off = data_off + len(data)
+    offs, strs, named = [], bytearray(), 0
+    base = 4 * len(entries)
+    for e in entries:
+        nm = names.get(e[0]) if e[4] else None
+        if not nm:
+            offs.append(0xFFFFFFFF)
+            continue
+        offs.append(base + len(strs))
+        strs += nm[0].encode() + b"\0" + nm[1].encode() + b"\0"
+        named += 1
+    head = struct.pack("<4sHHII", b"WEP1", 2, len(entries), data_off, names_off)
     table = b"".join(struct.pack("<IIHHBBH", cp, off, zl, al, w, h, 0) for cp, off, zl, al, w, h in entries)
-    blob = head + table + bytes(data)
+    blob = head + table + bytes(data) + b"".join(struct.pack("<I", o) for o in offs) + bytes(strs)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "wb") as f:
         f.write(blob)
@@ -231,7 +285,9 @@ def main():
             f.write("  { 0x%Xu, 0x%08Xu },\n" % (cp, hashes[cp]))
         f.write("};\n")
         f.write("static const uint16_t kPackFlags = %d;\n" % nflags)
-    print("emoji-pack.wep: %d entries (%d images, %d flags), %d bytes" % (len(entries), drawn, nflags, len(blob)))
+        f.write("static const uint16_t kPackNamed = %d;\n" % named)
+    print("emoji-pack.wep: %d entries (%d images, %d flags, %d named), %d bytes (names %d)" %
+          (len(entries), drawn, nflags, named, len(blob), len(blob) - names_off))
 
 
 if __name__ == "__main__":

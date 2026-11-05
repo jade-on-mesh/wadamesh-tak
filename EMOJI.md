@@ -13,11 +13,22 @@ You don't usually need to do anything. A standalone finds the file in one of the
 
 1. **Its internal storage** (`/emoji.wep`). It's kept there once it has been found or downloaded.
 2. **The SD card**, at `/emoji/emoji-pack.wep` or `/emoji-pack.wep`. It's copied onto internal storage from there.
-3. **Wi-Fi.** It downloads `emoji/emoji-pack.wep` (about 820 KB) from this firmware's release, or from `main` if the release doesn't have it. If that fails, it tries again every 10 minutes.
+3. **Wi-Fi.** It downloads `emoji/emoji-pack.wep` (about 910 KB) from this firmware's release, or from `main` if the release doesn't have it. If that fails, it tries again every 10 minutes.
 
 So a standalone on Wi-Fi gets it on its own. To install it on one that never uses Wi-Fi, copy [`emoji/emoji-pack.wep`](emoji/emoji-pack.wep) to its SD card.
 
 **About** shows `Full emoji set:` followed by the emoji count and where it came from, or what it's waiting for. It needs about 2 MB of free PSRAM. On a board without PSRAM, only the built-in emoji show.
+
+## Searching
+
+With the full set loaded, the emoji picker's first cell is 🔍. Pick it to open a search sheet.
+
+- **Typing** shows emoji whose name or keywords start with what you type. `fish` finds 🐟 🐠 🎣, `trop fi` finds 🐠, and `heart` finds every heart.
+- **Flags** come up by country name or code: `lesotho`, `united states`, `us`.
+- **Choosing a result** works as it does in the picker: it goes into your message, or becomes the chat icon if you opened the picker for that.
+- **Enter** takes the best match.
+
+The names and keywords are Unicode's and CLDR's English ones. They're stored in the full set file, so searching needs it.
 
 ## What shows
 
@@ -31,12 +42,16 @@ So a standalone on Wi-Fi gets it on its own. To install it on one that never use
 git clone --depth 1 --branch v2.051 --filter=blob:none --sparse \
     https://github.com/googlefonts/noto-emoji.git noto
 git -C noto sparse-checkout set png/128 third_party/region-flags/png
-python3 scripts/build/make-emoji-pack.py noto/png/128 noto/third_party/region-flags/png
+curl -LO https://raw.githubusercontent.com/unicode-org/unicodetools/main/unicodetools/data/emoji/15.1/emoji-test.txt
+curl -L -o annotations.json https://raw.githubusercontent.com/unicode-org/cldr-json/main/cldr-json/cldr-annotations-full/annotations/en/annotations.json
+curl -L -o derived.json https://raw.githubusercontent.com/unicode-org/cldr-json/main/cldr-json/cldr-annotations-derived-full/annotationsDerived/en/annotations.json
+python3 scripts/build/make-emoji-pack.py noto/png/128 noto/third_party/region-flags/png \
+    emoji-test.txt annotations.json derived.json
 ```
 
 The images are made and compressed the same way as the built-in ones (`add-emoji.py`, `pack-emoji.py`). The script also writes `test/emoji_pack_file_expected.h`, and CI's `test_emoji_pack_file` checks the committed file against it. The file format is described at the top of the script.
 
-The art is Noto Color Emoji v2.051 (SIL Open Font License).
+The art is Noto Color Emoji v2.051 (SIL Open Font License). The names are from Unicode emoji 15.1 and the keywords from CLDR (Unicode License).
 
 ## How flags work
 
