@@ -15122,9 +15122,15 @@ static lv_obj_t* createSettingsModal(const char* title, SettingsModalKind kind) 
   lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_move_foreground(root);
 
+  // The read-only info pages (System Information, Memory detail) close with a
+  // compact X: the whole page is text to scroll through, and "Close" read as one
+  // more item in it. Their header is a slim line, so the page keeps the screen.
+  const bool info_page = (kind == SettingsModalKind::SystemInfo ||
+                          kind == SettingsModalKind::MemoryInfo);
+  const lv_coord_t hdr_h = info_page ? SC(26) : SC(46);
   lv_obj_t* header = lv_obj_create(root);
   lv_obj_remove_style_all(header);
-  lv_obj_set_size(header, sw, SC(46));
+  lv_obj_set_size(header, sw, hdr_h);
   lv_obj_set_pos(header, 0, 0);
   styleSurface(header, COLOR_PANEL, 0);
   lv_obj_set_style_pad_all(header, 0, LV_PART_MAIN);
@@ -15136,18 +15142,18 @@ static lv_obj_t* createSettingsModal(const char* title, SettingsModalKind kind) 
   lv_obj_t* lbl = lv_label_create(header);
   lv_label_set_text(lbl, TR(title));
   lv_obj_set_style_text_color(lbl, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
-  lv_obj_set_style_text_font(lbl, &g_font_14, LV_PART_MAIN);
+  lv_obj_set_style_text_font(lbl, info_page ? &g_font_12 : &g_font_14, LV_PART_MAIN);
   lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 8, 0);
 
-  // The read-only info pages (System Information, Memory detail) close with a
-  // compact X: the whole page is text to scroll through, and "Close" read as one
-  // more item in it.
-  const bool info_page = (kind == SettingsModalKind::SystemInfo ||
-                          kind == SettingsModalKind::MemoryInfo);
   lv_obj_t* close_btn = lv_btn_create(header);
-  lv_obj_set_size(close_btn, info_page ? SC(32) : settingsModalCloseW(), SC(32));
-  lv_obj_align(close_btn, LV_ALIGN_RIGHT_MID, -6, 0);
+  lv_obj_set_size(close_btn, info_page ? SC(30) : settingsModalCloseW(), info_page ? SC(22) : SC(32));
+  lv_obj_align(close_btn, LV_ALIGN_RIGHT_MID, info_page ? -2 : -6, 0);
   styleButton(close_btn);
+  if (info_page) {   // a plain X on the line, no button box (focus still shows it)
+    lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(close_btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(close_btn, 0, LV_PART_MAIN);
+  }
   lv_obj_add_event_cb(close_btn, settingsCloseCb, LV_EVENT_CLICKED, nullptr);
   lv_obj_t* close_lbl = lv_label_create(close_btn);
   useChainedFont(close_lbl);
@@ -15165,8 +15171,8 @@ static lv_obj_t* createSettingsModal(const char* title, SettingsModalKind kind) 
 
   lv_obj_t* body = lv_obj_create(root);
   lv_obj_remove_style_all(body);
-  lv_obj_set_size(body, sw - 8, sh - SC(52));   // clears the SC-scaled header
-  lv_obj_set_pos(body, 4, SC(48));
+  lv_obj_set_size(body, sw - 8, sh - (hdr_h + SC(6)));   // clears the SC-scaled header
+  lv_obj_set_pos(body, 4, hdr_h + SC(2));
   styleSurface(body, COLOR_BG, 0);
   lv_obj_set_style_pad_all(body, 6, LV_PART_MAIN);
   lv_obj_set_style_border_width(body, 0, LV_PART_MAIN);
@@ -18689,7 +18695,15 @@ static void sysInfoTextRest(char* buf, size_t cap) {
     const int nc = the_mesh.getNumContacts();
     p += snprintf(buf + p, cap - p, "Contact store\n  %d / %d contacts (~%u KB)\n",
                   nc, (int)MAX_CONTACTS, (unsigned)(((uint32_t)nc * 152u) / 1024u));
-    const size_t sp_tot = SPIFFS.totalBytes(), sp_used = SPIFFS.usedBytes();
+    // Cached for 30 s: asking SPIFFS waits out any garbage collection in progress
+    // (the history worker's), which held this 1 Hz page refresh for 2 s ("ui:sbar").
+    static size_t sp_tot = 0, sp_used = 0;
+    static uint32_t sp_at = 0;
+    if (!sp_at || millis() - sp_at > 30000) {
+      sp_tot = SPIFFS.totalBytes();
+      sp_used = SPIFFS.usedBytes();
+      sp_at = millis() | 1;
+    }
     if (sp_tot) {
       p += snprintf(buf + p, cap - p, "  internal flash: %u / %u KB (%u%%)\n",
                     (unsigned)(sp_used / 1024u), (unsigned)(sp_tot / 1024u),
@@ -77822,6 +77836,9 @@ void UITask::onAdminCommandReply(const ContactInfo& contact, const char* text) {
 }
 
 void UITask::markThreadsDirty(unsigned long delay_ms) {
+  // The thread list's file is written on this (the UI) task: on internal flash a
+  // write can stall for a garbage collection, so there at most once a minute.
+  if (!uiDataFsIsSdCard() && delay_ms < 60000) delay_ms = 60000;
   const unsigned long deadline = millis() + delay_ms;
   if (!_threads_dirty || deadline < _next_threads_flush_ms)
     _next_threads_flush_ms = deadline;
@@ -77833,8 +77850,13 @@ void UITask::markMsgsDirty(unsigned long delay_ms) {
   // (~240 B per message, off-thread), so the old 10/30 s whole-ring-rewrite
   // clamps are gone — the hard-cut loss window shrinks to this coalesce.
   // SPIFFS keeps a slightly higher floor purely as flash-wear pacing.
+  // Internal flash (no card): every write can start a SPIFFS garbage collection,
+  // which suspends the flash cache and so stalls both cores, screen included, for
+  // up to seconds ("ui:hist" in Loop stalls). Coalesce a minute of messages into
+  // one write there; a card has no such pause. Restart and power-off still flush
+  // (a battery dying outright can lose up to that minute).
   if (uiDataFsIsSdCard()) { if (delay_ms < 2000) delay_ms = 2000; }
-  else                    { if (delay_ms < 5000) delay_ms = 5000; }
+  else                    { if (delay_ms < 60000) delay_ms = 60000; }
   const unsigned long deadline = millis() + delay_ms;
   if (!_msgs_dirty || deadline < _next_msgs_flush_ms)
     _next_msgs_flush_ms = deadline;
@@ -77936,8 +77958,10 @@ void UITask::flushHistoryIfDue(unsigned long now) {
     // per flush while degraded; a single success resets the counter and the
     // next flush goes back to the async task. The threshold is a setting
     // (Settings -> General; default 2, 0 = never fall back).
+    // Only for the card: on internal flash the fallback rewrote the history on this
+    // task, through SPIFFS garbage collection (an 11.6 s "ui:hist" freeze).
     const uint8_t sync_after = touchPrefsGetHistSyncAfter();
-    if (sync_after && s_msgs_write_fails >= sync_after) {
+    if (sync_after && s_msgs_write_fails >= sync_after && uiDataFsIsSdCard()) {
       if (saveMsgsToStorage()) { _msgs_dirty = false; return; }
       _next_msgs_flush_ms = now + (s_msgs_write_fails >= 5 ? 300000 : 5000);
       return;
@@ -88021,6 +88045,15 @@ static bool sdRuntimeLifecycleBusy() {
 static void sdHealthTick() {
   static uint32_t s_next_probe_ms    = 0;
   static uint32_t s_next_bg_probe_ms = 0;
+  // The reinsert watch's gap. A mount attempt on an empty slot holds this loop for
+  // ~0.65 s (seen every 30 s as "ui:sd" in Loop stalls on a card-less T-Deck), so it
+  // doubles after each miss, to 10 min; a card that mounts puts it back to 30 s.
+  // Never had a card this boot: four tries (a slow card at boot), then only the
+  // Files page's poll looks (it owns inserting a card; or restart).
+  static uint32_t s_bg_probe_gap_ms  = 30000;
+  static uint8_t  s_bg_probe_misses  = 0;
+  static bool     s_sd_ever_mounted  = false;
+  if (s_sd_mounted) { s_sd_ever_mounted = true; s_bg_probe_gap_ms = 30000; s_bg_probe_misses = 0; }
 #if defined(TLORA_PAGER)
   static uint32_t s_next_detect_ms   = 0;
   static uint32_t s_absent_first_ms  = 0;
@@ -88073,7 +88106,8 @@ static void sdHealthTick() {
     // poll / SD-row tap still provide the full ladder for stubborn cards.
     if (touchSleep::isSleeping()) return;
     if ((int32_t)(now - s_next_bg_probe_ms) < 0) return;
-    s_next_bg_probe_ms = now + 30000;
+    if (!s_sd_ever_mounted && s_bg_probe_misses >= 4) return;
+    s_next_bg_probe_ms = now + s_bg_probe_gap_ms;
     if (s_fm_list) return;               // FM open: its 2 s poll owns remounting
     if (sdRuntimeLifecycleBusy()) return;
 #if defined(TLORA_PAGER)
@@ -88133,6 +88167,8 @@ static void sdHealthTick() {
 #else
       SD.end();                          // leave cardType() honestly CARD_NONE
 #endif
+      if (s_bg_probe_misses < 255) ++s_bg_probe_misses;
+      s_bg_probe_gap_ms = s_bg_probe_gap_ms >= 300000 ? 600000 : s_bg_probe_gap_ms * 2;
     }
     return;
   }

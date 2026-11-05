@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The full emoji set (EmojiPack.h, EMOJI.md): the ~1400 emoji the firmware doesn't
 // carry in flash (its app slot is nearly full), from the file emoji-pack.wep:
-//   1. the internal store's copy (/emoji.wep), else
-//   2. the SD card's (/emoji/emoji-pack.wep or /emoji-pack.wep), copied in, else
-//   3. downloaded over Wi-Fi from this firmware's own release (main's if the
-//      release has none), then kept on the internal store.
+//   1. the copy kept on the map tiles' internal LittleFS partition (/emoji.wep), else
+//   2. one an earlier build kept on SPIFFS (/emoji.wep): moved to the tiles
+//      partition and removed from SPIFFS, else
+//   3. the SD card's (/emoji/emoji-pack.wep or /emoji-pack.wep), copied in, else
+//   4. downloaded over Wi-Fi from this firmware's own release (main's if the
+//      release has none), then kept on the tiles partition.
+// Never kept on SPIFFS: the chat history and contacts live there, and every
+// write to a fuller SPIFFS makes its garbage collection, which stalls both
+// cores, slower. With no tiles partition it is kept for the session only.
 // Held in PSRAM: emojiGlyphLookup() (emoji_data.c) asks emojiPackLookup() for
 // anything it hasn't baked. Files are read and written a chunk per loop pass, so
 // none of this ever holds the screen. Included into UITask.cpp before the fetch
@@ -14,7 +19,6 @@
 #define EMOJI_PACK 1
 #include "EmojiPack.h"
 
-static fs::FS* backupInternalFs();
 static void voxThumbLanded();   // re-lays out the open chat (emoji widths changed)
 
 static constexpr const char* kEpPath = "/emoji.wep";
@@ -38,9 +42,14 @@ static File      s_ep_rf;
 static uint8_t*  s_ep_rbuf = nullptr;
 static size_t    s_ep_rsize = 0, s_ep_rgot = 0;
 static int       s_ep_rnext = 0;   // the next source to try
+static uint8_t   s_ep_rsrc = 0;    // the one being read: 1 store, 2 SD, 4 SPIFFS (an earlier build's)
 
-// Saving to the internal store (after an SD copy or a download).
+// Where the pack is kept: the tiles partition (LittleFS), or nowhere.
+static fs::FS* epStoreFs() { return s_tiles_fs_ready ? static_cast<fs::FS*>(&s_tiles_fs) : nullptr; }
+
+// Saving to the store (after an SD copy, a download or a move off SPIFFS).
 static bool      s_ep_save = false;
+static bool      s_ep_drop_spiffs = false;   // then remove the SPIFFS copy
 static File      s_ep_wf;
 static size_t    s_ep_wpos = 0;
 
@@ -113,13 +122,17 @@ static bool epOpenNext() {
   for (;;) {
     fs::FS* fs = nullptr;
     const char* path = nullptr;
+    uint8_t src = 0;
     switch (s_ep_rnext++) {
-      case 0: fs = backupInternalFs(); path = kEpPath; break;
-#if CAP_SD
-      case 1: if (SD.cardType() != CARD_NONE) { fs = &SD; path = "/emoji/emoji-pack.wep"; } break;
-      case 2: if (SD.cardType() != CARD_NONE) { fs = &SD; path = "/emoji-pack.wep"; } break;
+      case 0: fs = epStoreFs(); path = kEpPath; src = 1; break;
+#if !defined(HAS_TDISPLAY_P4) && !defined(HAS_CROWPANEL_P4_101)
+      case 1: fs = &SPIFFS; path = kEpPath; src = 4; break;
 #endif
-      case 3: return false;
+#if CAP_SD
+      case 2: if (SD.cardType() != CARD_NONE) { fs = &SD; path = "/emoji/emoji-pack.wep"; src = 2; } break;
+      case 3: if (SD.cardType() != CARD_NONE) { fs = &SD; path = "/emoji-pack.wep"; src = 2; } break;
+#endif
+      case 4: return false;
       default: return false;
     }
     if (!fs || !path || !fs->exists(path)) continue;
@@ -131,6 +144,7 @@ static bool epOpenNext() {
     uint8_t* b = (uint8_t*)epAlloc(sz);
     if (!b) { f.close(); s_ep_state = 5; return false; }
     s_ep_rfs = fs;
+    s_ep_rsrc = src;
     s_ep_rf = f;
     s_ep_rbuf = b;
     s_ep_rsize = sz;
@@ -141,15 +155,16 @@ static bool epOpenNext() {
 
 // Saving to the store: a chunk at a time into a temporary file, renamed at the end.
 static void epSaveStart() {
-  fs::FS* fs = backupInternalFs();
-  if (!fs || !s_ep_buf) return;
-#if !defined(HAS_TDISPLAY_P4) && !defined(HAS_CROWPANEL_P4_101)
-  const size_t total = SPIFFS.totalBytes(), used = SPIFFS.usedBytes();
-  if (total <= used || total - used < s_ep_len + 64u * 1024u) {
-    Serial.println("[EMOJI] not enough room on the internal store: kept for this session only");
+  fs::FS* fs = epStoreFs();
+  if (!fs || !s_ep_buf) {
+    Serial.println("[EMOJI] no tiles partition: the full set is kept for this session only");
     return;
   }
-#endif
+  const size_t total = s_tiles_fs.totalBytes(), used = s_tiles_fs.usedBytes();
+  if (total <= used || total - used < s_ep_len + 64u * 1024u) {
+    Serial.println("[EMOJI] tiles partition full: the full set is kept for this session only");
+    return;
+  }
   fs->remove(kEpTmp);
   s_ep_wf = fs->open(kEpTmp, "w");
   if (!s_ep_wf) return;
@@ -158,7 +173,7 @@ static void epSaveStart() {
 }
 
 static void epSaveStep() {
-  fs::FS* fs = backupInternalFs();
+  fs::FS* fs = epStoreFs();
   const size_t k = s_ep_len - s_ep_wpos < kEpChunk ? s_ep_len - s_ep_wpos : kEpChunk;
   bool ok = fs != nullptr;
   if (ok && k) {
@@ -175,10 +190,18 @@ static void epSaveStep() {
   }
   if (!ok) {
     if (fs) fs->remove(kEpTmp);
-    Serial.println("[EMOJI] couldn't save the full set to the internal store");
+    Serial.println("[EMOJI] couldn't save the full set to the tiles partition");
     return;
   }
-  Serial.println("[EMOJI] full set saved to the internal store");
+  Serial.println("[EMOJI] full set saved to the tiles partition");
+#if !defined(HAS_TDISPLAY_P4) && !defined(HAS_CROWPANEL_P4_101)
+  if (s_ep_drop_spiffs) {   // moved: give SPIFFS its ~800 KB back
+    s_ep_drop_spiffs = false;
+    WdtHeavyGuard guard;
+    SPIFFS.remove(kEpPath);
+    Serial.println("[EMOJI] removed the earlier copy from SPIFFS");
+  }
+#endif
 }
 
 static void emojiPackTick(uint32_t now) {
@@ -197,15 +220,20 @@ static void emojiPackTick(uint32_t now) {
       if (r > 0) s_ep_rgot += (size_t)r;
       if (r > 0 && s_ep_rgot < s_ep_rsize) return;
       s_ep_rf.close();
-      const bool from_store = s_ep_rnext == 1;
-      if (s_ep_rgot == s_ep_rsize && epUse(s_ep_rbuf, s_ep_rsize, from_store ? 1 : 2)) {
+      const bool from_store = s_ep_rsrc == 1;
+      const bool from_spiffs = s_ep_rsrc == 4;
+      if (s_ep_rgot == s_ep_rsize && epUse(s_ep_rbuf, s_ep_rsize, from_store ? 1 : from_spiffs ? 1 : 2)) {
         s_ep_rbuf = nullptr;
-        if (!from_store) epSaveStart();   // the card's copy: keep it on the store
+        if (!from_store) {             // the card's or SPIFFS's copy: keep it on the tiles partition
+          s_ep_drop_spiffs = from_spiffs && epStoreFs() != nullptr;
+          epSaveStart();
+        }
         return;
       }
       Serial.printf("[EMOJI] %s isn't the emoji pack this firmware reads\n",
-                    from_store ? kEpPath : "the SD card's copy");
-      if (from_store && s_ep_rfs) s_ep_rfs->remove(kEpPath);   // fetched again below
+                    from_store ? "the stored copy" : from_spiffs ? "the SPIFFS copy" : "the SD card's copy");
+      // Not this firmware's format (an older build's): drop it, it's fetched again.
+      if ((from_store || from_spiffs) && s_ep_rfs) { WdtHeavyGuard guard; s_ep_rfs->remove(kEpPath); }
       free(s_ep_rbuf);
       s_ep_rbuf = nullptr;
       if (epOpenNext()) return;
