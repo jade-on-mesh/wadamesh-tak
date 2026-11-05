@@ -247,6 +247,19 @@ static void emojiPackTick(uint32_t now) {
   }
 }
 
+// Search by name (the picker's 🔍): the emoji to insert for the best matches.
+static bool emojiPackSearchable() { return s_ep_ok && s_ep.names; }
+static int emojiPackSearch(const char* query, const char** out, int max) {
+  if (!emojiPackSearchable() || !out || max <= 0) return 0;
+  int idx[64];
+  if (max > 64) max = 64;
+  const int n = emojipack::search(s_ep, query, idx, max);
+  int k = 0;
+  for (int i = 0; i < n; ++i)
+    if (const char* u = emojipack::utf8At(s_ep, idx[i])) out[k++] = u;
+  return k;
+}
+
 // For About: whether the full set is here, and from where.
 static int emojiPackText(char* buf, size_t cap) {
   if (!cap) return 0;
@@ -268,4 +281,6 @@ static int emojiPackText(char* buf, size_t cap) {
 #define EMOJI_PACK_DOWNLOAD 0
 static void emojiPackTick(uint32_t) {}
 static int emojiPackText(char*, size_t) { return 0; }
+static bool emojiPackSearchable() { return false; }
+static int emojiPackSearch(const char*, const char**, int) { return 0; }
 #endif

@@ -13128,6 +13128,13 @@ static lv_obj_t*    s_emoji_grid  = nullptr;       // the scrollable button grid
 static int          s_emoji_sel   = -1;            // hardware-highlighted index (-1 = none)
 static int          s_emoji_cols  = 1;             // grid columns (computed at open)
 
+// Search (EMOJI.md): a 🔍 cell first in the emoji picker, when the full emoji set
+// with its names is loaded, opens its own sheet to find any emoji by name.
+static bool emojiPackSearchable();                                        // EmojiPackUI.inc
+static int  emojiPackSearch(const char* query, const char** out, int max); // EmojiPackUI.inc
+static void emojiSearchOpen(lv_obj_t* ta, void (*cb)(const char* utf8));   // with attachSettingsTaEvents
+static const char kEmojiSearchItem[] = "\xF0\x9F\x94\x8D";   // 🔍 (told apart by its address)
+
 // Curated insert set, grouped. Kept in sync with what the extras fonts bake
 // (see scripts/build/regen-extras-fonts.sh) — a glyph here that isn't in the
 // font would just render as the font's notdef box, so only ship baked ones.
@@ -13232,6 +13239,14 @@ static void emojiSheetCloseCb(lv_event_t* e) {
 // Insert item `idx` into the active composer and close. Shared by finger-tap
 // (emojiPickCb) and the trackball selector (emojiSelectorClick).
 static void emojiInsertIndex(int idx) {
+  if (idx >= 0 && idx < s_glyph_count && s_glyph_items[idx] == kEmojiSearchItem) {
+    lv_obj_t* ta = s_emoji_target_ta;
+    void (*cb)(const char*) = s_emoji_pick_cb;
+    s_emoji_pick_cb = nullptr;   // carried over to the search sheet, not cancelled
+    closeEmojiSheet();
+    emojiSearchOpen(ta, cb);
+    return;
+  }
   if (s_emoji_pick_cb) {
     void (*cb)(const char*) = s_emoji_pick_cb;
     s_emoji_pick_cb = nullptr;                   // one-shot; also survives the closer's clear
@@ -13333,6 +13348,14 @@ static void openEmojiPicker(lv_obj_t* ta, const char* const* items = k_emoji_ite
                             int count = k_emoji_count, const char* picker_title = "Insert emoji / symbol") {
   closeEmojiSheet();
   s_emoji_target_ta = ta;
+  const bool emoji_set = (items == k_emoji_items);
+  static const char* s_with_search[k_emoji_count + 1];
+  if (emoji_set && emojiPackSearchable()) {
+    s_with_search[0] = kEmojiSearchItem;
+    for (int i = 0; i < k_emoji_count; ++i) s_with_search[i + 1] = k_emoji_items[i];
+    items = s_with_search;
+    count = k_emoji_count + 1;
+  }
   s_glyph_items = items;
   s_glyph_count = count;
   const lv_coord_t sw = lv_disp_get_hor_res(nullptr);
@@ -13423,7 +13446,7 @@ static void openEmojiPicker(lv_obj_t* ta, const char* const* items = k_emoji_ite
   // Emoji cells render the baked colour glyph as a ZOOMED image (70% bigger than the 16 px
   // font glyph) and get a bigger cell; special-character cells stay text labels.
 #if CAP_LARGE_SCREEN
-  const bool      big_emoji = (s_glyph_items == k_emoji_items);
+  const bool      big_emoji = emoji_set;
   const lv_coord_t cell_px  = big_emoji ? 48 : 38;
 #else
   const lv_coord_t cell_px  = 38;
@@ -14654,6 +14677,217 @@ static void attachSettingsTaEvents(lv_obj_t* ta) {
   // Must be on every settings field, not just the ones that save on blur: this is
   // what tells those handlers the coming DEFOCUSED is a destructor, not a user.
   lv_obj_add_event_cb(ta, settingsFieldDeleteCb, LV_EVENT_DELETE, nullptr);
+}
+
+// ---- Emoji search (EMOJI.md) ------------------------------------------------------
+// Opened from the 🔍 cell of the emoji picker. Its own sheet: a field, and the emoji
+// whose name or keywords start with what's typed (the full emoji set's names,
+// EmojiPack.h). A pick goes where the picker's would have: into the composer (or
+// field) it was opened for, or to its pick callback (a chat icon, a Lua app).
+static lv_obj_t* s_esearch_sheet = nullptr;
+static lv_obj_t* s_esearch_ta = nullptr;
+static lv_obj_t* s_esearch_grid = nullptr;
+static lv_obj_t* s_esearch_note = nullptr;
+static lv_obj_t* s_esearch_target = nullptr;
+static void (*s_esearch_cb)(const char* utf8) = nullptr;
+static constexpr int kEsearchMax = 60;
+static const char* s_esearch_res[kEsearchMax];   // point into the loaded pack
+static int s_esearch_n = 0;
+static lv_coord_t s_esearch_cell = 38;
+
+static void emojiSearchClose() {
+  if (!s_esearch_sheet) return;
+  hideKb();   // first: the keyboard mirror must let go of the field before it's freed
+  popupClose(&s_esearch_sheet);
+  s_esearch_ta = s_esearch_grid = s_esearch_note = nullptr;
+  s_esearch_target = nullptr;
+  s_esearch_cb = nullptr;
+  s_esearch_n = 0;
+}
+
+// Typing goes back to the message the emoji went into.
+static void emojiSearchRefocus(lv_obj_t* ta) {
+  if (!ta || !lv_obj_is_valid(ta)) return;
+  LvChatPanel* p = (ta == g_lv.ch.composer_ta) ? &g_lv.ch : (ta == g_lv.dm.composer_ta) ? &g_lv.dm : nullptr;
+  if (p && p->detail_open) {
+#if CAP_TOUCH && !CAP_KEYBOARD
+    showKb(p, false);
+#else
+    showKb(p);
+#endif
+  }
+#if defined(HAS_M9_KEYBOARD)
+  s_m9_focus_pending = ta;
+  s_nav_ta_editing = true;
+#endif
+#if CAP_KEYPAD_NAV
+  s_nav_focus_hint = ta;
+  navMarkDirty();
+  navMaybeRebuild();
+#endif
+}
+
+static void emojiSearchPick(int i) {
+  if (i < 0 || i >= s_esearch_n) return;
+  const char* g = s_esearch_res[i];
+  lv_obj_t* ta = s_esearch_target;
+  void (*cb)(const char*) = s_esearch_cb;
+  s_esearch_cb = nullptr;
+  emojiSearchClose();
+  if (cb) { cb(g); return; }
+  if (ta && lv_obj_is_valid(ta)) {
+    lv_textarea_add_text(ta, g);
+    emojiSearchRefocus(ta);
+  }
+}
+
+static void emojiSearchPickCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  lv_indev_t* act = lv_indev_get_act();
+  if (act) lv_indev_wait_release(act);
+  emojiSearchPick((int)(intptr_t)lv_event_get_user_data(e));
+}
+
+static void emojiSearchRefresh() {
+  // (No kbMirrorSyncToReal here: the on-screen keyboard's mirror copies into the
+  // field on every key, which is what calls this; syncing again would recurse.)
+  static bool busy = false;
+  if (!s_esearch_ta || !s_esearch_grid || busy) return;
+  busy = true;
+  const char* q = lv_textarea_get_text(s_esearch_ta);
+  s_esearch_n = emojiPackSearch(q ? q : "", s_esearch_res, kEsearchMax);
+  lv_obj_clean(s_esearch_grid);
+  for (int i = 0; i < s_esearch_n; ++i) {
+    lv_obj_t* b = lv_btn_create(s_esearch_grid);
+    lv_obj_set_size(b, s_esearch_cell, s_esearch_cell);
+    styleButton(b);
+    lv_obj_set_style_bg_color(b, lv_color_hex(COLOR_CONTROL), LV_PART_MAIN);
+    lv_obj_set_style_pad_all(b, 0, LV_PART_MAIN);
+    lv_obj_add_event_cb(b, emojiSearchPickCb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+#if CAP_LARGE_SCREEN && LV_USE_IMGFONT
+    uint32_t goff = 0;
+    if (const lv_img_dsc_t* ed = emojiForLetter(_lv_txt_encoded_next(s_esearch_res[i], &goff))) {
+      lv_obj_t* im = lv_img_create(b);
+      lv_img_set_src(im, ed);
+      lv_img_set_antialias(im, true);
+      if (ed->header.w && ed->header.h) lv_img_set_pivot(im, ed->header.w / 2, ed->header.h / 2);
+      lv_img_set_zoom(im, 435);
+      lv_obj_center(im);
+      continue;
+    }
+#endif
+    lv_obj_t* l = lv_label_create(b);
+    lv_label_set_text(l, s_esearch_res[i]);
+    lv_obj_set_style_text_font(l, &g_font_16, LV_PART_MAIN);
+    lv_obj_center(l);
+  }
+  if (s_esearch_note) {
+    const bool empty_q = !q || !q[0];
+    lv_label_set_text(s_esearch_note, empty_q ? TR("Type a name: fish, heart, flag...") :
+                                      s_esearch_n ? "" : TR("No emoji found"));
+  }
+#if CAP_KEYPAD_NAV
+  navMarkDirty();
+#endif
+  busy = false;
+}
+
+static void emojiSearchTaCb(lv_event_t* e) {
+  const lv_event_code_t code = lv_event_get_code(e);
+  if (code == LV_EVENT_VALUE_CHANGED) emojiSearchRefresh();
+  else if (code == LV_EVENT_READY && s_esearch_n > 0) emojiSearchPick(0);   // Enter: the best match
+}
+
+static void emojiSearchBackdropCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  if (lv_event_get_target(e) != lv_event_get_current_target(e)) return;   // the backdrop only
+  lv_indev_t* act = lv_indev_get_act();
+  if (act) lv_indev_wait_release(act);
+  lv_obj_t* ta = s_esearch_target;
+  emojiSearchClose();
+  emojiSearchRefocus(ta);
+}
+
+static void emojiSearchOpen(lv_obj_t* ta, void (*cb)(const char* utf8)) {
+  emojiSearchClose();
+  if (!emojiPackSearchable()) return;
+  s_esearch_target = ta;
+  s_esearch_cb = cb;
+  const lv_coord_t sw = lv_disp_get_hor_res(nullptr);
+  const lv_coord_t sh = lv_disp_get_ver_res(nullptr);
+  s_esearch_sheet = lv_obj_create(lv_layer_top());
+  lv_obj_remove_style_all(s_esearch_sheet);
+  lv_obj_set_size(s_esearch_sheet, sw, sh - STATUSBAR_H);
+  lv_obj_set_pos(s_esearch_sheet, 0, STATUSBAR_H);
+  lv_obj_set_style_bg_color(s_esearch_sheet, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(s_esearch_sheet, LV_OPA_60, LV_PART_MAIN);
+  lv_obj_clear_flag(s_esearch_sheet, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(s_esearch_sheet, emojiSearchBackdropCb, LV_EVENT_CLICKED, nullptr);
+
+  const lv_coord_t cardw = sw - 16;
+  const lv_coord_t cardh = sh - STATUSBAR_H - 16;
+  lv_obj_t* card = lv_obj_create(s_esearch_sheet);
+  lv_obj_remove_style_all(card);
+  lv_obj_set_size(card, cardw, cardh);
+  lv_obj_align(card, LV_ALIGN_CENTER, 0, 0);
+  styleSurface(card, COLOR_PANEL, 8);
+  lv_obj_set_style_border_color(card, lv_color_hex(COLOR_BORDER), LV_PART_MAIN);
+  lv_obj_set_style_border_width(card, 1, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(card, 8, LV_PART_MAIN);
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t* title = lv_label_create(card);
+  lv_label_set_text(title, TR("Search emoji"));
+  lv_obj_set_style_text_color(title, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+  lv_obj_set_style_text_font(title, &g_font_14, LV_PART_MAIN);
+  lv_obj_set_pos(title, 2, 0);
+  addCloseXBadge(card, emojiSearchBackdropCb);
+
+  const lv_coord_t inner_w = cardw - 16;
+  const lv_coord_t ta_y = lv_font_get_line_height(&g_font_14) + 6;
+  const lv_coord_t ta_h = 34;
+  s_esearch_ta = lv_textarea_create(card);
+  lv_obj_set_size(s_esearch_ta, inner_w - 30, ta_h);
+  lv_obj_set_pos(s_esearch_ta, 0, ta_y);
+  styleCard(s_esearch_ta);
+  lv_textarea_set_one_line(s_esearch_ta, true);
+  lv_textarea_set_max_length(s_esearch_ta, 40);
+  taSetPlaceholder(s_esearch_ta, TR("Name"));
+  lv_obj_set_style_text_color(s_esearch_ta, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+  lv_obj_set_style_text_font(s_esearch_ta, &g_font_14, LV_PART_MAIN);
+  lv_obj_add_event_cb(s_esearch_ta, emojiSearchTaCb, LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_obj_add_event_cb(s_esearch_ta, emojiSearchTaCb, LV_EVENT_READY, nullptr);
+  attachSettingsTaEvents(s_esearch_ta);
+
+  const lv_coord_t note_y = ta_y + ta_h + 4;
+  s_esearch_note = lv_label_create(card);
+  lv_obj_set_style_text_color(s_esearch_note, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+  lv_obj_set_style_text_font(s_esearch_note, &g_font_12, LV_PART_MAIN);
+  lv_obj_set_pos(s_esearch_note, 2, note_y);
+
+  const lv_coord_t grid_y = note_y + lv_font_get_line_height(&g_font_12) + 4;
+  lv_obj_t* grid = lv_obj_create(card);
+  lv_obj_remove_style_all(grid);
+  lv_obj_set_size(grid, inner_w, cardh - 16 - grid_y);
+  lv_obj_set_pos(grid, 0, grid_y);
+  lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
+  lv_obj_set_style_pad_row(grid, 4, LV_PART_MAIN);
+  lv_obj_set_style_pad_column(grid, 4, LV_PART_MAIN);
+  lv_obj_set_scroll_dir(grid, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(grid, LV_SCROLLBAR_MODE_AUTO);
+  s_esearch_grid = grid;
+#if CAP_LARGE_SCREEN
+  s_esearch_cell = 48;
+#else
+  s_esearch_cell = 38;
+#endif
+  emojiSearchRefresh();
+
+#if CAP_KEYBOARD && CAP_KEYPAD_NAV
+  lv_async_call(physicalKeyboardModalAutoFocusAsync, s_esearch_sheet);
+#else
+  if (g_lv.keyboard) kbMirrorBind(s_esearch_ta);
+#endif
 }
 
 // ===== Text selection + edit menu ==========================================
@@ -90462,6 +90696,7 @@ static const PopupEnt k_popup_registry[] = {
   { P_OPEN(s_batt_chart_root),       []{ batteryChartClose(); },          PF_COUNT },
   { P_OPEN(s_appgrid_sheet),         []{ closeAppGridSheet(); },          PF_COUNT },
   { P_OPEN(s_emoji_sheet),           []{ closeEmojiSheet(); },            PF_COUNT },
+  { P_OPEN(s_esearch_sheet),         []{ emojiSearchClose(); },           PF_COUNT },
   { P_OPEN(s_disc_settings_root),    []{ closeDiscoveredSettings(); },    PF_COUNT },
   { P_OPEN(s_map_opts_root),         []{ closeMapOptions(); },            PF_COUNT },
   { P_OPEN(s_map_contacts_root),     []{ closeMapContacts(); },           PF_COUNT },

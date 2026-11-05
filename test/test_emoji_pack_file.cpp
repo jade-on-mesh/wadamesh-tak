@@ -80,10 +80,46 @@ int main(int argc, char** argv) {
   d[12] = d[13] = d[14] = 0xFF;   // the first codepoint now sorts after the second
   assert(!emojipack::parse(d.data(), d.size(), &v));
   d = b;
-  d[4] = 2;        // a version this firmware doesn't know
+  d[4] = 1;        // a version this firmware doesn't read (v1 had no names)
   assert(!emojipack::parse(d.data(), d.size(), &v));
   assert(!emojipack::parse(b.data(), 8, &v));
   assert(!emojipack::parse(nullptr, 0, &v));
+
+  // Names: the text to insert and what search reads.
+  {
+    int named = 0;
+    for (int i = 0; i < v.count; ++i) named += emojipack::utf8At(v, i) != nullptr;
+    assert(named == kPackNamed);
+    const int fish = emojipack::find(v, 0x1F420);
+    assert(!strcmp(emojipack::utf8At(v, fish), "\xF0\x9F\x90\xA0"));
+    assert(!strcmp(emojipack::textAt(v, fish), "tropical fish|animal fish fishes tropical"));
+    const int heart = emojipack::find(v, 0x2764);
+    assert(!strcmp(emojipack::utf8At(v, heart), "\xE2\x9D\xA4\xEF\xB8\x8F"));   // ❤️ with its FE0F
+    const int us = emojipack::find(v, flagtext::key(0x1F1FA, 0x1F1F8));
+    assert(!strcmp(emojipack::utf8At(v, us), "\xF0\x9F\x87\xBA\xF0\x9F\x87\xB8"));   // both letters
+    assert(emojipack::utf8At(v, emojipack::find(v, 0x1F3FB)) == nullptr);           // a skin tone: not offered
+
+    int r[64];
+    int n = emojipack::search(v, "fish", r, 64);
+    assert(n >= 3);
+    bool has_fish = false;
+    for (int k = 0; k < n; ++k) has_fish |= emojipack::entryAt(v, r[k]).cp == 0x1F420;
+    assert(has_fish);
+    assert(emojipack::entryAt(v, r[0]).cp == 0x1F41F);   // "fish" itself first: its name starts with it
+    n = emojipack::search(v, "TROP fi", r, 64);          // any case, word starts, any order
+    assert(n >= 1 && emojipack::entryAt(v, r[0]).cp == 0x1F420);
+    n = emojipack::search(v, "united states", r, 64);
+    assert(n >= 1 && emojipack::entryAt(v, r[0]).cp == flagtext::key(0x1F1FA, 0x1F1F8));
+    n = emojipack::search(v, "lesotho", r, 64);
+    assert(n == 1 && emojipack::entryAt(v, r[0]).cp == flagtext::key(0x1F1F1, 0x1F1F8));
+    n = emojipack::search(v, "gold medal", r, 64);   // "gold" is only a keyword of 🥇
+    bool has_gold = false;
+    for (int k = 0; k < n; ++k) has_gold |= emojipack::entryAt(v, r[k]).cp == 0x1F947;
+    assert(has_gold);
+    assert(emojipack::search(v, "  ", r, 64) == 0);
+    assert(emojipack::search(v, "zzqxj", r, 64) == 0);
+    assert(emojipack::search(v, "heart", r, 3) == 3);    // the cap holds
+  }
 
   // A broken LZ stream fails rather than writing past the image.
   {
