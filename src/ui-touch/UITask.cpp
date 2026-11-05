@@ -1501,6 +1501,15 @@ static void uiFitButtonChangeCb(lv_event_t* e) {
 #include "EmojiFit.h"
 static lv_font_t* s_emoji_font[3] = { nullptr, nullptr, nullptr };  // one per text size
 #endif
+// The colour emoji image for a letter as LVGL reads text: a codepoint, or a flag's
+// pair of regional indicators (FlagText.h). For code that looks an emoji up itself.
+static const lv_img_dsc_t* emojiForLetter(uint32_t letter) {
+#if LV_USE_IMGFONT
+  return emojifit::imageFor(letter);
+#else
+  return emojiGlyphLookup(letter);
+#endif
+}
 
 // UI size (font-based, at native resolution so it stays crisp) is set in
 // initTouchFontFallbacks() from the saved preset. SC() scales geometry where a board supports it. The bottom
@@ -4456,6 +4465,19 @@ static void copyUtf8ReplacingMissingGlyphs(const lv_font_t* font, char* out, siz
       continue;
     }
 
+#if LV_USE_IMGFONT
+    // A flag: two regional indicators that LVGL reads as one letter and the emoji
+    // font draws as the flag (FlagText.h). Kept whole when it has one.
+    if (flagtext::isRi(cp) && end - p >= 4 && flagtext::detail::riAt(p, 0)) {
+      const uint32_t b = 0x1F1E6u + (uint32_t)((unsigned char)p[3] - 0xA6u);
+      if (uiFontHasGlyph(font, flagtext::key(cp, b))) {
+        if (w + 8 + 1 > out_cap) break;
+        for (const char* q = seq_beg; q < p + 4; ++q) out[w++] = *q;
+        p += 4;
+        continue;
+      }
+    }
+#endif
     if (uiFontHasGlyph(font, cp)) {
       // Whole sequence or nothing: a glyph split at the cap leaves invalid UTF-8.
       if (w + (size_t)(p - seq_beg) + 1 > out_cap) break;
@@ -5220,7 +5242,12 @@ static void uiUpperUtf8(char* dst, size_t cap, const char* src) {
     const uint32_t u = uiUpperCp(c);
     if (u < 0x80) dst[o++] = (char)u;
     else if (u < 0x800) { dst[o++] = (char)(0xC0 | (u >> 6)); dst[o++] = (char)(0x80 | (u & 0x3F)); }
-    else { const uint32_t n = i - at; memcpy(dst + o, src + at, n); o += n; }   // 3+ byte: unchanged
+    else {   // 3+ bytes, or a flag's 8 (FlagText.h): unchanged
+      const uint32_t n = i - at;
+      if (o + n >= cap) break;
+      memcpy(dst + o, src + at, n);
+      o += n;
+    }
   }
   dst[o] = 0;
 }
@@ -5435,7 +5462,7 @@ static lv_obj_t* makeGlyphAvatar(lv_obj_t* parent, const char* name, GlyphShape 
 // The emoji table maps the invisible joiners (U+200D, U+FE0E/FE0F) to an empty
 // 2 x 2 image so text never shows them; as an icon that image is a blank tile (#674).
 static bool emojiIconVisible(uint32_t cp, void*) {
-  const lv_img_dsc_t* d = emojiGlyphLookup(cp);
+  const lv_img_dsc_t* d = emojiForLetter(cp);   // a flag too
   return d && d->header.w > 2;
 }
 static void glyphAvatarSetEmoji(lv_obj_t* av, const char* name, const char* utf8) {
@@ -5445,7 +5472,7 @@ static void glyphAvatarSetEmoji(lv_obj_t* av, const char* name, const char* utf8
   if (utf8 && utf8[0]) {
     uint32_t off = 0;
     lead = _lv_txt_encoded_next(utf8, &off);
-    if (emojiIconVisible(lead, nullptr)) eg = emojiGlyphLookup(lead);   // ZWJ glyphs are keyed on their lead codepoint
+    if (emojiIconVisible(lead, nullptr)) eg = emojiForLetter(lead);   // ZWJ glyphs are keyed on their lead codepoint
   }
   avatarApply(av, name);
   if (!eg) {
@@ -5454,7 +5481,7 @@ static void glyphAvatarSetEmoji(lv_obj_t* av, const char* name, const char* utf8
     // Before this the pick was saved and announced but the plain avatar stayed.
     // One the font cannot draw, or a joiner, keeps the plain look instead of a blank.
     if (!utf8 || !utf8[0] || (uint8_t)utf8[0] < 0x80) return;
-    if (emojiGlyphLookup(lead) || !uiFontDrawsGlyph(lead, (void*)&g_font_16)) return;
+    if (emojiForLetter(lead) || !uiFontDrawsGlyph(lead, (void*)&g_font_16)) return;
     lv_obj_t* first = lv_obj_get_child(av, 0);
     const lv_color_t ink = first ? lv_obj_get_style_text_color(first, LV_PART_MAIN)
                                  : lv_color_hex(COLOR_TEXT);
@@ -13420,7 +13447,7 @@ static void openEmojiPicker(lv_obj_t* ta, const char* const* items = k_emoji_ite
     // font glyph). Special chars (no emoji dsc) fall through to the text label below.
     if (big_emoji) {
       uint32_t goff = 0;
-      const lv_img_dsc_t* ed = emojiGlyphLookup(_lv_txt_encoded_next(s_glyph_items[i], &goff));
+      const lv_img_dsc_t* ed = emojiForLetter(_lv_txt_encoded_next(s_glyph_items[i], &goff));
       if (ed) {
         lv_obj_t* im = lv_img_create(b);
         lv_img_set_src(im, ed);
@@ -18410,10 +18437,12 @@ extern uint8_t  g_stall_cnt, g_stall_w;
 static int perfText(char* buf, size_t cap);   // with UITask::loop below
 static int chatOpenText(char* buf, size_t cap);   // with refreshChatDetail
 static int mapRenderText(char* buf, size_t cap);  // with renderMapTiles
+static int emojiPackText(char* buf, size_t cap);  // EmojiPackUI.inc
 static void sysInfoTextLive(char* buf, size_t cap) {
   int p = 0;
   p += perfText(buf, cap);   // where the time goes, first: the slowdown hunt reads it
   p += chatOpenText(buf + p, cap - p);
+  p += emojiPackText(buf + p, cap - p);
   p += mapRenderText(buf + p, cap - p);
 #if defined(ESP32)
   // MediaMesh: what radio2 sent and heard, what never went out, and how much of
@@ -38919,6 +38948,8 @@ static constexpr size_t kVrsDlCap = 4u << 20;    // the model is about 1 MB
 #define VOX_RS_DOWNLOAD 0
 #endif
 
+#include "EmojiPackUI.inc"   // the full emoji set from a file: emojiPackLookup, emojiPackTick (EMOJI.md)
+
 #if WADA_FORK_RELEASES
 #include "ForkUpdate.inc"   // this fork's update check + signed install (GitHub releases)
 #endif
@@ -39343,6 +39374,9 @@ static bool tileWorkerHasWork() {
 #if CAP_PREDICT_TEXT && !PREDICT_BUILTIN_WORDS && defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION) && WADA_FORK_RELEASES
   if (s_pwd_request) return true;
 #endif
+#if EMOJI_PACK_DOWNLOAD
+  if (s_ep_dl_request) return true;
+#endif
   if (__atomic_load_n(&s_wifiscan_request, __ATOMIC_ACQUIRE)) return true;
   return false;
 }
@@ -39579,6 +39613,26 @@ static void tileFetchTaskFn(void* arg) {
       }
       s_vrs_dl_len = got;
       s_vrs_dl_state = ok ? 3 : 4;
+      continue;
+    }
+#endif
+#if EMOJI_PACK_DOWNLOAD
+    // The full emoji set (emojiPackTick asked): this release's, else main's.
+    if (s_ep_dl_request) {
+      s_ep_dl_request = false;
+      char tag[32], url[160];
+      forkupd::tagFor(firmwareReleaseN(), tag, sizeof tag);
+      s_ep_dl_msg[0] = 0;
+      size_t got = 0;
+      snprintf(url, sizeof url, "https://raw.githubusercontent.com/" WADA_FORK_REPO "/%s/emoji/emoji-pack.wep", tag);
+      bool ok = s_ep_dl && forkFetchFile(url, s_ep_dl, emojipack::kMaxBytes, &got, s_ep_dl_msg, sizeof s_ep_dl_msg);
+      if (!ok && s_ep_dl) {
+        snprintf(url, sizeof url, "https://raw.githubusercontent.com/" WADA_FORK_REPO "/main/emoji/emoji-pack.wep");
+        ok = forkFetchFile(url, s_ep_dl, emojipack::kMaxBytes, &got, s_ep_dl_msg, sizeof s_ep_dl_msg);
+      }
+      s_ep_dl_len = got;
+      s_ep_dl_ok = ok;
+      s_ep_dl_done = true;
       continue;
     }
 #endif
@@ -49796,7 +49850,7 @@ static lv_coord_t chatCompactEmojiLift(const char* line) {
   lv_coord_t tallest = 0;
   uint32_t i = 0;
   while (line[i]) {
-    const lv_img_dsc_t* eg = emojiGlyphLookup(_lv_txt_encoded_next(line, &i));
+    const lv_img_dsc_t* eg = emojiForLetter(_lv_txt_encoded_next(line, &i));
     if (eg && (lv_coord_t)eg->header.h > tallest) tallest = eg->header.h;
   }
   return tallest > ascent ? tallest - ascent : 0;
@@ -83446,6 +83500,13 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
     reserveTileFetchStack();
     VoxAudioTask::begin();   // likewise the 16 KB worker: voice, Wi-Fi updates, the Reader
     lv_init();
+    // A flag (two regional-indicator letters) reads as ONE letter everywhere LVGL
+    // walks text, so the emoji font draws the pair's flag (FlagText.h, EmojiFit.h).
+#if LV_USE_IMGFONT   // (no colour emoji font: no flags to draw, so the letters stay letters)
+    _lv_txt_encoded_next = flagtext::next;
+    _lv_txt_encoded_prev = flagtext::prev;
+    _lv_txt_encoded_get_byte_id = flagtext::getByteId;
+#endif
     initTouchFontFallbacks();
     // NB: re-pointing the LVGL theme's font here does NOT work (tried, verified
     // on device: no effect) and neither does a text_font style on the screen /
@@ -89252,6 +89313,7 @@ void UITask::loop() {
     uiCp("ui:otp");
     OtpMessenger::tick();   // sends, retries, sync checks: whether or not the app is open
     wordsSaveTick(now);     // predictive text: the words you send, to the store
+    emojiPackTick(now);     // the full emoji set: loaded a chunk at a time, or downloaded
     uiCp("ui:team");
     teamui::loopTick();     // beacons, alert repeats, alarm, Bloodhound, map refresh
     if (s_map_markers_stale && mapOnScreen()) renderMapMarkers();   // the map came back into view

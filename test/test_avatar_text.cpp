@@ -54,6 +54,20 @@ int main() {
   assert(!strcmp(eb, "\xF0\x9F\x98\x80"));
   assert(!AvatarText::firstEmoji("\xC2\xA9 corp", eb, sizeof eb, visibleRow, nullptr));
   assert(!AvatarText::firstEmoji("Plain name", eb, sizeof eb, visibleRow, nullptr));
+  // Flags: the pair is one picture, under its FlagText.h key.
+  {
+    const uint32_t ls = flagtext::key(0x1F1F1, 0x1F1F8), pt = flagtext::key(0x1F1F5, 0x1F1F9);
+    auto withLs = [](uint32_t cp, void*) { return cp == flagtext::key(0x1F1F1, 0x1F1F8); };   // baked Lesotho
+    assert(AvatarText::firstEmoji("Bob \xF0\x9F\x87\xB1\xF0\x9F\x87\xB8", eb, sizeof eb, withLs, nullptr));
+    assert(!strcmp(eb, "\xF0\x9F\x87\xB1\xF0\x9F\x87\xB8"));   // both letters, so the label reads the flag
+    // Without a picture for the pair (no emoji pack) the name keeps its dot pattern.
+    assert(!AvatarText::firstEmoji(kTristaoEdc, eb, sizeof eb, withLs, nullptr));
+    // With the pack, Portugal is the icon (and not its island after it).
+    auto withPt = [](uint32_t cp, void*) { return cp == flagtext::key(0x1F1F5, 0x1F1F9) || cp == 0x1F3DD; };
+    assert(AvatarText::firstEmoji(kTristaoEdc, eb, sizeof eb, withPt, nullptr));
+    assert(!strcmp(eb, "\xF0\x9F\x87\xB5\xF0\x9F\x87\xB9"));
+    (void)ls; (void)pt;
+  }
 
   // Initials: whole code points, in capitals, emoji and symbols skipped.
   assert(ini("\xC3\xA3na") == "\xC3\x83N");                 // "ãna" -> "ÃN"

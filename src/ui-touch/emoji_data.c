@@ -936,6 +936,10 @@ static const lv_img_dsc_t* emojiImage(int i) {
   return d;
 }
 
+// The full emoji set as a file (EmojiPack.h, EMOJI.md), once it is loaded: the
+// emoji not baked here. Weak, so a build without it (the host tests) has only these.
+const lv_img_dsc_t* emojiPackLookup(uint32_t cp) __attribute__((weak));
+
 const lv_img_dsc_t* emojiGlyphLookup(uint32_t cp) {
   int lo = 0, hi = (int)(sizeof(kGlyphs)/sizeof(kGlyphs[0])) - 1;
   while (lo <= hi) {
@@ -944,5 +948,5 @@ const lv_img_dsc_t* emojiGlyphLookup(uint32_t cp) {
     if (cp == v) return emojiImage(kGlyphs[mid].img);
     if (cp < v) hi = mid - 1; else lo = mid + 1;
   }
-  return 0;
+  return emojiPackLookup ? emojiPackLookup(cp) : 0;
 }

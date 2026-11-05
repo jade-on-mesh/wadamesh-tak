@@ -89,6 +89,19 @@ jobs:
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -I test/stub_lvgl -I src/ui-touch -I test \
               -o /tmp/test_emoji_pack test/test_emoji_pack.c src/ui-touch/emoji_data.c
           /tmp/test_emoji_pack
+      - name: Full emoji set file reads back (EmojiPack.h, emoji/emoji-pack.wep)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -I test \
+              -o /tmp/test_emoji_pack_file test/test_emoji_pack_file.cpp
+          /tmp/test_emoji_pack_file emoji/emoji-pack.wep
+      - name: Flags read as one letter (FlagText.h), and as avatar emoji
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_flag_text test/test_flag_text.cpp
+          /tmp/test_flag_text
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src/ui-touch -I src \
+              -o /tmp/test_avatar_text test/test_avatar_text.cpp
+          /tmp/test_avatar_text
       - name: MediaMesh settings, CLI and scan timing
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
