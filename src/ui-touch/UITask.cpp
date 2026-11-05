@@ -159,6 +159,7 @@ static void* wadaMp3Scratch() { return s_wada_mp3_scratch; }
 #include "AppPage.h"          // shared full-screen app-page chrome (both of the above use it)
 #include "ReaderContent.h"    // host-tested HTML text extraction + local/network link resolution
 #include "ChannelSenderSplit.h"  // host-tested "SenderName: body" split for channel/room posts
+#include "MentionText.h"         // "@[name]" shows as "@name" on a chip, as MeshCore Open shows it
 #include "PasteHexKey.h"        // host-tested key extraction for pasted key fields (#526)
 #include "NavSpatial.h"         // host-tested keypad spatial step (navMoveDir)
 #include "SdThreat.h"           // SD-card malware rules: the mount-time warning + wada.sd.remove
@@ -48922,6 +48923,7 @@ struct ChatBubbleDisplay {
   lv_coord_t thumb_w = 0, thumb_h = 0;
   bool thumb_link = false; // the thumbnail is a linked picture's (LinkImages.inc), at thumb_url
   char thumb_url[240] = "";
+  mentiontext::Spans mentions;   // where each "@name" is in san_text (its chip)
 };
 // Between a photo's thumbnail and the line under it.
 static constexpr lv_coord_t kChatThumbGap = 4;
@@ -49653,6 +49655,9 @@ static void chatParseMessageDisplay(const UITask::UIMessage& m, bool channel_mod
   copyUtf8ReplacingMissingGlyphs(&g_font_12, d.san_sender, sizeof(d.san_sender),
                                  m.outgoing ? d.show_sender : senderShownName(d.show_sender));
   copyUtf8ReplacingMissingGlyphs(chatMessageFont(), d.san_text, sizeof(d.san_text), d.show_text);
+  // "@[name]" -> "@name", with where each is for its chip (MentionText.h). Here, so
+  // measuring and drawing both read the same text.
+  mentiontext::unbracket(d.san_text, &d.mentions);
 }
 
 // ---- Chat virt serial diagnostics -------------------------------------------
@@ -51276,6 +51281,61 @@ static void chatMaybeWantThumb(const UITask::UIMessage& m, const ChatBubbleDispl
 #endif
 }
 
+// Mentions on chips, as MeshCore Open draws them: a rounded patch of the text's own
+// colour, faint, behind each "@name" (MentionText.h), on every line it covers. Drawn
+// by the text label just before its text, so the text stays the label's.
+static void chatMentionChipDrawCb(lv_event_t* e) {
+  auto* sp = static_cast<mentiontext::Spans*>(lv_event_get_user_data(e));
+  const lv_event_code_t code = lv_event_get_code(e);
+  if (code == LV_EVENT_DELETE) { lv_mem_free(sp); return; }
+  if (code == LV_EVENT_REFR_EXT_DRAW_SIZE) { lv_event_set_ext_draw_size(e, 3); return; }
+  if (code != LV_EVENT_DRAW_MAIN_BEGIN || !sp || !sp->n) return;
+  lv_obj_t* lbl = lv_event_get_target(e);
+  const char* text = lv_label_get_text(lbl);
+  if (!text || !text[0]) return;
+  const lv_font_t* font = lv_obj_get_style_text_font(lbl, LV_PART_MAIN);
+  const lv_coord_t letter_space = lv_obj_get_style_text_letter_space(lbl, LV_PART_MAIN);
+  const lv_coord_t line_space = lv_obj_get_style_text_line_space(lbl, LV_PART_MAIN);
+  const lv_coord_t width = lv_obj_get_content_width(lbl);
+  const lv_coord_t lh = lv_font_get_line_height(font);
+  lv_area_t content;
+  lv_obj_get_content_coords(lbl, &content);
+  lv_draw_ctx_t* draw_ctx = lv_event_get_draw_ctx(e);
+  lv_draw_rect_dsc_t rd;
+  lv_draw_rect_dsc_init(&rd);
+  rd.bg_color = lv_obj_get_style_text_color(lbl, LV_PART_MAIN);
+  rd.bg_opa = LV_OPA_20;
+  rd.radius = 4;
+  const uint32_t len = (uint32_t)strlen(text);
+  uint32_t ls = 0;
+  lv_coord_t y = 0;
+  while (ls < len) {
+    const uint32_t step = _lv_txt_get_next_line(text + ls, font, letter_space, width, nullptr, LV_TEXT_FLAG_NONE);
+    if (!step) break;
+    const uint32_t le = ls + step;
+    for (int i = 0; i < sp->n; ++i) {
+      const uint32_t a = sp->start[i] > ls ? sp->start[i] : ls;
+      const uint32_t b = sp->end[i] < le ? sp->end[i] : le;
+      if (a >= b) continue;
+      const lv_coord_t x0 = lv_txt_get_width(text + ls, a - ls, font, letter_space, LV_TEXT_FLAG_NONE);
+      const lv_coord_t x1 = lv_txt_get_width(text + ls, b - ls, font, letter_space, LV_TEXT_FLAG_NONE);
+      const lv_area_t r = { (lv_coord_t)(content.x1 + x0 - 2), (lv_coord_t)(content.y1 + y),
+                            (lv_coord_t)(content.x1 + x1 + 2), (lv_coord_t)(content.y1 + y + lh - 1) };
+      lv_draw_rect(draw_ctx, &rd, &r);
+    }
+    y += lh + line_space;
+    ls = le;
+  }
+}
+static void chatAddMentionChips(lv_obj_t* lbl, const mentiontext::Spans& spans) {
+  if (!lbl || !spans.n) return;
+  auto* sp = static_cast<mentiontext::Spans*>(lv_mem_alloc(sizeof spans));
+  if (!sp) return;
+  *sp = spans;
+  lv_obj_add_event_cb(lbl, chatMentionChipDrawCb, LV_EVENT_ALL, sp);
+  lv_obj_refresh_ext_draw_size(lbl);   // room for the chip's 2 px either side
+}
+
 static lv_coord_t chatVirtCreateBubble(LvChatPanel* p, int logical_i, int ring_idx,
                                        lv_coord_t vp_y, lv_coord_t* out_jump_y) {
   if (!p || !g_lv.task) return 0;
@@ -51413,6 +51473,9 @@ static lv_coord_t chatVirtCreateBubble(LvChatPanel* p, int logical_i, int ring_i
 #endif
                               LV_PART_MAIN);
   lv_label_set_text(tlbl, d.san_text);
+#if !defined(HAS_TDECK_PRO)   // (e-paper: a faint patch would threshold to a black blob)
+  chatAddMentionChips(tlbl, d.mentions);
+#endif
   if (d.talk_sid)
     lv_obj_add_event_cb(tlbl, chatTalkWaveDrawCb, LV_EVENT_DRAW_MAIN_END, (void*)(uintptr_t)d.talk_sid);
   // Detect every actionable span before layout; the overlay draws only link glyphs

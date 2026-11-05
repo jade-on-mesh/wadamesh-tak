@@ -102,6 +102,11 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src/ui-touch -I src \
               -o /tmp/test_avatar_text test/test_avatar_text.cpp
           /tmp/test_avatar_text
+      - name: Mentions show as "@name" chips (MentionText.h)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_mention_text test/test_mention_text.cpp
+          /tmp/test_mention_text
       - name: MediaMesh settings, CLI and scan timing
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
