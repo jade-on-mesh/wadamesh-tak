@@ -11,7 +11,7 @@ Without the full set, an emoji that isn't built in shows as a box. That includes
 
 You don't usually need to do anything. A standalone finds the file in one of these places, in order:
 
-1. **Its internal storage** (`/emoji.wep`). It's kept there once it has been found or downloaded.
+1. **Its internal storage**: the map tiles partition, at `/emoji.wep`. It's kept there once it has been found or downloaded. It's never kept with the chat history and contacts, because filling that storage makes it pause more often.
 2. **The SD card**, at `/emoji/emoji-pack.wep` or `/emoji-pack.wep`. It's copied onto internal storage from there.
 3. **Wi-Fi.** It downloads `emoji/emoji-pack.wep` (about 910 KB) from this firmware's release, or from `main` if the release doesn't have it. If that fails, it tries again every 10 minutes.
 
