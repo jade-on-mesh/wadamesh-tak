@@ -60,11 +60,12 @@ not the mesh's encryption: never reuse a channel secret or a password here.
 
 While it listens, the Link tab shows what the microphone makes of the tones under the meter:
 
-`Hearing a message... 2 starts, 1 decoded, 1 failed · mic lost 0 ms · slowest step 180 ms`
+`Hearing a message... 2 starts, 1 decoded, 1 failed · mic lost 0 ms · slowest step 2100 ms · mic L`
 
 - **No starts while the other device plays:** the tones aren't getting through. Turn the player's media volume up, hold it a few inches from the mic, and check that it plays an audible speed.
 - **Starts but nothing decoded:** a message is cut or garbled partway. Look at **mic lost**. More than 0 ms means the radio fell behind and dropped audio mid-message. Anything else is noise or echo, so try a quieter spot, closer and a little quieter.
-- **slowest step** is the longest single decode, usually the work at the end of a message.
+- **slowest step** is the longest single decode, usually the work at the end of a message. The mic keeps recording meanwhile, so this costs nothing unless it runs past 4 seconds.
+- **mic L / R** is the input in use (the louder one).
 
 ## What goes over the air
 
@@ -92,6 +93,8 @@ phone's 48 kHz audio, so the radios neither send nor hear it.
   other. The mic (and the P4's speaker) run at 16 kHz.
   `soundlink::Resampler` converts, because ggwave's own resampler costs about
   80 times its decoder, too much for an ESP32-S3 in real time.
+- The mic is read by a small task of its own into a 4-second ring in PSRAM, and ggwave decodes from the ring. ggwave's work at the end of a message takes about 2 seconds on a T-Deck. Before the ring, nothing read the mic during that time, so whatever followed was lost, such as the next part of a team setup.
+- Of the T-Deck's two mic inputs, Sound link takes the louder one (DC removed, switching only at twice the level). Voice messages mix the two. Mixed, two mics a few centimetres apart cancel at some of ggwave's pitches, and an unused input only adds noise. On a T-Deck, messages were heard starting but never decoded.
 - Listening and playing take turns. The loop task stops the mic, plays, waits
   a moment, then listens again. Decoding and playing run on the audio worker
   that voice messages use.

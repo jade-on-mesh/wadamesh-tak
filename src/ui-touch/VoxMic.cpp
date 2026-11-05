@@ -352,6 +352,14 @@ void reap() {
 volatile bool s_raw = false;     // the mic is Sound link's
 bool s_raw_settling = true;
 bool s_raw_mono = false;
+// Sound link takes ONE of the two inputs, the louder (AC energy, DC removed),
+// rather than their average as voice does. Two mics apart cancel each other at
+// the pitches where their paths differ by half a wave (a few kHz for a few cm,
+// right in ggwave's 1.9-6.4 kHz tones), and an unused input only adds its noise
+// at full PGA gain: on a T-Deck the average heard message starts but decoded
+// none. Switches with 2x hysteresis, so it doesn't flip mid-message.
+float s_raw_e[2] = {0, 0};
+int s_raw_ch = 0;
 size_t s_raw_bytes = 0;
 int64_t s_raw_t0 = 0;
 int s_raw_drain = 0;
@@ -479,6 +487,8 @@ bool rawStart(const char** err) {
   if (!hwStart(err)) return false;
   s_raw_settling = true;
   s_raw_mono = false;
+  s_raw_e[0] = s_raw_e[1] = 0;
+  s_raw_ch = 0;
   s_raw_bytes = 0;
   s_raw_t0 = 0;
   s_raw_drain = 64;
@@ -515,11 +525,28 @@ bool rawRead(int16_t* mono, size_t max, size_t* got, uint32_t timeout_ms) {
     memcpy(mono, rx, n * sizeof(int16_t));
     *got = n;
   } else {
-    for (size_t i = 0; i + 1 < n; i += 2) mono[i / 2] = (int16_t)(((int32_t)rx[i] + rx[i + 1]) / 2);
-    *got = n / 2;
+    const size_t frames = n / 2;
+    if (frames) {
+      int64_t sum[2] = {0, 0};
+      for (size_t i = 0; i + 1 < n; i += 2) { sum[0] += rx[i]; sum[1] += rx[i + 1]; }
+      for (int c = 0; c < 2; c++) {
+        const int32_t mean = (int32_t)(sum[c] / (int64_t)frames);
+        double e = 0;
+        for (size_t i = (size_t)c; i < n; i += 2) {
+          const double d = (double)(rx[i] - mean);
+          e += d * d;
+        }
+        s_raw_e[c] = s_raw_e[c] * 0.97f + (float)(e / (double)frames) * 0.03f;
+      }
+      if (s_raw_e[1 - s_raw_ch] > 2.0f * s_raw_e[s_raw_ch]) s_raw_ch = 1 - s_raw_ch;
+    }
+    for (size_t i = 0; i < frames; i++) mono[i] = rx[2 * i + (size_t)s_raw_ch];
+    *got = frames;
   }
   return true;
 }
+
+int rawChannel() { return s_raw ? (s_raw_mono ? -1 : s_raw_ch) : -2; }
 
 void rawStop() {
   if (!s_raw) return;
@@ -549,6 +576,7 @@ bool rawStart(const char** err) { *err = "This radio has no microphone"; return 
 bool rawRead(int16_t*, size_t, size_t* got, uint32_t) { *got = 0; return false; }
 void rawStop() {}
 bool rawActive() { return false; }
+int rawChannel() { return -2; }
 }  // namespace VoxMic
 
 #endif
