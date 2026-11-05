@@ -60,6 +60,7 @@ inline const char* agencyName(const char* code) {
       {"kcm", "King County Metro"},  {"st", "Sound Transit"},    {"ct", "Community Transit"},
       {"pt", "Pierce Transit"},      {"et", "Everett Transit"},  {"it", "Intercity Transit"},
       {"kt", "Kitsap Transit"},      {"wsf", "WA State Ferries"}, {"mono", "Seattle Monorail"},
+      {"bct", "BC Transit"},
   };
   if (!code || !*code) return kA[0].n;
   for (const A& a : kA) {
@@ -125,6 +126,13 @@ inline long find(Span l, const char* w, size_t from = 0) {
   return -1;
 }
 inline bool containsNoCase(Span l, const char* w) { return watchfeed::containsNoCase(l.s, l.n, w); }
+// [l] starts with [w] (lowercase ASCII), in any case.
+inline bool startsNoCase(Span l, const char* w) {
+  size_t k = 0;
+  for (; w[k]; k++)
+    if (k >= l.n || watchfeed::lower(l.s[k]) != w[k]) return false;
+  return true;
+}
 
 // A route's mode emoji at the start of l; its length in *len.
 inline uint8_t modeAt(Span l, size_t* len) {
@@ -345,6 +353,32 @@ inline bool parse(const char* t, Reply& r, bool alert_posts = false) {
         r.n_alerts = 1;
         continue;
       }
+      // BC Transit: #40 at 4:06PM from Downtown is cancelled  (mcIRC's relay of
+      // BC Transit's posts, alone in its message). The "#40" is the route: it goes
+      // in the title ("BC Transit 40"; r.route would make the headline "40 @ …")
+      // and reads "Route 40" in the text. As the app's (transit_watch.dart).
+      if (alert_posts && (!line || !*line) && startsNoCase(l, "bc transit:")) {
+        r.kind = kAlertPost;
+        snprintf(r.agency, sizeof r.agency, "bct");
+        Span b = skip(l, 11);
+        while (b.n && watchfeed::isSpace(*b.s)) { b.s++; b.n--; }
+        const long h = find(b, "#");
+        size_t rl = 0;
+        if (h >= 0)
+          while ((size_t)h + 1 + rl < b.n && rl < 6 && watchfeed::isAlnum(b.s[h + 1 + rl])) rl++;
+        if (h >= 0 && rl) {
+          r.route_mode = kBus;
+          const char* rs = b.s + h + 1;
+          snprintf(r.title, sizeof r.title, "BC Transit %.*s", (int)rl, rs);
+          snprintf(r.alerts[0], sizeof r.alerts[0], "%.*sRoute %.*s%.*s", (int)h, b.s, (int)rl, rs,
+                   (int)(b.n - (size_t)h - 1 - rl), rs + rl);
+        } else {
+          snprintf(r.title, sizeof r.title, "BC Transit");
+          put(r.alerts[0], sizeof r.alerts[0], b);
+        }
+        r.n_alerts = 1;
+        continue;
+      }
     }
 
     // ---- body lines ----
@@ -516,7 +550,9 @@ inline const char* statusWord(const Reply& r) {
     case kPlan: return "TRIP";
     case kSearch: return "STOPS";
     case kAlerts: return "ALERTS";
-    case kAlertPost: return "ALERT";
+    case kAlertPost:   // a cancellation says so (any agency's)
+      return (r.n_alerts && watchfeed::containsNoCase(r.alerts[0], strlen(r.alerts[0]), "cancel"))
+                 ? "CANCELLED" : "ALERT";
     default: break;
   }
   const uint8_t m = r.route_mode ? r.route_mode : (r.n_arr ? r.arr[0].mode : (uint8_t)kNoMode);

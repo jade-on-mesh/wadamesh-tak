@@ -100,6 +100,28 @@ static void alerts() {
   CHECK_STR(r.alerts[0], "Detour on Hwy 99");
   CHECK(!parse("\xE2\x9A\xA0\xEF\xB8\x8F CT 201: Detour on Hwy 99", r, false));
   CHECK(transitChannel("#transit") && !transitChannel("#icewatch"));
+  // BC Transit's posts, relayed by mcIRC: alerts on a transit channel, as the app reads them
+  CHECK(parse("BC Transit: #40 at 4:06PM from Downtown is cancelled", r, true) && r.kind == kAlertPost);
+  CHECK_STR(r.title, "BC Transit 40");
+  CHECK_STR(r.agency, "bct");
+  CHECK_STR(r.alerts[0], "Route 40 at 4:06PM from Downtown is cancelled");
+  CHECK(r.route_mode == kBus && !r.route[0]);
+  CHECK_STR(statusWord(r), "CANCELLED");
+  CHECK(level(r) == watchfeed::kActive);
+  CHECK_STR(agencyName(r.agency), "BC Transit");
+  {
+    char hl[64];
+    headline(r, hl, sizeof hl);
+    CHECK_STR(hl, "BC Transit 40");
+  }
+  CHECK(parse("BC Transit: #8 from VIU at 3:54PM is cancelled", r, true));
+  CHECK_STR(r.alerts[0], "Route 8 from VIU at 3:54PM is cancelled");
+  CHECK(parse("BC Transit: Detours downtown for the parade", r, true) && r.kind == kAlertPost);
+  CHECK_STR(r.title, "BC Transit");
+  CHECK_STR(r.alerts[0], "Detours downtown for the parade");
+  CHECK_STR(statusWord(r), "ALERT");
+  CHECK(!parse("BC Transit: #40 at 4:06PM from Downtown is cancelled", r, false));
+  CHECK(!parse("BC Transit: #40 cancelled\nsecond line", r, true) || r.kind != kAlertPost);
 }
 
 static void soundTransit() {
