@@ -61,9 +61,6 @@ bool rawStart(const char** err);
 bool rawRead(int16_t* mono, size_t max, size_t* got, uint32_t timeout_ms);
 void rawStop();
 bool rawActive();
-// Which input Sound link is taking: 0 left (MIC1), 1 right (MIC2), -1 the board
-// delivers mono, -2 not capturing.
-int rawChannel();
 
 }  // namespace VoxMic
 

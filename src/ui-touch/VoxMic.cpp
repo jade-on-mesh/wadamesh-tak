@@ -546,8 +546,6 @@ bool rawRead(int16_t* mono, size_t max, size_t* got, uint32_t timeout_ms) {
   return true;
 }
 
-int rawChannel() { return s_raw ? (s_raw_mono ? -1 : s_raw_ch) : -2; }
-
 void rawStop() {
   if (!s_raw) return;
   hwStop();
@@ -576,7 +574,6 @@ bool rawStart(const char** err) { *err = "This radio has no microphone"; return 
 bool rawRead(int16_t*, size_t, size_t* got, uint32_t) { *got = 0; return false; }
 void rawStop() {}
 bool rawActive() { return false; }
-int rawChannel() { return -2; }
 }  // namespace VoxMic
 
 #endif
