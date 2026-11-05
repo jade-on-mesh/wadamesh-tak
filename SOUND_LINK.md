@@ -56,6 +56,16 @@ and its XOR fallback (which this radio can read but never sends) is no
 protection at all. It keeps a chat from people who only overhear it. It is
 not the mesh's encryption: never reuse a channel secret or a password here.
 
+## Nothing is heard
+
+While it listens, the Link tab shows what the microphone makes of the tones under the meter:
+
+`Hearing a message... 2 starts, 1 decoded, 1 failed · mic lost 0 ms · slowest step 180 ms`
+
+- **No starts while the other device plays:** the tones aren't getting through. Turn the player's media volume up, hold it a few inches from the mic, and check that it plays an audible speed.
+- **Starts but nothing decoded:** a message is cut or garbled partway. Look at **mic lost**. More than 0 ms means the radio fell behind and dropped audio mid-message. Anything else is noise or echo, so try a quieter spot, closer and a little quieter.
+- **slowest step** is the longest single decode, usually the work at the end of a message.
+
 ## What goes over the air
 
 One ggwave message carries up to 140 bytes:

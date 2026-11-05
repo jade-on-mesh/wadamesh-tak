@@ -224,6 +224,22 @@ static void testGgwave() {
     CHECK(got.size() == 1 && got[0] == "U:Jade|hello from the app");
     printf("protocol %d: ok\n", proto);
   }
+  // A team setup as the app plays it: two parts, the first a full 138 bytes,
+  // 0.7 s apart, at 48 kHz (TeamSetup.soundParts, team_setup_ui.dart).
+  {
+    const std::string a = "MCT:abcd:1/2:meshcore://team/join?n=Ops%20Team&s=0123456789abcdef0123456789abcdef"
+                          "&w=%23icewatch,%23transit,Logistics:fedcba9876543210fe";
+    const std::string b = "MCT:abcd:2/2:dcba9876543210&m=910525,62500,7,5";
+    CHECK(a.size() <= kMaxBytes);
+    for (int proto = GGWAVE_PROTOCOL_AUDIBLE_NORMAL; proto <= GGWAVE_PROTOCOL_AUDIBLE_FASTEST; proto++) {
+      std::vector<int16_t> both = synth(a, proto, 48000, 1024, 48000);
+      both.insert(both.end(), 48000 * 7 / 10, 0);
+      std::vector<int16_t> wb = synth(b, proto, 48000, 1024, 48000);
+      both.insert(both.end(), wb.begin(), wb.end());
+      std::vector<std::string> got = listen(resample(both, 48000, 16000));
+      CHECK(got.size() == 2 && got[0] == a && got[1] == b);
+    }
+  }
   GGWave tx(params(24000, 512, 24000, 24000, GGWAVE_OPERATING_MODE_TX));
   printf("player %d KB\n", tx.heapSize() / 1024);
   CHECK(tx.heapSize() < 2048 * 1024);   // PSRAM, only while playing

@@ -167,6 +167,13 @@ static volatile bool s_job_stop = false;
 static volatile bool s_job_done = true;
 static const char* volatile s_job_err = nullptr;
 static volatile int s_level = 0;          // mic peak, 0..100
+// What listening makes of the tones, shown under the meter: message starts heard
+// (ggwave found a start marker), messages decoded, starts that came to nothing,
+// mic audio lost (fewer samples than the clock says arrived: the reader fell
+// behind and the I2S buffer overflowed), and the slowest decode step.
+static volatile uint16_t s_dx_starts = 0, s_dx_got = 0, s_dx_fail = 0;
+static volatile uint32_t s_dx_lost_ms = 0, s_dx_slow_ms = 0;
+static volatile bool s_dx_receiving = false;
 static char s_err[96] = "";               // why listening or playing failed (shown on the page)
 static uint32_t s_rx_retry_at = 8000;
 static uint32_t s_listen_until = 0;        // a short listen asked for elsewhere (OTP pad check)
@@ -213,9 +220,29 @@ static void rxJob(void*) {
     int16_t mic[256];
     int16_t hi[256 * 3 / 2 + 4];
     int have = 0;
+    s_dx_starts = s_dx_got = s_dx_fail = 0;
+    s_dx_lost_ms = s_dx_slow_ms = 0;
+    s_dx_receiving = false;
+    // Above the loop task and the background jobs: a listener that falls behind
+    // loses audio. (The worker sets its own priority back after each job.)
+    vTaskPrioritySet(nullptr, 6);
+    int64_t t0 = 0;        // first sample after the ADC settled
+    uint64_t samples = 0;  // mic samples since
+    bool took = false;     // this message's data was taken
     while (!s_job_stop) {
       size_t n = 0;
       if (!VoxMic::rawRead(mic, 256, &n, 300)) { s_job_err = "The microphone stopped"; break; }
+      if (n) {
+        const int64_t now = esp_timer_get_time();
+        if (!t0) t0 = now - (int64_t)n * 1000000 / kMicRate;
+        samples += n;
+        const int64_t expect = (now - t0) * kMicRate / 1000000;
+        // More than the DMA can hold behind: those samples were dropped.
+        if (expect > (int64_t)samples + kMicRate / 4) {
+          s_dx_lost_ms = s_dx_lost_ms + (uint32_t)((expect - (int64_t)samples) * 1000 / kMicRate);
+          samples = (uint64_t)expect;
+        }
+      }
       int pk = 0;
       for (size_t i = 0; i < n; i++) pk = max(pk, abs((int)mic[i]));
       const int lv = pk >= 16000 ? 100 : pk * 100 / 16000;
@@ -225,10 +252,23 @@ static void rxJob(void*) {
         frame[have++] = hi[i];
         if (have < kSpf * 2) continue;   // ggwave wants whole frames
         have = 0;
-        if (!g->decode(frame, kSpf * 2 * sizeof(int16_t))) continue;
+        const int64_t d0 = esp_timer_get_time();
+        const bool dec_ok = g->decode(frame, kSpf * 2 * sizeof(int16_t));
+        const uint32_t dms = (uint32_t)((esp_timer_get_time() - d0) / 1000);
+        if (dms > s_dx_slow_ms) s_dx_slow_ms = dms;
+        const bool rcv = g->rxReceiving() || g->rxAnalyzing();
+        if (rcv && !s_dx_receiving) { s_dx_starts = s_dx_starts + 1; took = false; }
+        if (!dec_ok) { s_dx_receiving = rcv; continue; }
         GGWave::TxRxData data;
         const int len = g->rxTakeData(data);
-        if (len <= 0) continue;
+        if (len <= 0) {
+          if (!rcv && s_dx_receiving && !took) s_dx_fail = s_dx_fail + 1;   // a start that came to nothing
+          s_dx_receiving = rcv;
+          continue;
+        }
+        took = true;
+        s_dx_got = s_dx_got + 1;
+        s_dx_receiving = rcv;
         portENTER_CRITICAL(&s_mux);
         if (s_inbox_n < 2) {
           const int k = len < (int)soundlink::kMaxBytes ? len : (int)soundlink::kMaxBytes;
@@ -640,6 +680,17 @@ static void statusLine(char* out, size_t cap) {
   else snprintf(out, cap, "%s", TR("Not listening."));
 }
 
+static lv_obj_t* s_diag = nullptr;
+// "Heard 2 starts, 1 decoded, 1 failed · lost 0 ms · decode 180 ms": for when
+// tones play and nothing arrives (SOUND_LINK.md, "Nothing is heard").
+static void diagText(char* out, size_t cap) {
+  snprintf(out, cap, "%s%u %s, %u %s, %u %s \xC2\xB7 %s %lu ms \xC2\xB7 %s %lu ms",
+           s_dx_receiving ? TR("Hearing a message... ") : "",
+           (unsigned)s_dx_starts, TR("starts"), (unsigned)s_dx_got, TR("decoded"), (unsigned)s_dx_fail,
+           TR("failed"), TR("mic lost"), (unsigned long)s_dx_lost_ms, TR("slowest step"),
+           (unsigned long)s_dx_slow_ms);
+}
+
 static void buildLink(lv_obj_t* b) {
   char line[200];
   statusLine(line, sizeof line);
@@ -648,6 +699,12 @@ static void buildLink(lv_obj_t* b) {
   lv_obj_set_size(s_meter, LV_PCT(100), 6);
   lv_bar_set_range(s_meter, 0, 100);
   if (!listening()) lv_obj_add_flag(s_meter, LV_OBJ_FLAG_HIDDEN);
+  s_diag = nullptr;
+  if (listening()) {
+    char d[160];
+    diagText(d, sizeof d);
+    s_diag = lbl(b, d, &g_font_12, COLOR_SUB);
+  }
   if (s_err[0]) lbl(b, s_err, &g_font_12, 0xF2A33A);
   wideBtn(b, s_cfg.listen ? TR("Stop listening") : TR("Start listening"), [](lv_event_t*) {
     s_cfg.listen = !s_cfg.listen;
@@ -788,6 +845,7 @@ static void pageBuild() {
   if (!s_root) return;
   if (s_body) { lv_obj_add_flag(s_body, LV_OBJ_FLAG_HIDDEN); lv_obj_del_async(s_body); }
   s_meter = nullptr;
+  s_diag = nullptr;
   s_body = lv_obj_create(s_root);
   lv_obj_remove_style_all(s_body);
   lv_obj_set_size(s_body, LV_PCT(100), LV_PCT(100));
@@ -824,6 +882,7 @@ static void pageClose() {
   s_page_open = false;
   s_body = nullptr;
   s_meter = nullptr;
+  s_diag = nullptr;
   if (s_root) { lv_obj_t* r = s_root; s_root = nullptr; appPageDeleteRootAsync(r); }
   appPageEnd(pageBack);
 }
@@ -846,6 +905,11 @@ static void pageOpen() {
       const int v = s_level;
       s_level = v * 3 / 4;
       lv_bar_set_value(s_meter, v, LV_ANIM_OFF);
+    }
+    if (s_diag) {
+      char d[160];
+      diagText(d, sizeof d);
+      if (strcmp(lv_label_get_text(s_diag), d) != 0) lv_label_set_text(s_diag, d);
     }
     if ((s_ver != seen || s_st != st_seen) && s_tab_i == 0) { seen = s_ver; st_seen = s_st; pageBuild(); }
   }, 150, nullptr);

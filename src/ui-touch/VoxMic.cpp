@@ -141,8 +141,12 @@ bool i2sStart() {
   cfg.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
   cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
   cfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
-  cfg.dma_buf_count = 8;
-  cfg.dma_buf_len = 128;
+  // 12 x 256 stereo frames: 192 ms of audio waits for the reader. With 8 x 128
+  // (64 ms), any longer hold-up of the reading task (a flash write stalling the
+  // cores, a busy loop) silently dropped audio: a Sound link message is 5-13 s of
+  // unbroken tones, and a gap anywhere in it loses the whole message.
+  cfg.dma_buf_count = 12;
+  cfg.dma_buf_len = 256;
   cfg.use_apll = false;
   cfg.tx_desc_auto_clear = true;
   cfg.fixed_mclk = 0;
@@ -229,8 +233,8 @@ bool s_codec_on = false;
 // (test/test_codec2_stack.c). It used to be 28 KB, more than one contiguous
 // block a busy T-Deck could spare.
 constexpr uint32_t kTaskStack = 16 * 1024;   // ~10 KB used; the rest is margin (the high-water mark is logged)
-// Plus the I2S driver: 8 DMA buffers of 128 stereo frames (4 KB) and its state.
-constexpr size_t kDriverBytes = 8 * 1024;
+// Plus the I2S driver: 12 DMA buffers of 256 stereo frames (12 KB) and its state.
+constexpr size_t kDriverBytes = 16 * 1024;
 // What has to stay free for everything else while recording (Wi-Fi, BLE, LVGL).
 constexpr size_t kHeadroom = 8 * 1024;
 char s_mem_err[80];
