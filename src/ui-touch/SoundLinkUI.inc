@@ -199,6 +199,37 @@ static GGWave::Parameters params(int mode) {
 
 static bool psramOk() { return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) >= kNeedPsram; }
 
+// The mic is read by a task of its own into a ring of 4 s (PSRAM), and ggwave
+// decodes from the ring. ggwave's work at the end of a message takes ~2 s on a
+// T-Deck, and the listener used to read the mic itself: all that while nothing
+// read the I2S, its buffer overflowed, and the gap after a message and the start
+// of the next (a team setup's second part, 0.7 s later) were lost.
+static constexpr uint32_t kRingSamples = 1u << 16;   // 4.1 s at 16 kHz
+static int16_t* s_ring = nullptr;
+static volatile uint32_t s_ring_w = 0, s_ring_r = 0;
+static volatile bool s_reader_stop = false, s_reader_done = true;
+static const char* volatile s_reader_err = nullptr;
+
+static void micReaderTask(void*) {
+  int16_t mic[256];
+  while (!s_reader_stop) {
+    size_t n = 0;
+    if (!VoxMic::rawRead(mic, 256, &n, 300)) { s_reader_err = "The microphone stopped"; break; }
+    if (!n) continue;
+    int pk = 0;
+    for (size_t i = 0; i < n; i++) pk = max(pk, abs((int)mic[i]));
+    const int lv = pk >= 16000 ? 100 : pk * 100 / 16000;
+    if (lv > s_level) s_level = lv;
+    const uint32_t w = s_ring_w;
+    const uint32_t r = __atomic_load_n(&s_ring_r, __ATOMIC_ACQUIRE);
+    if (w - r + (uint32_t)n > kRingSamples) continue;   // the decoder is 4 s behind: drop
+    for (size_t i = 0; i < n; i++) s_ring[(w + (uint32_t)i) & (kRingSamples - 1)] = mic[i];
+    __atomic_store_n(&s_ring_w, w + (uint32_t)n, __ATOMIC_RELEASE);
+  }
+  s_reader_done = true;
+  vTaskDelete(nullptr);
+}
+
 static void rxJob(void*) {
   GGWave::setLogFile(nullptr);
   GGWave::Protocols::rx().disableAll();   // the audible ones only: GGWAVE_MAX_RECORDED_FRAMES is sized for them
@@ -207,19 +238,27 @@ static void rxJob(void*) {
   GGWave* g = new (std::nothrow) GGWave(params(GGWAVE_OPERATING_MODE_RX));
   soundlink::Resampler* up = new (std::nothrow) soundlink::Resampler();
   int16_t* frame = (int16_t*)heap_caps_malloc(kSpf * 2 * sizeof(int16_t), MALLOC_CAP_8BIT);
-  if (!g || !up || !frame || g->heapSize() == 0 || !up->begin(kMicRate, kOpRate)) {
+  if (!s_ring) s_ring = (int16_t*)heap_caps_malloc(kRingSamples * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  s_ring_w = s_ring_r = 0;
+  s_reader_err = nullptr;
+  s_reader_stop = false;
+  s_reader_done = false;
+  bool reader = s_ring && xTaskCreate(micReaderTask, "snd_mic", 6144, nullptr, 7, nullptr) == pdPASS;
+  if (!reader) s_reader_done = true;
+  if (!g || !up || !frame || !reader || g->heapSize() == 0 || !up->begin(kMicRate, kOpRate)) {
     s_job_err = "Not enough memory to listen";
   } else {
     int16_t mic[256];
     int16_t hi[256 * 3 / 2 + 4];
     int have = 0;
     while (!s_job_stop) {
-      size_t n = 0;
-      if (!VoxMic::rawRead(mic, 256, &n, 300)) { s_job_err = "The microphone stopped"; break; }
-      int pk = 0;
-      for (size_t i = 0; i < n; i++) pk = max(pk, abs((int)mic[i]));
-      const int lv = pk >= 16000 ? 100 : pk * 100 / 16000;
-      if (lv > s_level) s_level = lv;
+      if (s_reader_err) { s_job_err = s_reader_err; break; }
+      const uint32_t r = s_ring_r;
+      const uint32_t avail = __atomic_load_n(&s_ring_w, __ATOMIC_ACQUIRE) - r;
+      if (!avail) { vTaskDelay(pdMS_TO_TICKS(8)); continue; }
+      const size_t n = avail < 256 ? avail : 256;
+      for (size_t i = 0; i < n; i++) mic[i] = s_ring[(r + (uint32_t)i) & (kRingSamples - 1)];
+      __atomic_store_n(&s_ring_r, r + (uint32_t)n, __ATOMIC_RELEASE);
       const size_t m = up->process(mic, n, hi, sizeof hi / sizeof hi[0]);
       for (size_t i = 0; i < m; i++) {
         frame[have++] = hi[i];
@@ -240,6 +279,8 @@ static void rxJob(void*) {
       }
     }
   }
+  s_reader_stop = true;   // before the mic is stopped (the loop task does that after this job)
+  for (int i = 0; i < 200 && !s_reader_done; i++) vTaskDelay(pdMS_TO_TICKS(10));
   free(frame);
   delete up;
   delete g;

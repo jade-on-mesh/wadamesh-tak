@@ -82,6 +82,8 @@ phone's 48 kHz audio, so the radios neither send nor hear it.
   other. The mic (and the P4's speaker) run at 16 kHz.
   `soundlink::Resampler` converts, because ggwave's own resampler costs about
   80 times its decoder, too much for an ESP32-S3 in real time.
+- The mic is read by a small task of its own into a 4-second ring in PSRAM, and ggwave decodes from the ring. ggwave's work at the end of a message takes about 2 seconds on a T-Deck. Before the ring, nothing read the mic during that time, so whatever followed was lost, such as the next part of a team setup.
+- Of the T-Deck's two mic inputs, Sound link takes the louder one (DC removed, switching only at twice the level). Voice messages mix the two. Mixed, two mics a few centimetres apart cancel at some of ggwave's pitches, and an unused input only adds noise. On a T-Deck, messages were heard starting but never decoded.
 - Listening and playing take turns. The loop task stops the mic, plays, waits
   a moment, then listens again. Decoding and playing run on the audio worker
   that voice messages use.

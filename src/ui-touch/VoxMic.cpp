@@ -141,8 +141,12 @@ bool i2sStart() {
   cfg.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
   cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
   cfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
-  cfg.dma_buf_count = 8;
-  cfg.dma_buf_len = 128;
+  // 12 x 256 stereo frames: 192 ms of audio waits for the reader. With 8 x 128
+  // (64 ms), any longer hold-up of the reading task (a flash write stalling the
+  // cores, a busy loop) silently dropped audio: a Sound link message is 5-13 s of
+  // unbroken tones, and a gap anywhere in it loses the whole message.
+  cfg.dma_buf_count = 12;
+  cfg.dma_buf_len = 256;
   cfg.use_apll = false;
   cfg.tx_desc_auto_clear = true;
   cfg.fixed_mclk = 0;
@@ -229,8 +233,8 @@ bool s_codec_on = false;
 // (test/test_codec2_stack.c). It used to be 28 KB, more than one contiguous
 // block a busy T-Deck could spare.
 constexpr uint32_t kTaskStack = 16 * 1024;   // ~10 KB used; the rest is margin (the high-water mark is logged)
-// Plus the I2S driver: 8 DMA buffers of 128 stereo frames (4 KB) and its state.
-constexpr size_t kDriverBytes = 8 * 1024;
+// Plus the I2S driver: 12 DMA buffers of 256 stereo frames (12 KB) and its state.
+constexpr size_t kDriverBytes = 16 * 1024;
 // What has to stay free for everything else while recording (Wi-Fi, BLE, LVGL).
 constexpr size_t kHeadroom = 8 * 1024;
 char s_mem_err[80];
@@ -348,6 +352,14 @@ void reap() {
 volatile bool s_raw = false;     // the mic is Sound link's
 bool s_raw_settling = true;
 bool s_raw_mono = false;
+// Sound link takes ONE of the two inputs, the louder (AC energy, DC removed),
+// rather than their average as voice does. Two mics apart cancel each other at
+// the pitches where their paths differ by half a wave (a few kHz for a few cm,
+// right in ggwave's 1.9-6.4 kHz tones), and an unused input only adds its noise
+// at full PGA gain: on a T-Deck the average heard message starts but decoded
+// none. Switches with 2x hysteresis, so it doesn't flip mid-message.
+float s_raw_e[2] = {0, 0};
+int s_raw_ch = 0;
 size_t s_raw_bytes = 0;
 int64_t s_raw_t0 = 0;
 int s_raw_drain = 0;
@@ -475,6 +487,8 @@ bool rawStart(const char** err) {
   if (!hwStart(err)) return false;
   s_raw_settling = true;
   s_raw_mono = false;
+  s_raw_e[0] = s_raw_e[1] = 0;
+  s_raw_ch = 0;
   s_raw_bytes = 0;
   s_raw_t0 = 0;
   s_raw_drain = 64;
@@ -511,8 +525,23 @@ bool rawRead(int16_t* mono, size_t max, size_t* got, uint32_t timeout_ms) {
     memcpy(mono, rx, n * sizeof(int16_t));
     *got = n;
   } else {
-    for (size_t i = 0; i + 1 < n; i += 2) mono[i / 2] = (int16_t)(((int32_t)rx[i] + rx[i + 1]) / 2);
-    *got = n / 2;
+    const size_t frames = n / 2;
+    if (frames) {
+      int64_t sum[2] = {0, 0};
+      for (size_t i = 0; i + 1 < n; i += 2) { sum[0] += rx[i]; sum[1] += rx[i + 1]; }
+      for (int c = 0; c < 2; c++) {
+        const int32_t mean = (int32_t)(sum[c] / (int64_t)frames);
+        double e = 0;
+        for (size_t i = (size_t)c; i < n; i += 2) {
+          const double d = (double)(rx[i] - mean);
+          e += d * d;
+        }
+        s_raw_e[c] = s_raw_e[c] * 0.97f + (float)(e / (double)frames) * 0.03f;
+      }
+      if (s_raw_e[1 - s_raw_ch] > 2.0f * s_raw_e[s_raw_ch]) s_raw_ch = 1 - s_raw_ch;
+    }
+    for (size_t i = 0; i < frames; i++) mono[i] = rx[2 * i + (size_t)s_raw_ch];
+    *got = frames;
   }
   return true;
 }
