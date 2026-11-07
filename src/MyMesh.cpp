@@ -4581,10 +4581,24 @@ void MyMesh::handleCmdFrame(size_t len) {
     char *text = (char *)&cmd_frame[i];
     int tlen = len - i;
     text[tlen] = 0; // ensure null
+    while (tlen > 0 && (text[tlen - 1] == '\r' || text[tlen - 1] == '\n' || text[tlen - 1] == ' ')) text[--tlen] = 0;
 
-    reply_buf[0] = 0;
-    if (!handleCommand(text, 0, reply_buf)) {
-      strcat(reply_buf, "Unknown command");   // reply_buf may have cmd prefix from 'text'
+    // MediaMesh (radio2, tempradio) and tx.* routing first: handleCommand()
+    // doesn't know them and would answer "Unknown command" (issue #149). An
+    // optional correlation tag ("ab|get radio2") is echoed back either way.
+    const char* cmd = text;
+    while (*cmd == ' ') cmd++;
+    size_t taglen = (strlen(cmd) > 3 && cmd[2] == '|') ? 3 : 0;
+    memcpy(reply_buf, cmd, taglen);
+    reply_buf[taglen] = 0;
+    char* media_reply = reply_buf + taglen;
+    const size_t media_cap = sizeof(reply_buf) - taglen;
+    if (!mediamesh::runCli(cmd + taglen, media_reply, media_cap) &&
+        !handleTxRouteCli(cmd + taglen, media_reply, media_cap)) {
+      reply_buf[0] = 0;
+      if (!handleCommand(text, 0, reply_buf)) {
+        strcat(reply_buf, "Unknown command");   // reply_buf may have cmd prefix from 'text'
+      }
     }
     out_frame[0] = RESP_CODE_CLI_REPLY;
     int rlen = strlen(reply_buf);
@@ -5826,31 +5840,6 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(ERR_CODE_TABLE_FULL);
     }
-  } else if (cmd_frame[0] == CMD_RUN_CLI_COMMAND && len >= 2) {
-    // Local CLI from a directly attached app. Only the MediaMesh settings live
-    // here; other text gets the standard "Unknown command" reply.
-    char text[MAX_FRAME_SIZE];
-    size_t tlen = len - 1;
-    if (tlen >= sizeof(text)) tlen = sizeof(text) - 1;
-    memcpy(text, &cmd_frame[1], tlen);
-    text[tlen] = 0;
-    while (tlen > 0 && (text[tlen - 1] == '\r' || text[tlen - 1] == '\n' || text[tlen - 1] == ' ')) text[--tlen] = 0;
-    // An optional two-character correlation tag ("ab|get radio2") is echoed back.
-    char tag[4] = "";
-    const char* cmd = text;
-    if (tlen > 3 && text[2] == '|') { memcpy(tag, text, 3); tag[3] = 0; cmd = text + 3; }
-    char reply[MAX_FRAME_SIZE];
-    if (!mediamesh::runCli(cmd, reply, sizeof(reply)) && !handleTxRouteCli(cmd, reply, sizeof(reply))) {
-      snprintf(reply, sizeof(reply), "Unknown command");
-    }
-    int j = 0;
-    out_frame[j++] = RESP_CODE_CLI_REPLY;
-    const int taglen = (int)strlen(tag);
-    memcpy(&out_frame[j], tag, taglen); j += taglen;
-    int rlen = (int)strlen(reply);
-    if (j + rlen > MAX_FRAME_SIZE) rlen = MAX_FRAME_SIZE - j;
-    memcpy(&out_frame[j], reply, rlen); j += rlen;
-    _serial->writeFrame(out_frame, j);
   } else {
     writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
     MESH_DEBUG_PRINTLN("ERROR: unknown command: %02X", cmd_frame[0]);
