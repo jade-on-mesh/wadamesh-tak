@@ -195,6 +195,15 @@ public:
     TxChannelSlot(MyMesh& mesh, int slot) : m(mesh), prev(mesh._tx_channel_slot) { mesh._tx_channel_slot = slot; }
     ~TxChannelSlot() { m._tx_channel_slot = prev; }
   };
+  /** The next group send is a photo or voice announcement (VE3/VM1/VI1):
+   *  while photos and voice go out on radio2 it goes on both radios, so a
+   *  node that hears the packets on radio2 hears what they belong to too. */
+  struct TxAnnounce {
+    MyMesh& m;
+    bool prev;
+    TxAnnounce(MyMesh& mesh, const char* text);
+    ~TxAnnounce() { m._tx_announce = prev; }
+  };
   /** The TX choice for a channel slot: radio2 for a `#r2-` name while radio2 is
    *  configured, else its tx.channel setting. */
   uint8_t channelTxPolicy(int slot);
@@ -341,6 +350,7 @@ protected:
   uint8_t rxVia() const;
   uint8_t rxViaFrameTag(uint8_t none) const;
   int _tx_channel_slot = -1;
+  bool _tx_announce = false;
   /** The TX choice of the contact whose shared secret this is (none: kNoContext). */
   uint8_t contactPolicyBySecret(const uint8_t* secret);
   void handleReturnPathRetry(const ContactInfo& contact, const uint8_t* path, uint8_t path_len) override;

@@ -3482,7 +3482,17 @@ void MyMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pk
             memcmp(cd.channel.secret, channel.secret, sizeof(channel.secret)) == 0) slot = i;
       }
     }
-    if (slot >= 0) mediamesh::markPacket(pkt, channelTxPolicy(slot));
+    if (slot >= 0) {
+      uint8_t policy = channelTxPolicy(slot);
+      // A photo or voice announcement also goes where the packets go: on
+      // radio2 when MediaMesh sends photos and voice there. A channel already
+      // on radio2 alone (#r2-, tx.channel radio2) stays as it is.
+      if (_tx_announce && policy != mediamesh::TX_RADIO2 && policy != mediamesh::TX_OFF &&
+          mediamesh::mediaActive()) {
+        policy = mediamesh::TX_BOTH;
+      }
+      mediamesh::markPacket(pkt, policy);
+    }
   }
   // TODO: have per-channel send_scope
   if (send_unscoped) {
@@ -4761,6 +4771,11 @@ void MyMesh::handleCmdFrame(size_t len) {
 #endif
         {
           TxChannelSlot tx_slot(*this, channel_idx);
+          char head[48];   // enough to tell an announcement (TxAnnounce)
+          const int hn = len - i < (int)sizeof(head) - 1 ? len - i : (int)sizeof(head) - 1;
+          memcpy(head, text, hn > 0 ? hn : 0);
+          head[hn > 0 ? hn : 0] = 0;
+          TxAnnounce announce(*this, head);
           success = sendGroupMessage(msg_timestamp, channel.channel, _prefs.node_name, text, len - i);
         }
 #if defined(ESP32) && defined(HAS_TOUCH_UI)
@@ -5913,6 +5928,11 @@ bool MyMesh::channelBoundToRadio2(int slot) {
   ChannelDetails cd;
   if (slot < 0 || !getChannelRaw(slot, cd) || !channelSlotConfigured(cd)) return false;
   return mediamesh::parseAlias(cd.name).kind == mediamesh::ALIAS_R2 && mediamesh::radio2Defined();
+}
+
+MyMesh::TxAnnounce::TxAnnounce(MyMesh& mesh, const char* text) : m(mesh), prev(mesh._tx_announce) {
+  VoxWire::Envelope e;
+  mesh._tx_announce = VoxWire::parseEnvelope(text, &e);
 }
 
 uint8_t MyMesh::channelTxPolicy(int slot) {
