@@ -28536,6 +28536,7 @@ static bool sendGroupMessageScoped(int slot, ChannelDetails& cd, uint32_t ts, co
   bool ok;
   {
     MyMesh::TxChannelSlot tx_slot(the_mesh, slot);   // the slot's radio2 routing
+    MyMesh::TxAnnounce announce(the_mesh, text);      // photos and voice: radio2 too
     ok = the_mesh.sendGroupMessage(ts, cd.channel, sender, (char*)text, (int)strlen(text));
   }
   if (pushed) the_mesh.popChannelScope();
@@ -83074,6 +83075,7 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
     bool grp_sent;
     {
       MyMesh::TxChannelSlot tx_slot(the_mesh, slot);   // the slot's radio2 routing
+      MyMesh::TxAnnounce announce(the_mesh, truncated);  // photos and voice: radio2 too
       grp_sent = the_mesh.sendGroupMessage(ts, cd.channel, sender,
                                            truncated, static_cast<int>(strlen(truncated)));
     }
