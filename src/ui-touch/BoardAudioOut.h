@@ -4,8 +4,7 @@
 // (luaAudioSinkBegin/Write/End). HAS_BOARD_AUDIO_OUT (device_caps.h) says a board
 // has one:
 //   - the CrowPanel Advanced 10.1" P4: an I2S class-D amp (variants/crowpanel_p4_101/CpAudio.cpp);
-//   - the ThinkNode M9 and the Heltec V4 builds: the buzzer, as 1-bit PDM on its pin
-//     (BuzzerVoice.cpp).
+//   - the ThinkNode M9: the buzzer, as 1-bit PDM on its pin (BuzzerVoice.cpp).
 #pragma once
 
 #include <stddef.h>

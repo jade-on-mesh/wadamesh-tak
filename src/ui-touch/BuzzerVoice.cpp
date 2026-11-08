@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Voice through a buzzer (BoardAudioOut.h), for boards whose only sound is a buzzer
-// on a GPIO: the ThinkNode M9 (GPIO9) and the Heltec V4 builds. The ESP32-S3's I2S0
+// on a GPIO: the ThinkNode M9 (GPIO9). (The Heltec V4's would work the same way, but
+// its image has no room for the audio code: device_caps.h.) The ESP32-S3's I2S0
 // sends the audio as 1-bit PDM on the buzzer's pin, a stream of pulses whose
 // density follows the waveform; the buzzer and its driver smooth it into sound.
 // DMA does the work, so playing costs next to no CPU. The pin is the buzzer's only

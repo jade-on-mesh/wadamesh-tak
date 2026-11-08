@@ -674,10 +674,10 @@
 #endif
 
 // A plain audio output behind BoardAudioOut.h (the voice player and Lua audio
-// write PCM to it): the CrowPanel P4's I2S amp, and on the ThinkNode M9 and
-// Heltec V4 the buzzer, driven as 1-bit PDM (BuzzerVoice.cpp).
-#if defined(HAS_CROWPANEL_P4_101) || \
-    (defined(ESP32) && (defined(THINKNODE_M9_BUZZER_PIN) || defined(HELTEC_V4_BUZZER_PIN)))
+// write PCM to it): the CrowPanel P4's I2S amp, and on the ThinkNode M9 the
+// buzzer, driven as 1-bit PDM (BuzzerVoice.cpp). Not the Heltec V4's buzzer: the
+// audio code puts its image ~110-140 KB over its 4.375 MB app slot.
+#if defined(HAS_CROWPANEL_P4_101) || (defined(ESP32) && defined(THINKNODE_M9_BUZZER_PIN))
   #define HAS_BOARD_AUDIO_OUT 1
 #endif
 
