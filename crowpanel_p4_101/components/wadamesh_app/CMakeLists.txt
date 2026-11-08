@@ -9,9 +9,14 @@ list(FILTER APP_SRCS EXCLUDE REGEX "/helpers/input/(HeltecV4CapTouch|TDeckKeyboa
 
 file(GLOB LUA_SRCS "${REPO}/lib/lua/src/*.c")
 
+# Vendored Codec2 (lib/codec2, LGPL-2.1): plays MeshCore Open TAK voice messages through the
+# speaker (CpAudio.cpp). Same flags as its library.json. No ggwave: Sound link needs a mic.
+file(GLOB CODEC2_SRCS "${REPO}/lib/codec2/src/*.c")
+
 idf_component_register(
-  SRCS ${APP_SRCS} ${LUA_SRCS}
+  SRCS ${APP_SRCS} ${LUA_SRCS} ${CODEC2_SRCS}
   INCLUDE_DIRS "${APP}" "${APP}/ui-touch" "${REPO}/include" "${REPO}/variants/crowpanel_p4_101" "${REPO}/lib/lua/src"
+               "${REPO}/lib/codec2/include"
   REQUIRES espressif__arduino-esp32 meshcore lvgl ardlibs RadioLib nvs_flash esp_lcd fatfs
            esp_driver_i2c esp_driver_gpio esp_driver_ledc esp_hosted h2zero__esp-nimble-cpp bt
            soc esp_hw_support app_update driver esp_timer esp_partition spi_flash esp_adc esp_pm espcoredump
@@ -21,3 +26,9 @@ idf_component_register(
 )
 target_compile_options(${COMPONENT_LIB} PRIVATE -w
   -include "${REPO}/variants/tdisplay_p4/tdisplay_p4_compat.h")   # adcAttachPin() shim (arduino 3.x dropped it)
+
+# Codec2's own flags (as its library.json). After idf_component_register: the
+# requirements scan runs this file as a script, where these commands don't exist.
+set_source_files_properties(${CODEC2_SRCS} PROPERTIES
+  COMPILE_DEFINITIONS "__EMBEDDED__;CODEC2_MODE_700C_EN=0"
+  COMPILE_OPTIONS "-Os")

@@ -11,6 +11,9 @@
 #include "../RegionDiscovery.h"
 
 #include "device_caps.h"   // CAP_* capability flags (replaces device-name #ifs)
+#if defined(HAS_BOARD_AUDIO_OUT)
+#include "BoardAudioOut.h"   // the CrowPanel P4 amp, the M9 / Heltec V4 buzzer as audio
+#endif
 
 // Port the browser-facing web UI (VNC mirror / remote / terminal viewer page) listens on.
 // A T-Display P4 on the legacy ESP-AT C6 stack gets ONE listening port, so there the web UI
@@ -78728,6 +78731,16 @@ static bool luaAudioSinkBegin(uint32_t source_rate, LuaAudioSinkSession* sink,
   }
   applyVolume((uint8_t)volume);
   sink->output_rate = 44100;
+#elif defined(HAS_BOARD_AUDIO_OUT)
+#if defined(HELTEC_V4_BUZZER_PIN) || defined(THINKNODE_M9_BUZZER_PIN)
+  if (s_v4_beep_playing) { if (error) *error = "busy"; return false; }   // a chime has the pin
+#endif
+  if (!boardAudioStreamBegin()) {
+    if (error) *error = "audio unavailable";
+    return false;
+  }
+  sink->output_rate = boardAudioStreamRate();
+  sink->gain = (float)volume / 100.0f;
 #endif
 
   sink->open = sink->output_rate != 0;
@@ -78752,6 +78765,8 @@ static bool luaAudioSinkWrite(LuaAudioSinkSession* sink, const int16_t* samples,
   const size_t bytes = frames * 2 * sizeof(int16_t);
   return i2s_channel_write(sink->handle, stereo, bytes, &written, pdMS_TO_TICKS(300)) == ESP_OK &&
          written == bytes;
+#elif defined(HAS_BOARD_AUDIO_OUT)
+  return boardAudioStreamWrite(samples, frames);
 #endif
 }
 
@@ -78777,6 +78792,8 @@ static void luaAudioSinkEnd(LuaAudioSinkSession* sink) {
   if (sink->mutex) xSemaphoreGive(sink->mutex);
   sink->handle = nullptr;
   sink->mutex = nullptr;
+#elif defined(HAS_BOARD_AUDIO_OUT)
+  boardAudioStreamEnd();
 #endif
   sink->open = false;
 }

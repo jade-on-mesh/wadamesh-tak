@@ -155,7 +155,12 @@ These follow MeshCore Open TAK, which defines them (`lib/vox/vox_fec.dart` and
   four modes). Every mode the app can send plays except 700C, compiled out to
   save 82 KB of flash; the app sends 1200 by default.
 - Playback streams frame by frame through the audio sink Lua apps use, so it
-  works on boards with a speaker: the T-Deck and the T-LoRa Pager. It runs on
+  works on boards with a speaker: the T-Deck, the T-LoRa Pager, the T-Display P4
+  and the CrowPanel 10.1" P4. On boards whose only sound is a buzzer (the
+  ThinkNode M9, the Heltec V4 builds), the buzzer plays it: I2S0 sends the
+  audio as 1-bit PDM on the buzzer's pin, shaped for the part's 2.5-4 kHz
+  sweet spot (`BuzzerVoice.cpp`, `BoardAudioOut.h`). That sounds thin and quiet,
+  but words carry. It runs on
   the audio worker, a task with a 16 KB internal-RAM stack made at boot
   (`VoxAudioTask.cpp`; Codec2 decode needs ~9 KB). If the worker is busy, the
   clip gets a task of its own when there's a free 16 KB block. If there isn't

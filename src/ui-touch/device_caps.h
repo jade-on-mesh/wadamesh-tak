@@ -673,10 +673,19 @@
   #define CAP_SOUND_FILES 0
 #endif
 
+// A plain audio output behind BoardAudioOut.h (the voice player and Lua audio
+// write PCM to it): the CrowPanel P4's I2S amp, and on the ThinkNode M9 and
+// Heltec V4 the buzzer, driven as 1-bit PDM (BuzzerVoice.cpp).
+#if defined(HAS_CROWPANEL_P4_101) || \
+    (defined(ESP32) && (defined(THINKNODE_M9_BUZZER_PIN) || defined(HELTEC_V4_BUZZER_PIN)))
+  #define HAS_BOARD_AUDIO_OUT 1
+#endif
+
 // Sustained PCM output for media playback. This is deliberately independent
 // of storage: Lua app files may live on internal flash, SD, or SD_MMC.
 #if defined(HAS_TDECK_GT911) || defined(TLORA_PAGER) || \
-    defined(HAS_TDISPLAY_P4) || defined(HAS_TANMATSU) || defined(HAS_TDECK_MAX)
+    defined(HAS_TDISPLAY_P4) || defined(HAS_TANMATSU) || defined(HAS_TDECK_MAX) || \
+    defined(HAS_BOARD_AUDIO_OUT)
   #define CAP_AUDIO_STREAM 1
 #else
   #define CAP_AUDIO_STREAM 0
