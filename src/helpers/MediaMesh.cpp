@@ -28,6 +28,7 @@ SavedPrimaryFn s_saved_primary = nullptr;
 ContactPolicyResolver s_resolver = nullptr;
 volatile uint8_t s_ctx = kNoContext;
 uint8_t s_rx_origin = kNoMark;   // while a received packet is being processed
+bool s_rx_known = false;         // s_rx_origin came from the radio's record
 // A forward (Client Repeat): the dispatcher queues it after onRecvPacket has
 // returned, outside the receive context, so the profile it arrived on is
 // carried here from noteForward() to queueOutbound().
@@ -346,13 +347,27 @@ uint8_t beginRx(const mesh::Packet* pkt) {
     pkt->calculatePacketHash(hash);
     o = s_origins.take(hash, millis());
   }
-  if (o == kNoMark) o = 0;
-  const uint8_t prev = s_rx_origin;
+  const bool known = o != kNoMark;
+  if (!known) o = 0;
+  // The previous state, for endRx: its origin, with bit 7 set when that
+  // one was a guess (kNoMark, 0xFF, is never a guess: nothing was handled).
+  const uint8_t prev = s_rx_origin == kNoMark ? kNoMark : (uint8_t)(s_rx_origin | (s_rx_known ? 0 : 0x80));
   s_rx_origin = o;
+  s_rx_known = known;
   return prev;
 }
 
-void endRx(uint8_t prev) { s_rx_origin = prev; }
+void endRx(uint8_t prev) {
+  if (prev == kNoMark) {
+    s_rx_origin = kNoMark;
+    s_rx_known = false;
+  } else {
+    s_rx_origin = (uint8_t)(prev & 0x7F);
+    s_rx_known = (prev & 0x80) == 0;
+  }
+}
+
+bool rxOriginKnown() { return s_rx_origin != kNoMark && s_rx_known; }
 
 void noteForward(const mesh::Packet* pkt) {
   s_fwd_pkt = pkt;
