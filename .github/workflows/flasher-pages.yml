@@ -189,16 +189,30 @@ jobs:
                           if f["type"] == kind and f["url"].startswith(prefix) and (kind != "flash" or f["name"].endswith(".zip")):
                               want[f["url"]] = "keymind/" + urllib.parse.unquote(f["url"][len(prefix):])
           # GitHub's own checksums for every asset on the release pages involved.
+          # This listing is also the truth about what exists: Keymind's catalog
+          # sometimes names files its release pages don't have (yet), which 404.
           digests = {}
           for tag in sorted({p.split("/")[1] for p in want.values()}):
-              rid = subprocess.run(["gh", "api", f"repos/{repo}/releases/tags/{tag}", "--jq", ".id"],
-                                   check=True, capture_output=True, text=True).stdout.strip()
+              r = subprocess.run(["gh", "api", f"repos/{repo}/releases/tags/{tag}", "--jq", ".id"],
+                                 capture_output=True, text=True)
+              rid = r.stdout.strip()
+              if r.returncode or not rid:
+                  print(f"::warning::Keymind release {tag} not found; skipping its files")
+                  continue
               pages = subprocess.run(["gh", "api", "--paginate", f"repos/{repo}/releases/{rid}/assets?per_page=100",
                                       "--jq", ".[] | [.name, (.digest // \"\")] | @tsv"],
                                      check=True, capture_output=True, text=True).stdout
               for line in pages.splitlines():
                   name, dg = (line.split("\t") + [""])[:2]
                   digests[f"{tag}/{name}"] = dg
+          missing = sorted(p for p in want.values() if p[len("keymind/"):] not in digests)
+          if missing:
+              print(f"::warning::{len(missing)} file(s) in Keymind's catalog aren't on its release pages; not mirrored")
+              for p in missing:
+                  print(f"  missing upstream: {p}")
+          want = {u: p for u, p in want.items() if p[len("keymind/"):] in digests}
+          if not want:
+              raise SystemExit("None of the Keymind catalog's files exist on its release pages")
           def fetch(item):
               url, path = item
               dst = "site/" + path
