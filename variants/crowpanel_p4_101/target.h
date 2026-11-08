@@ -42,6 +42,7 @@ extern "C" void set_boot_phase(int phase);
 #include <helpers/sensors/EnvironmentSensorManager.h>
 #include "EK79007Display.h"
 #include <esp_system.h>
+#include "../../src/helpers/MediaMeshRadio.h"   // RADIO_DRIVER_CLASS (MediaMesh radio2 scan)
 
 // Power the board's on-chip LDO rails (LDO3 = DSI PHY, LDO4 = the 3.3 V pad domain that carries the
 // touch I2C, LCD reset and microSD lines) and park the backlight dark. Call first in app_main, before
@@ -72,7 +73,7 @@ public:
 };
 
 extern CrowPanelP4Board board;
-extern WRAPPER_CLASS    radio_driver;
+extern RADIO_DRIVER_CLASS radio_driver;   // MediaMesh-capable wrapper, as on the T-Display P4
 extern RADIO_CLASS      radio;   // raw SX1262 (also driven directly by the Spectrum sweep)
 extern ClockFloorRTC    rtc_clock;
 extern EnvironmentSensorManager sensors;
