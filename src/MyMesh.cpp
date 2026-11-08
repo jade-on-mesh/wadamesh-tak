@@ -5950,9 +5950,11 @@ uint8_t MyMesh::contactPolicyBySecret(const uint8_t* secret) {
 
 // The profile the packet being handled arrived on, while radio2 is configured:
 // 0 main mesh, 1 radio2; 0xFF when radio2 is off (everything is the main mesh,
-// so nothing worth showing).
+// so nothing worth showing) or the radio has no record of it (rxOrigin() then
+// guesses the main mesh, which a "Received via" label must not repeat).
 uint8_t MyMesh::rxVia() const {
-  return mediamesh::radio2Defined() ? (_rx_origin ? 1 : 0) : 0xFF;
+  if (!mediamesh::radio2Defined() || !mediamesh::rxOriginKnown()) return 0xFF;
+  return _rx_origin ? 1 : 0;
 }
 
 // rxVia() for the app, in a frame's reserved byte: 0xA0 main mesh, 0xA1 radio2,

@@ -110,6 +110,10 @@ uint8_t beginRx(const mesh::Packet* pkt);
 void endRx(uint8_t prev);
 /** The profile the packet being processed arrived on (0 outside one). */
 uint8_t rxOrigin();
+/** Whether rxOrigin() was found for the packet being processed. When the
+ *  radio's record of it is missing, rxOrigin() says 0 (the main mesh) for
+ *  routing, but that is a guess, not something to show. */
+bool rxOriginKnown();
 
 /** onRecvPacket is forwarding `pkt` (Client Repeat): the dispatcher queues
  *  it after the receive context has ended, so this carries the profile it
