@@ -18,7 +18,7 @@ CrowPanelP4Board board;
 // V1.0/V1.1, GPIO27/28 on V1.2. All are direct P4 GPIOs, so RadioLib takes a real DIO1 interrupt.
 static SPIClass spi(FSPI);
 RADIO_CLASS   radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
-WRAPPER_CLASS radio_driver(radio, board);
+RADIO_DRIVER_CLASS radio_driver(radio, board);   // MediaMesh (radio2) on the same SX1262
 
 DISPLAY_CLASS display;
 

@@ -35,5 +35,14 @@ WADA_CP_REV="$REV" WADA_FW_TAG="$TAG" ./build.sh build
 APP="build/crowpanel_p4_101_v${REV/./}/application.bin"
 [ -f "$APP" ] || { echo "::error::no $APP"; exit 1; }
 mkdir -p "$ROOT/$OUT"
-cp "$APP" "$ROOT/$OUT/wadamesh-crowpanel-p4-101-v${REV/./}.bin"
+NAME="wadamesh-crowpanel-p4-101-v${REV/./}"
+B="build/crowpanel_p4_101_v${REV/./}"
+cp "$APP" "$ROOT/$OUT/$NAME.bin"
+# The USB image: bootloader, partition table, OTA data and the app (as p4-release.sh).
+python3 -m esptool --chip esp32p4 merge_bin --flash_mode dio --flash_size 16MB --flash_freq 80m \
+  -o "$ROOT/$OUT/$NAME-merged.bin" \
+  0x2000 "$B/bootloader/bootloader.bin" \
+  0x8000 "$B/partition_table/partition-table.bin" \
+  0xf000 "$B/ota_data_initial.bin" \
+  0x20000 "$APP"
 echo "built $(stat -c %s "$APP") bytes (5.5 MB slot)"

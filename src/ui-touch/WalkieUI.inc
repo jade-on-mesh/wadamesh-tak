@@ -799,7 +799,9 @@ static lv_obj_t* rowButton(lv_obj_t* parent, lv_event_cb_t cb, lv_obj_t** label)
   lv_obj_set_style_text_font(*label, &g_font_14, LV_PART_MAIN);
   lv_obj_set_width(*label, lv_pct(100));
   lv_label_set_long_mode(*label, LV_LABEL_LONG_WRAP);
+#if CAP_KEYPAD_NAV
   if (s_nav_group) lv_group_add_obj(s_nav_group, b);
+#endif
   return b;
 }
 
@@ -894,10 +896,12 @@ static void cardBuild(const char* name) {
   lv_obj_set_style_text_align(s_talk_lbl, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
   lv_label_set_long_mode(s_talk_lbl, LV_LABEL_LONG_WRAP);
   lv_obj_center(s_talk_lbl);
+#if CAP_KEYPAD_NAV   // keys and trackball: the talk button has focus
   if (s_nav_group) {
     lv_group_add_obj(s_nav_group, s_talk_btn);
     lv_group_focus_obj(s_talk_btn);
   }
+#endif
 #if !WALKIE_CAN_TALK
   lv_obj_add_state(s_talk_btn, LV_STATE_DISABLED);   // listen only: no microphone
 #endif
