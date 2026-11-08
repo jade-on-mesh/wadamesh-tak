@@ -448,12 +448,10 @@ jobs:
           [ -f build-lcd.log ] || exit 0
           { grep -E "error:|undefined reference|FAILED|Error" build-lcd.log || true; } | head -30 | while IFS= read -r l; do echo "::error::lcd: ${l}"; done
       # The CrowPanel Advanced 10.1" P4: its own IDF project, released by hand
-      # (p4-release.sh), so built here to show breakage on the pull request.
-      # Not blocking yet: it doesn't build now (its target.h predates MediaMesh's
-      # radio wrapper, which src/helpers/MediaMesh.cpp expects).
+      # (p4-release.sh), so built here to catch breakage on the pull request.
+      # (It went unbuilt for weeks and stopped compiling without anyone seeing.)
       - name: Build the CrowPanel P4 10.1 (V1.2)
         id: crowpanel
-        continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
@@ -461,17 +459,19 @@ jobs:
             bash scripts/build/ci-crowpanel-p4.sh dev-check dist 1.2 2>&1 | tee build-crowpanel.log
           sudo chown -R "$(id -u)" dist crowpanel_p4_101 || true
       - name: CrowPanel errors as annotations
-        if: steps.crowpanel.outcome == 'failure'
+        if: failure() && steps.crowpanel.outcome == 'failure'
         shell: bash
         run: |
           [ -f build-crowpanel.log ] || exit 0
-          { grep -E " error:|undefined reference|CMake Error" build-crowpanel.log || true; } | head -20 | while IFS= read -r l; do echo "::warning::crowpanel: ${l}"; done
+          { grep -E " error:|undefined reference|CMake Error" build-crowpanel.log || true; } | head -20 | while IFS= read -r l; do echo "::error::crowpanel: ${l}"; done
       - name: CrowPanel image
         if: steps.crowpanel.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: wadamesh-crowpanel-p4-101-v12
-          path: dist/wadamesh-crowpanel-p4-101-v12.bin
+          path: |
+            dist/wadamesh-crowpanel-p4-101-v12.bin
+            dist/wadamesh-crowpanel-p4-101-v12-merged.bin
       # Flash, internal RAM and PSRAM by section, symbol, library and object
       # (scripts/build/mem-report.py), on a branch: annotations are too small.
       - name: Memory report
