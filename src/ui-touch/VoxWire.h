@@ -148,6 +148,42 @@ inline int toBase36(uint32_t v, char* out) {
   return n;
 }
 
+// ---- Codec2 copies of Mimi clips (lib/vox/voice_wire.dart) ----------------------
+// A standalone can't play Mimi, so it asks the sender for a Codec2 copy by
+// fetching a session id made from the Mimi clip's:
+//     copy sid = mimi sid XOR (0xC2C20000 | seconds)
+// The copy is always Codec2 1200, exactly the Mimi envelope's seconds long, so
+// its packet count follows from that and no second envelope is needed. The
+// sender's app makes it when first asked; one that doesn't know copies has no
+// such session and sends nothing.
+constexpr uint32_t kCodec2CopyTag = 0xC2C20000u;
+constexpr int      kCodec2CopyMode = 1;           // 1200
+constexpr int      kCodec2CopyBytesPerSecond = 150;   // 6 bytes per 40 ms frame
+constexpr int      kCodec2CopyMaxSeconds = kMaxPackets * 156 / kCodec2CopyBytesPerSecond;
+
+// Packets in a copy `seconds` long (at least 1 s).
+inline int codec2CopyPackets(int seconds) {
+  if (seconds < 1) seconds = 1;
+  const int per = 156;   // packetBytes(kCodec2CopyMode)
+  return (seconds * kCodec2CopyBytesPerSecond + per - 1) / per;
+}
+
+// The Codec2 copy's envelope for a Mimi clip's. False for anything else, or a
+// clip too long for a copy.
+inline bool codec2Copy(const Envelope& mimi, Envelope* copy) {
+  if (mimi.kind != kMimi || !copy) return false;
+  const int seconds = mimi.aspect < 1 ? 1 : mimi.aspect;
+  if (seconds > kCodec2CopyMaxSeconds) return false;
+  Envelope c;
+  c.sid = mimi.sid ^ kCodec2CopyTag ^ (uint32_t)seconds;
+  c.total = (uint8_t)codec2CopyPackets(seconds);
+  c.aspect = (uint16_t)seconds;
+  c.mode = kCodec2CopyMode;
+  c.kind = kCodec2;
+  *copy = c;
+  return true;
+}
+
 // Parses a VE3 / VM1 / VI1 envelope (surrounding whitespace allowed). Text
 // after it, past whitespace, is a caption sent with the photo or clip
 // ("VI1:79e6a5:14:10:46 Look at this"); envelopeCaption() finds it.

@@ -249,5 +249,26 @@ int main() {
     assert(w.begin(9, 4, vstore, sizeof vstore, kPb));
     assert(parsePacket(wrong, sizeof wrong, &p) && !w.add(p));   // a 156-byte packet doesn't fit 154
   }
+  // --- Codec2 copies of Mimi clips (as voice_wire.dart's voxCodec2CopySid)
+  {
+    Envelope m;
+    assert(parseEnvelope("VM1:t0p5bx:w:2:7 VOICE", &m) && m.kind == kMimi && m.aspect == 7);
+    Envelope c;
+    assert(codec2Copy(m, &c));
+    assert(c.kind == kCodec2 && c.mode == kCodec2CopyMode && c.aspect == 7);
+    assert(c.sid == (m.sid ^ 0xC2C20000u ^ 7u));
+    assert(c.total == 7);   // 7 s x 150 B = 1050 B: 6 packets of 156 and one of 114
+    assert(packetBytes(kCodec2CopyMode) == 156);
+    assert(codec2CopyPackets(1) == 1 && codec2CopyPackets(26) == 25 && codec2CopyPackets(27) == 26);
+    assert(codec2CopyPackets(kCodec2CopyMaxSeconds) <= kMaxPackets);
+    Envelope zero = m;
+    zero.aspect = 0;   // under a second: a 1 s copy
+    assert(codec2Copy(zero, &c) && c.aspect == 1 && c.total == 1 && c.sid == (m.sid ^ 0xC2C20000u ^ 1u));
+    Envelope too_long = m;
+    too_long.aspect = (uint16_t)(kCodec2CopyMaxSeconds + 1);
+    assert(!codec2Copy(too_long, &c));
+    Envelope v;
+    assert(parseEnvelope("VE3:t0p5bx:1:2:7", &v) && !codec2Copy(v, &c));   // only Mimi has copies
+  }
   return 0;
 }

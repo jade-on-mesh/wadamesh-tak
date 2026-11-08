@@ -49490,6 +49490,40 @@ static void voxBubbleText(const VoxWire::Envelope& env, bool outgoing, char* out
   }
 }
 
+// A Mimi voice message: this radio can't play Mimi, so it plays a Codec2 copy
+// the sender's app makes on request (VoxWire::codec2Copy). In a DM it is asked
+// for as the message arrives; on a channel, on a tap.
+static void voxMimiCopyText(const VoxWire::Envelope& env, char* out, size_t cap) {
+  VoxWire::Envelope copy;
+  if (!VoxWire::codec2Copy(env, &copy) || !VoxPhotos::canPlay(copy)) {
+    snprintf(out, cap, "%s", TR("Voice (Mimi) - can't play on a standalone"));
+    return;
+  }
+  if (s_vox_voice_sid == copy.sid) { snprintf(out, cap, "%s", TR("Playing - tap to stop")); return; }
+  int got = 0;
+  switch (VoxPhotos::status(copy.sid, &got)) {
+    case VoxFetch::kComplete:
+      snprintf(out, cap, TR("Voice %us (Codec2 copy) - tap to play"), (unsigned)copy.seconds());
+      return;
+    case VoxFetch::kRequesting:
+      if (got == 0 && VoxPhotos::mimiBusy(env.sid)) {
+        snprintf(out, cap, "%s", TR("Codec2 waiting for Mimi transfer to finish"));
+        return;
+      }
+      VoxPhotos::statusText(copy.sid, out, cap);
+      return;
+    case VoxFetch::kReceiving:
+      VoxPhotos::statusText(copy.sid, out, cap);
+      return;
+    case VoxFetch::kUnavailable:
+      snprintf(out, cap, "%s", TR("Codec2 copy not available - tap to ask again"));
+      return;
+    default:
+      snprintf(out, cap, TR("Voice (Mimi) %us - tap to get as Codec2"), (unsigned)env.seconds());
+      return;
+  }
+}
+
 static void voxBubbleTextState(const VoxWire::Envelope& env, bool outgoing, char* out, size_t cap) {
   const bool voice = env.kind != VoxWire::kImage;
   if (outgoing) {
@@ -49503,7 +49537,7 @@ static void voxBubbleTextState(const VoxWire::Envelope& env, bool outgoing, char
     return;
   }
   if (!voice) { VoxPhotos::statusText(env.sid, out, cap); return; }
-  if (env.kind == VoxWire::kMimi) { snprintf(out, cap, "%s", TR("Voice (Mimi) - can't play on a standalone")); return; }
+  if (env.kind == VoxWire::kMimi) { voxMimiCopyText(env, out, cap); return; }
   if (!VoxPhotos::canPlay(env)) {
     snprintf(out, cap, "%s", TR(VOX_CODEC2_AVAILABLE && CAP_LUA_AUDIO ? "Voice (Codec2 700C) - not supported here"
                                                                       : "Voice message - no speaker on this radio"));
@@ -50803,6 +50837,9 @@ static void bubblePhotoOpen(int idx) {
     g_lv.dirty_timeline = true;
     return;
   }
+  // A Mimi voice message plays (and downloads) as its Codec2 copy.
+  VoxWire::Envelope copy;
+  if (env.kind == VoxWire::kMimi && VoxWire::codec2Copy(env, &copy) && VoxPhotos::canPlay(copy)) env = copy;
   const bool voice = env.kind != VoxWire::kImage;
   if (voice && !VoxPhotos::canPlay(env)) {
     char why[72];
