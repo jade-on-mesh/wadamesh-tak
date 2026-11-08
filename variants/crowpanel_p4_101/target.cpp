@@ -59,7 +59,7 @@ void crowpanelP4PowerOn() {
   gpio_set_direction(GPIO_NUM_31, GPIO_MODE_OUTPUT);
   gpio_set_level(GPIO_NUM_31, 0);
   // GPIO30 = AUDIO_OUT_SD, the speaker amplifier's shutdown (active low in Elecrow's code: LOW = on).
-  // No audio support yet, so keep the amplifier OFF to avoid hiss and pops.
+  // Off until something plays (CpAudio.cpp turns it on for the playback), so no idle hiss or pops.
   gpio_reset_pin(GPIO_NUM_30);
   gpio_set_direction(GPIO_NUM_30, GPIO_MODE_OUTPUT);
   gpio_set_level(GPIO_NUM_30, 1);

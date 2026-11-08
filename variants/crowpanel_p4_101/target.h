@@ -25,7 +25,7 @@ extern "C" void set_boot_phase(int phase);
 //             (V1.2 net names call GPIO10 "W_BUSY"; the lesson code uses 9 = BUSY, 10 = NSS)
 //   microSD   SDMMC slot 0, 1-bit: CLK43 CMD44 D0 39                                  [S][E]
 //   BOOT key  GPIO35 (SPI_BOOT, K3), not used yet                                    [S]
-//   Audio     I2S LRCK21 BCLK22 DOUT23, amp shutdown GPIO30 (held off), not used yet  [S][E]
+//   Audio     I2S LRCK21 BCLK22 DOUT23, amp shutdown GPIO30 (LOW = on): CpAudio.cpp [S][E]
 //   Battery   TP4059 charger + VBAT ADC on the STC8 helper MCU, no P4 link            [S]
 //
 // Unlike the T-Display P4 there is no I/O expander: every control line is a plain P4 GPIO. The
