@@ -738,10 +738,49 @@ bool latest(bool voice, Latest* out) {
   return true;
 }
 
+// Mimi clips this radio has seen announced, and when a packet of each was last
+// heard: a Codec2 copy's sender waits for its Mimi transfer to finish first,
+// and the bubble says so (mimiBusy).
+struct MimiHeard { uint32_t sid; uint32_t at; };
+static MimiHeard g_mimi[8];
+static int g_mimi_next = 0;
+static void noteMimi(uint32_t sid) {
+  for (auto& m : g_mimi) if (m.sid == sid) return;
+  g_mimi[g_mimi_next] = MimiHeard{sid, 0};
+  g_mimi_next = (g_mimi_next + 1) % (int)(sizeof g_mimi / sizeof g_mimi[0]);
+}
+static void heardMimiPacket(const uint8_t* data, size_t len) {
+  VoxWire::Packet p;
+  if (!data || len == 0 || VoxWire::isFetchRequest(data, len) || !VoxWire::parsePacket(data, len, &p)) return;
+  for (auto& m : g_mimi) if (m.sid && m.sid == p.sid) { m.at = millis() | 1; return; }
+}
+
+bool mimiBusy(uint32_t mimi_sid) {
+  for (auto& m : g_mimi)
+    if (m.sid == mimi_sid && m.at) return millis() - m.at < kMimiQuietMs;
+  return false;
+}
+
+// A Mimi envelope: what this radio does with it is fetch its Codec2 copy
+// (VoxWire::codec2Copy). False when it can't play that either.
+static bool mimiCopy(const VoxWire::Envelope& env, VoxWire::Envelope* copy) {
+  return env.kind == VoxWire::kMimi && VoxWire::codec2Copy(env, copy) && canPlay(*copy);
+}
+
 bool onDirectText(const char* text, const uint8_t sender_pub[32]) {
   if (g_serve.onDirectText(text)) return true;   // VR3: someone wants a clip of ours
   VoxWire::Envelope env;
-  if (!VoxWire::parseEnvelope(text, &env) || !canFetch(env)) return false;
+  if (!VoxWire::parseEnvelope(text, &env)) return false;
+  VoxWire::Envelope copy;
+  if (mimiCopy(env, &copy)) {
+    // A Mimi voice message to us: its Codec2 copy is asked for at once, from
+    // the sender alone. The bubble stays the Mimi message's.
+    noteMimi(env.sid);
+    remember(copy);
+    g_fetch.onEnvelope(copy, sender_pub, nullptr, -1, true);
+    return false;
+  }
+  if (!canFetch(env)) return false;
   remember(env);
   noteLatest(text, env, sender_pub, nullptr, -1);
   // A photo or voice message sent to us is fetched as it arrives, as the app
@@ -757,7 +796,19 @@ bool onDirectText(const char* text, const uint8_t sender_pub[32]) {
 void onChannelText(const char* text, int channel_idx) {
   char name[ChannelSenderSplit::kMaxWireName + 1];
   VoxWire::Envelope env;
-  if (!parseChannelPost(text, name, sizeof name, &env) || !canFetch(env)) return;
+  if (!parseChannelPost(text, name, sizeof name, &env)) return;
+  VoxWire::Envelope copy;
+  if (mimiCopy(env, &copy)) {
+    // On a channel the copy is fetched on a tap (Get as Codec2): every
+    // standalone asking for every clip would double the channel's airtime.
+    // Known meanwhile, so a copy someone else asked for, answered on the
+    // channel, is kept as it goes by.
+    noteMimi(env.sid);
+    remember(copy);
+    g_fetch.onEnvelope(copy, nullptr, name, channel_idx, false);
+    return;
+  }
+  if (!canFetch(env)) return;
   remember(env);
   const char* body = strstr(text, ": ");
   noteLatest(body ? body + 2 : text, env, nullptr, name, channel_idx);
@@ -772,6 +823,7 @@ void onPayload(const uint8_t* data, size_t len, int channel_idx, uint8_t via, in
                uint8_t last_hop_len) {
   g_fetch.onPayload(data, len, channel_idx, via, hops, last_hop, last_hop_len);
   g_serve.onPayload(data, len, channel_idx, hops);
+  heardMimiPacket(data, len);
 }
 
 void tick() {

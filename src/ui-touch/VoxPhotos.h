@@ -58,6 +58,10 @@ bool viaRepeater(uint32_t sid, char* hex, size_t cap);
 // speaker and the mode is built in) and whether it can play it.
 bool canFetch(const VoxWire::Envelope& env);
 bool canPlay(const VoxWire::Envelope& env);
+// A packet of the Mimi clip `mimi_sid` was heard in the last kMimiQuietMs: a
+// transfer of it is going on, and its Codec2 copy waits for that to finish.
+constexpr uint32_t kMimiQuietMs = 5000;
+bool mimiBusy(uint32_t mimi_sid);
 // A finished photo's payload ([0x01][OBUs]); free with free().
 bool load(uint32_t sid, uint8_t** data, size_t* len);
 // A finished voice clip: its VE3 wire mode and codec frames; free with free().

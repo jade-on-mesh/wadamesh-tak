@@ -192,8 +192,20 @@ These follow MeshCore Open TAK, which defines them (`lib/vox/vox_fec.dart` and
   - **Off:** clips play at 8 kHz as before.
 - Clips are stored as `/vox_<sid>.ve3`: one byte of wire mode, then the frames.
 - **Mimi** (`VM1:`), the app's default once its model is downloaded, needs a
-  223 MB neural model and can never play on a radio; those bubbles say so. To
-  reach radios, the sender has to use Codec2.
+  223 MB neural model, so a standalone plays a **Codec2 copy** instead:
+  - **Asking.** In a DM the copy is asked for as the message arrives. On a
+    channel it's asked for on a tap ("tap to get as Codec2"), so standalones
+    don't double every clip's airtime. A copy someone else asked for on the
+    channel is kept as it goes by.
+  - **Making it.** The sender's app decodes its Mimi clip and re-encodes it as
+    Codec2 1200, exactly the envelope's seconds long. It goes out under the
+    session id `mimi sid XOR (0xC2C20000 | seconds)`, so the packet count is
+    known without another envelope (`VoxWire::codec2Copy`).
+  - **Waiting.** While packets of the Mimi clip are still being heard, the
+    bubble says "Codec2 waiting for Mimi transfer to finish". The sender
+    waits for that transfer before making the copy.
+  - **Older apps** don't answer, and the bubble ends at "Codec2 copy not
+    available".
 
 ## The decoder on the device
 
