@@ -227,15 +227,19 @@ struct Get {
 
 static bool isRedirect(int code) { return code == 301 || code == 302 || code == 303 || code == 307 || code == 308; }
 
-// open() with two retries of a connection that failed outright: on the P4 the
-// first TLS connection after Wi-Fi comes up often doesn't make it.
+// open() with two retries of a connection that failed outright (on the P4 the
+// first TLS connection after Wi-Fi comes up often doesn't make it) or that
+// got a 5xx: github.com's release pages take ~10 s and sometimes answer 504.
 static int openRetrying(Get& g, const char* url, char* note, size_t note_cap) {
   if (note_cap) note[0] = 0;
   for (int attempt = 0; attempt < 3; attempt++) {
-    if (g.open(url) > 0) return g.code;
-    char host[64];
-    hostOf(url, host, sizeof host);
-    g.note(host, note, note_cap);
+    const int code = g.open(url);
+    if (code > 0 && (code < 500 || attempt == 2)) return g.code;
+    if (code <= 0) {
+      char host[64];
+      hostOf(url, host, sizeof host);
+      g.note(host, note, note_cap);
+    }
     g.close();
     vTaskDelay(pdMS_TO_TICKS(1500 * (attempt + 1)));
   }
