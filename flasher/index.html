@@ -157,6 +157,9 @@ pre.log .e{color:#FF9C90} pre.log .w{color:#F0C96A} pre.log .o{color:#A6CC8A} pr
 .paths b{font:700 .78rem/1.2 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
 .paths .linkbtn{font-size:.92rem;font-weight:600}
 .guides{display:flex;flex-wrap:wrap;gap:10px}
+/* get the app */
+.getapp li .btn{align-self:flex-start;margin-top:4px}
+.getapp li .alt{font-size:.85rem;color:var(--mut)}
 /* video */
 .video{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .video summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:12px 16px;font-weight:600}
@@ -200,13 +203,23 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:6px 18px}
     <p>MediaMesh gives photos and voice their own lane. Text, adverts and acknowledgements stay on the main mesh, while the photos and voice clips that MeshCore Open TAK and Wadamesh TAK send go out on a second, faster LoRa profile (radio2). A device with MediaMesh on still hears the main mesh, so it keeps working with every repeater around it.</p>
     <ul class="paths">
       <li><b>Standalone radio</b><span>Flash Wadamesh TAK, then turn MediaMesh on under Settings › Radio › MediaMesh Settings.</span><button class="linkbtn" type="button" data-goto="wadamesh">Wadamesh TAK tab</button></li>
-      <li><b>With a phone</b><span>Flash a Keymind Cascade companion and pair it with the <a href="https://github.com/jade-on-mesh/meshcore-open-tak/releases" target="_blank" rel="noopener">MeshCore Open TAK app</a>.</span><button class="linkbtn" type="button" data-goto="cascade" data-role="companion">Keymind Cascade companions</button></li>
+      <li><b>With a phone</b><span>Flash a Keymind Cascade companion and pair it with the <a href="#getapp">MeshCore Open TAK app</a>.</span><button class="linkbtn" type="button" data-goto="cascade" data-role="companion">Keymind Cascade companions</button></li>
       <li><b>Repeater</b><span>Flash Keymind Cascade and set up radio2. Every MediaMesh repeater carries photos and voice farther.</span><button class="linkbtn" type="button" data-goto="cascade" data-role="repeater">Keymind Cascade repeaters</button></li>
     </ul>
     <div class="guides">
       <a class="btn" href="https://cascadiamesh.org/wadamesh-tak-user-guide/" target="_blank" rel="noopener">Wadamesh-TAK user guide ↗</a>
       <a class="btn" href="https://cascadiamesh.org/meshcore-open-tak-user-guide/" target="_blank" rel="noopener">MeshCore Open TAK user guide ↗</a>
     </div>
+  </section>
+
+  <section class="about" id="getapp" aria-labelledby="getappH">
+    <h2 id="getappH">Get the MeshCore Open TAK app</h2>
+    <p>The phone and desktop app for photos, voice, push-to-talk and Team over a Keymind Cascade companion.</p>
+    <ul class="paths getapp">
+      <li><b>iPhone and iPad</b><span>Install from TestFlight. Updates arrive through TestFlight, with no re-signing every 7 days.</span><a class="btn primary" href="https://testflight.apple.com/join/TB4jspvT" target="_blank" rel="noopener">Join on TestFlight ↗</a></li>
+      <li><b>Android</b><span>Add it to <a href="https://obtainium.imranr.dev/" target="_blank" rel="noopener">Obtainium</a> to get every new build as an update.</span><a class="btn primary" href="https://apps.obtainium.imranr.dev/redirect.html?r=obtainium://app/%7B%22id%22%3A%22com.jadeonmesh.meshcore_open_vox%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fjade-on-mesh%2Fmeshcore-open-tak%22%2C%22author%22%3A%22jade-on-mesh%22%2C%22name%22%3A%22MeshCore%20Open%20TAK%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22fallbackToOlderReleases%5C%22%3Atrue%2C%5C%22verifyLatestTag%5C%22%3Atrue%2C%5C%22useLatestAssetDateAsReleaseDate%5C%22%3Atrue%2C%5C%22releaseDateAsVersion%5C%22%3Atrue%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5Emeshcore-open-tak%5C%5C%5C%5C.apk%24%5C%22%7D%22%7D" target="_blank" rel="noopener">Add to Obtainium ↗</a><a class="alt" href="https://github.com/jade-on-mesh/meshcore-open-tak/releases/download/latest-build/meshcore-open-tak.apk">Or download the APK</a></li>
+      <li><b>Windows, Mac, Linux</b><span>Installers for every platform, plus the iPhone .ipa for AltStore or SideStore.</span><a class="btn" href="https://github.com/jade-on-mesh/meshcore-open-tak/releases/latest" target="_blank" rel="noopener">All downloads ↗</a></li>
+    </ul>
   </section>
 
   <p id="serialBanner" class="banner warn" hidden><span><b>This browser can't talk to USB devices.</b> Open this page in Chrome, Edge or an up-to-date Firefox on a Windows, Mac, Linux or ChromeOS computer. Phones and Safari can't flash.</span></p>
