@@ -17608,8 +17608,10 @@ static const char* mmConflictingMesh(const mediamesh::Params& p) {
 }
 
 static int mmPresetIndex(const mediamesh::Config& c) {
-  if (c.p.sf != 7 || c.p.cr != 5) return -1;
-  if (mediamesh::is24GHz(c.p.freq)) return std::fabs(c.p.bw - mediamesh::k24Bw) < 0.01f ? 2 : -1;
+  if (c.p.cr != 5) return -1;
+  if (mediamesh::is24GHz(c.p.freq))
+    return std::fabs(c.p.bw - mediamesh::k24Bw) < 0.01f && c.p.sf == mediamesh::k24Sf ? 2 : -1;
+  if (c.p.sf != 7) return -1;
   if (std::fabs(c.p.bw - mediamesh::kDefaultBw) < 0.01f) return 0;
   if (std::fabs(c.p.bw - mediamesh::kRangeBw) < 0.01f) return 1;
   return -1;
@@ -17706,15 +17708,16 @@ static void mmPresetCb(lv_event_t* e) {
   mediamesh::Config c = mediamesh::config();
   mediamesh::Params p = c.p;
   if (i == 2 && mediamesh::has24GHz()) {
-    // 2.4 GHz: its own frequency and width (the sub-GHz ones don't apply there).
+    // 2.4 GHz, balanced for speed and distance: its own frequency, width and SF.
     p.freq = mediamesh::k24Freq;
     p.bw = mediamesh::k24Bw;
+    p.sf = mediamesh::k24Sf;
   } else {
     // Back from 2.4 GHz: the sub-GHz default frequency; else the frequency stays.
     if (mediamesh::is24GHz(p.freq)) p.freq = mediamesh::kDefaultFreq;
     p.bw = i == 1 ? mediamesh::kRangeBw : mediamesh::kDefaultBw;
+    p.sf = 7;
   }
-  p.sf = 7;
   p.cr = 5;
   if (const char* mesh = mmConflictingMesh(p)) {
     char msg[96];
@@ -17731,7 +17734,10 @@ static void mmPresetCb(lv_event_t* e) {
     lv_textarea_set_text(s_mm_freq_ta, buf);
   }
   if (s_mm_bw_ta && lv_obj_is_valid(s_mm_bw_ta)) { snprintf(buf, sizeof buf, "%g", p.bw); lv_textarea_set_text(s_mm_bw_ta, buf); }
-  if (s_mm_sf_ta && lv_obj_is_valid(s_mm_sf_ta)) lv_textarea_set_text(s_mm_sf_ta, "7");
+  if (s_mm_sf_ta && lv_obj_is_valid(s_mm_sf_ta)) {
+    snprintf(buf, sizeof buf, "%u", (unsigned)p.sf);
+    lv_textarea_set_text(s_mm_sf_ta, buf);
+  }
   if (s_mm_cr_ta && lv_obj_is_valid(s_mm_cr_ta)) lv_textarea_set_text(s_mm_cr_ta, "5");
   setChoicePick(s_mm_preset_row, mmPresetIndex(c));
   mediaMeshInfoRefresh();
@@ -18179,9 +18185,9 @@ static void buildMediaMeshRadioCards() {
     const char* opts[3] = { TR("250 kHz fast"), TR("125 kHz range"), TR("2.4 GHz") };
     s_mm_preset_row = setChoiceRow(c, "Preset",
                                    "250 kHz sends photos and voice about twice as fast; 125 kHz reaches about 40% "
-                                   "farther. 2.4 GHz moves radio2 off the 900 MHz band (812.5 kHz, faster again, "
-                                   "shorter range); only LR1121 and LR2021 radios can join it. All SF7, CR 4/5. "
-                                   "Everyone on radio2 must use the same.",
+                                   "farther (both SF7). 2.4 GHz moves radio2 off the 900 MHz band at about the "
+                                   "250 kHz preset's speed (406 kHz SF8), with less range; only LR1121 and "
+                                   "LR2021 radios can join it. CR 4/5. Everyone on radio2 must use the same.",
                                    opts, 3, mmPresetIndex(cfg), mmPresetCb);
   } else {
     const char* opts[2] = { TR("250 kHz fast"), TR("125 kHz range") };

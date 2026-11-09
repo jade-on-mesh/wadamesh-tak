@@ -31,7 +31,7 @@ static Env E() {
 
 static void testValidity() {
   assert(has24GHz());
-  assert(validParams(P(k24Freq, k24Bw, 7, 5)));
+  assert(validParams(P(k24Freq, k24Bw, k24Sf, 5)));
   assert(validParams(P(2440.0f, 406.25f, 8, 5)));
   assert(validParams(P(2410.0f, 203.125f, 9, 6)));
   // Sub-GHz widths don't apply at 2.4 GHz, nor 2.4 GHz widths below 1 GHz.
@@ -43,6 +43,10 @@ static void testValidity() {
   // The main radio stays sub-GHz.
   assert(!validSubGhz(P(k24Freq, k24Bw, 7, 5)));
   assert(validSubGhz(P(911.15f, 250.0f, 7, 5)));
+  // The preset is about as fast as the 900 MHz 250 kHz preset (within 10%).
+  const double r24 = k24Sf * (k24Bw * 1000.0) / (1 << k24Sf) * 0.8;
+  const double r900 = 7 * 250000.0 / (1 << 7) * 0.8;
+  assert(r24 > r900 * 0.9 && r24 < r900 * 1.1);
   // The preset sits between Wi-Fi channels 1 (to 2423) and 6 (from 2426).
   assert(k24Freq - k24Bw / 2000.0f > 2423.0f && k24Freq + k24Bw / 2000.0f < 2426.0f);
 }
@@ -54,10 +58,12 @@ static void testCli24() {
   char out[200];
   CliResult res = handleCli("set radio2 2424.5,812.5,7,5,rxtx", r, e, out, sizeof out);
   assert(res.handled && res.save && !strncmp(out, "OK - radio2 rxtx", 16));
-  assert(is24GHz(r.saved.p.freq) && r.saved.p.bw == k24Bw);
-  // A 2.4 GHz radio2 still gets a valid scan timing next to the main mesh.
+  assert(is24GHz(r.saved.p.freq) && r.saved.p.bw == 812.5f);
+  // A 2.4 GHz radio2 still gets a valid scan timing next to the main mesh,
+  // the preset included.
   const Timing t = previewTiming(e, r.saved.p);
   assert(t.valid);
+  assert(previewTiming(e, P(k24Freq, k24Bw, k24Sf, 5)).valid);
   res = handleCli("set radio2 2424.5,250,7,5,rxtx", r, e, out, sizeof out);
   assert(res.handled && !res.save && strstr(out, "rror"));
   // tempradio (the main radio) refuses 2.4 GHz.

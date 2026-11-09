@@ -512,10 +512,10 @@ with an error. `tempradio` works on every board.
 
 The LR1121 (T-LoRa Pager LR1121) and the LR2021 (T-Display P4 LR2021 build) also
 do LoRa at 2.4 GHz, so their radio2 can leave the 900 MHz band altogether.
-Settings → MediaMesh → **Preset** has a third choice there, **2.4 GHz**:
-2424.5 MHz (between Wi-Fi channels 1 and 6), 812.5 kHz, SF7, CR 4/5. Or type
-any 2400-2500 MHz frequency with a 203.125, 406.25 or 812.5 kHz width
-(`set radio2 2424.5,812.5,7,5,rxtx`). Picking 250 or 125 kHz again puts radio2
+Settings → MediaMesh → **Preset** has a third choice there, **2.4 GHz**,
+balanced for speed and distance: 2424.5 MHz (between Wi-Fi channels 1 and 6),
+406.25 kHz, SF8, CR 4/5. Or type any 2400-2500 MHz frequency with a 203.125,
+406.25 or 812.5 kHz width (`set radio2 2424.5,406.25,8,5,rxtx`). Picking 250 or 125 kHz again puts radio2
 back on 911.150 MHz. The main radio stays sub-GHz (`tempradio` refuses 2.4 GHz).
 
 - Only LR1121 and LR2021 radios can join a 2.4 GHz radio2. The SX1262 boards,
@@ -526,8 +526,14 @@ back on 911.150 MHz. The main radio stays sub-GHz (`tempradio` refuses 2.4 GHz).
 - Each band has its own power amplifier. The TX power goes back on at each band
   change, clamped to what the 2.4 GHz amplifier can do (+13 dBm on the LR1121,
   +12 on the LR2021).
-- 812.5 kHz is about three times the 250 kHz preset's speed, but 2.4 GHz
-  reaches less far, and the board needs an antenna for 2.4 GHz on the radio's
+- Why 406 kHz SF8: it moves about 10 kb/s, the same as the 900 MHz 250 kHz
+  preset, and hears about 5.5 dB deeper than the fastest 2.4 GHz setting
+  (812.5 kHz SF7), nearly twice the distance in the open. Over the same
+  distance 2.4 GHz loses about 8.5 dB more than 915 MHz, and its amplifier
+  gives about 9 dB less than the sub-GHz one at +22 dBm, so it still reaches
+  less far than the 900 MHz presets. Other trades, typed in: 812.5 kHz SF7
+  (about 1.8x faster, shorter) or 203.125 kHz SF9 (about 3.5x slower, about
+  1.6x farther again). The board needs an antenna for 2.4 GHz on the radio's
   2.4 GHz port. Check `radio2.status` after turning it on: rx/tx counts on both
   profiles.
 

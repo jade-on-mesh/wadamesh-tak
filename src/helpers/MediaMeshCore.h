@@ -116,11 +116,17 @@ static constexpr float kDefaultFreq = 911.150f;
 static constexpr float kDefaultBw = 250.0f;
 static constexpr float kRangeBw = 125.0f;
 
-// The 2.4 GHz preset (LR1121, LR2021): 2424.5 MHz sits in the gap between
-// Wi-Fi channels 1 and 6, at 812.5 kHz SF7 (the widest 2.4 GHz LoRa width,
-// about 3x the 250 kHz preset's speed, for less range).
+// The 2.4 GHz preset (LR1121, LR2021), balanced for speed and distance:
+// 2424.5 MHz sits in the gap between Wi-Fi channels 1 and 6; 406.25 kHz SF8
+// moves about 10 kb/s, the same as the 900 MHz 250 kHz preset, and hears
+// about 5.5 dB deeper than the fastest 2.4 GHz setting (812.5 kHz SF7: 3 dB
+// from the width, 2.5 from the SF), nearly twice the distance in the open.
+// At 2.4 GHz the same distance loses about 8.5 dB more than at 915 MHz, and
+// the 2.4 GHz PA gives about 9 dB less than the sub-GHz one at +22 dBm, so
+// it still reaches less far than the 900 MHz presets.
 static constexpr float k24Freq = 2424.5f;
-static constexpr float k24Bw = 812.5f;
+static constexpr float k24Bw = 406.25f;
+static constexpr uint8_t k24Sf = 8;
 inline bool is24GHz(float freq) { return freq >= 2400.0f && freq <= 2500.0f; }
 inline bool has24GHz() {
 #ifdef MEDIAMESH_HAS_24GHZ
