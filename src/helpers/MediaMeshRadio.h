@@ -663,6 +663,24 @@ class MediaMeshRadio : public Base {
   uint16_t mainPreambleSymbols() const { return mainPreamble(); }
   bool mainTemporary() const { return _main_temp; }
 
+  // Whether the chip does 2.4 GHz LoRa, asked from the chip itself: an LR11x0
+  // reports which part it is (only the LR1120 and LR1121 have the 2.4 GHz
+  // radio; the LR1110 doesn't), the LR2021 always does, an SX126x never.
+  bool chipDoes24GHz() {
+#if defined(MEDIAMESH_CHIP_SX126X)
+    return false;
+#elif defined(MEDIAMESH_CHIP_LR2021)
+    return true;
+#else
+    LR11x0VersionInfo_t info = {};
+    this->radioAcquire();
+    const int16_t rc = chip()->getVersionInfo(&info);
+    this->radioRelease();
+    return rc == RADIOLIB_ERR_NONE
+        && (info.device == RADIOLIB_LR11X0_DEVICE_LR1120 || info.device == RADIOLIB_LR11X0_DEVICE_LR1121);
+#endif
+  }
+
 #if !defined(MEDIAMESH_CHIP_SX126X)
   // The asked-for TX power, clamped to the PA of the band the chip is on now
   // (2.4 GHz: at most +13 dBm on the LR1121, +12 on the LR2021).

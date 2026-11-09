@@ -128,9 +128,19 @@ static constexpr float k24Freq = 2424.5f;
 static constexpr float k24Bw = 406.25f;
 static constexpr uint8_t k24Sf = 8;
 inline bool is24GHz(float freq) { return freq >= 2400.0f && freq <= 2500.0f; }
+// Whether this radio does 2.4 GHz LoRa: built for one that can
+// (MEDIAMESH_HAS_24GHZ) and, on the device, the chip itself said so at start-
+// up (MediaMesh.cpp begin() asks it: an LR1121, LR1120 or LR2021, not an
+// LR1110 fitted where an LR1121 was expected). Until it has been asked, the
+// build decides.
+inline bool& has24GHzChip() {
+  static bool v = true;
+  return v;
+}
+inline void setHas24GHz(bool chip_can) { has24GHzChip() = chip_can; }
 inline bool has24GHz() {
 #ifdef MEDIAMESH_HAS_24GHZ
-  return true;
+  return has24GHzChip();
 #else
   return false;
 #endif

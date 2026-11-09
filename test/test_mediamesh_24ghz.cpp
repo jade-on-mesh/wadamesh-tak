@@ -130,7 +130,18 @@ static void testClientRepeat() {
   assert(!holdForClientRepeat(r, false));  // nothing held
 }
 
+// The build allows 2.4 GHz, but the chip says it can't (an LR1110 where an
+// LR1121 was expected): radio2 stays sub-GHz.
+static void testChipSaysNo() {
+  setHas24GHz(false);
+  assert(!has24GHz() && !validParams(P(k24Freq, k24Bw, k24Sf, 5)));
+  assert(validParams(P(911.15f, 250.0f, 7, 5)));
+  setHas24GHz(true);
+  assert(has24GHz() && validParams(P(k24Freq, k24Bw, k24Sf, 5)));
+}
+
 int main() {
+  testChipSaysNo();
   testClientRepeat();
   testValidity();
   testCli24();
