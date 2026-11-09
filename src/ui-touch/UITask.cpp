@@ -18175,9 +18175,12 @@ static void buildMediaMeshRadioCards() {
       setNote(c, "Client repeat is on and radio2 is on 2.4 GHz, so radio2 stays on: this radio repeats the "
                  "main mesh at 900 MHz and MediaMesh at 2.4 GHz.");
     } else if (np && np->client_repeat) {
-      setNote(c, "Client repeat is on, so radio2 is Off: everything, photos and voice too, goes out on the "
-                 "main radio. radio2 goes back to how it was when Client repeat is turned off. On 2.4 GHz "
-                 "(LR1121, LR2021) radio2 stays on and is repeated too.");
+      setNote(c, mediamesh::has24GHz()
+                     ? "Client repeat is on, so radio2 is Off: everything, photos and voice too, goes out on the "
+                       "main radio. radio2 goes back to how it was when Client repeat is turned off. On the "
+                       "2.4 GHz preset radio2 stays on and is repeated too."
+                     : "Client repeat is on, so radio2 is Off: everything, photos and voice too, goes out on the "
+                       "main radio. radio2 goes back to how it was when Client repeat is turned off.");
     }
   }
   if (mediamesh::has24GHz()) {
@@ -18197,8 +18200,12 @@ static void buildMediaMeshRadioCards() {
                                    opts, 2, mmPresetIndex(cfg), mmPresetCb);
   }
   setSwitchRow(c, "Repeat MediaMesh",
-               "Relay what this radio hears on radio2, on radio2, like a MediaMesh repeater. Main-mesh traffic "
-               "isn't relayed (that's Client repeat, which also repeats a 2.4 GHz radio2). Needs radio2 On.",
+               mediamesh::has24GHz()
+                   ? "Relay what this radio hears on radio2, on radio2, like a MediaMesh repeater. Main-mesh "
+                     "traffic isn't relayed (that's Client repeat, which also repeats a 2.4 GHz radio2). Needs "
+                     "radio2 On."
+                   : "Relay what this radio hears on radio2, on radio2, like a MediaMesh repeater. Main-mesh "
+                     "traffic isn't relayed (that's Client repeat). Needs radio2 On.",
                cfg.relay != 0, mmRelayToggleCb);
   s_mm_find_btn = setButton(c, LV_SYMBOL_GPS, "Find MediaMesh", mmFindCb);
   if (s_mm_find_timer) lv_obj_add_state(s_mm_find_btn, LV_STATE_DISABLED);
