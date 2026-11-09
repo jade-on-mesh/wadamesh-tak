@@ -127,6 +127,10 @@ void noteForward(const mesh::Packet* pkt);
  *  drop it as seen; it still needs forwarding on this one. */
 bool forwardedOnOtherRadioOnly(const mesh::Packet* pkt);
 
+/** radio2.repeat: the packet being processed arrived on radio2 and this
+ *  node relays radio2 traffic (it goes back out on radio2, by noteForward). */
+bool relayingRadio2Packet();
+
 /** Whether a second profile is configured now (rx or rxtx): `#r2-` channels
  *  are bound to it. */
 bool radio2Defined();

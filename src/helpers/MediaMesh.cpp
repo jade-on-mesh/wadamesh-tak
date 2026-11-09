@@ -385,6 +385,13 @@ bool forwardedOnOtherRadioOnly(const mesh::Packet* pkt) {
 
 uint8_t rxOrigin() { return s_rx_origin == kNoMark ? 0 : s_rx_origin; }
 
+bool relayingRadio2Packet() {
+  ensureLoaded();
+  // Only a packet the radio says came in on radio2: a guess would relay
+  // main-mesh traffic onto radio2.
+  return rxOriginKnown() && s_rx_origin == 1 && relaysRadio2(s_rt);
+}
+
 // A packet's profiles, decided as it is queued (mikecarper/MeshCore fixes them
 // when the packet is created):
 //   1. a choice marked on it before (photo/voice, channel, #r2-);
