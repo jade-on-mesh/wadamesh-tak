@@ -163,6 +163,13 @@ class MediaMeshRadio : public Base {
   mediamesh::ScanChip* chip() { return static_cast<mediamesh::ScanChip*>(this->_radio); }
 #if !defined(MEDIAMESH_CHIP_SX126X)
   bool _warm = false;               // standby on the crystal while scanning
+  // 2.4 GHz radio2 (LR1121, LR2021): the band the chip is on, the frequency
+  // each band was last calibrated at (NAN: not yet), and the TX power asked
+  // for, which each band's PA gets clamped to its own range.
+  bool _tuned_hf = false;
+  float _cal_mhz[2] = {NAN, NAN};
+  int8_t _tx_dbm = 0;
+  bool _tx_dbm_known = false;
 #endif
 
   uint16_t stockPreamble(uint8_t sf) const { return RadioLibWrapper::preambleLengthForSF(sf); }
@@ -251,16 +258,39 @@ class MediaMeshRadio : public Base {
   // many MHz, not between two channels of one band), then SF/BW/CR through
   // RadioLib's setters when they differ. The preamble goes out with the
   // packet parameters the receive/transmit start writes.
+  //
+  // A radio2 on 2.4 GHz (MediaMeshCore.h has24GHz) puts the scan across two
+  // bands. Each band is calibrated once near its frequency, not on every hop
+  // (RadioLib would recalibrate on every jump of more than a few MHz, which
+  // here is every hop); the LR1121 takes the 2.4 GHz widths only with its
+  // `high` flag; and each band has its own PA, so the TX power goes back on
+  // when the band changes, clamped to what that PA can do.
   bool tune(const Params& p, uint16_t preamble) {
     mediamesh::ScanChip* r = chip();
-    int16_t rc = r->setFrequency(p.freq);
+    const bool hf = p.freq > 1000.0f;
+    const int band = hf ? 1 : 0;
+    const bool cal_ok = !isnan(_cal_mhz[band]) && fabsf(p.freq - _cal_mhz[band]) < 15.0f;
+#if defined(MEDIAMESH_CHIP_LR2021)
+    int16_t rc = r->setFrequency(p.freq, cal_ok);
+#else
+    // The LR11x0's image calibration is for the sub-GHz path: none at 2.4 GHz.
+    int16_t rc = r->setFrequency(p.freq, cal_ok || hf, 4);
+#endif
+    if (rc == RADIOLIB_ERR_NONE && !cal_ok) _cal_mhz[band] = p.freq;
+    const bool band_changed = hf != _tuned_hf;
     if (rc == RADIOLIB_ERR_NONE
-        && (mediamesh::LrFields::sf(r) != p.sf || fabsf(mediamesh::LrFields::bwKhz(r) - p.bw) > 0.01f
+        && (band_changed || mediamesh::LrFields::sf(r) != p.sf || fabsf(mediamesh::LrFields::bwKhz(r) - p.bw) > 0.01f
             || mediamesh::LrFields::cr(r) != (uint8_t)(p.cr - 4))) {
+#if defined(MEDIAMESH_CHIP_LR2021)
       rc = r->setBandwidth(p.bw);
+#else
+      rc = r->setBandwidth(p.bw, hf);
+#endif
       if (rc == RADIOLIB_ERR_NONE) rc = r->setSpreadingFactor(p.sf);
       if (rc == RADIOLIB_ERR_NONE) rc = r->setCodingRate(p.cr);
     }
+    if (rc == RADIOLIB_ERR_NONE && band_changed && _tx_dbm_known) rc = applyTxPower();
+    if (rc == RADIOLIB_ERR_NONE) _tuned_hf = hf;
     mediamesh::LrFields::preamble(r) = preamble;
     PacketMillis pm = this->calcMaxPacketMillis(p.sf, p.bw, p.cr, preamble > 255 ? 255 : (uint8_t)preamble);
     r->setPreambleMillis(pm.preambleMillis);
@@ -633,7 +663,50 @@ class MediaMeshRadio : public Base {
   uint16_t mainPreambleSymbols() const { return mainPreamble(); }
   bool mainTemporary() const { return _main_temp; }
 
+  // Whether the chip does 2.4 GHz LoRa, asked from the chip itself: an LR11x0
+  // reports which part it is (only the LR1120 and LR1121 have the 2.4 GHz
+  // radio; the LR1110 doesn't), the LR2021 always does, an SX126x never.
+  bool chipDoes24GHz() {
+#if defined(MEDIAMESH_CHIP_SX126X)
+    return false;
+#elif defined(MEDIAMESH_CHIP_LR2021)
+    return true;
+#else
+    LR11x0VersionInfo_t info = {};
+    this->radioAcquire();
+    const int16_t rc = chip()->getVersionInfo(&info);
+    this->radioRelease();
+    return rc == RADIOLIB_ERR_NONE
+        && (info.device == RADIOLIB_LR11X0_DEVICE_LR1120 || info.device == RADIOLIB_LR11X0_DEVICE_LR1121);
+#endif
+  }
+
+#if !defined(MEDIAMESH_CHIP_SX126X)
+  // The asked-for TX power, clamped to the PA of the band the chip is on now
+  // (2.4 GHz: at most +13 dBm on the LR1121, +12 on the LR2021).
+  int16_t applyTxPower() {
+    int8_t dbm = _tx_dbm;
+    chip()->checkOutputPower(_tx_dbm, &dbm);
+    return chip()->setOutputPower(dbm);
+  }
+#endif
+
   // ---- wrapper overrides --------------------------------------------------
+
+#if !defined(MEDIAMESH_CHIP_SX126X)
+  // Hides RadioLibWrapper::setTxPower (not virtual; callers use this class):
+  // remembers the power so a band change can put it back on the other PA.
+  void setTxPower(int8_t dbm) {
+    this->radioAcquire();
+    _tx_dbm = dbm;
+    _tx_dbm_known = true;
+#if defined(USE_LR2021)
+    this->idle();   // as RadioLibWrapper::setTxPower does on the LR2021
+#endif
+    applyTxPower();
+    this->radioRelease();
+  }
+#endif
 
   void setParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
     this->radioAcquire();

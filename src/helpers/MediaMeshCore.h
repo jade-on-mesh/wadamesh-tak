@@ -11,6 +11,7 @@
 //   radio2.cross                                    copying traffic between them
 //   tx.media / tx.user / tx.channel                 per-traffic TX choices
 //   mediamesh.share                                 also serve main-mesh nodes
+//   radio2.repeat                                   relay radio2 traffic on radio2
 //   radio2.status / radio2.scan / radio2.timing     diagnostics
 //   #r2- channel names                              channels bound to radio2
 //
@@ -37,6 +38,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// 2.4 GHz LoRa for radio2: the LR1121 and LR2021 also tune 2400-2500 MHz
+// (the LR1110 and the SX126x don't). A host test can define it to cover both.
+#if defined(USE_LR1121) || defined(USE_LR2021)
+#ifndef MEDIAMESH_HAS_24GHZ
+#define MEDIAMESH_HAS_24GHZ 1
+#endif
+#endif
 
 namespace mediamesh {
 
@@ -73,6 +82,10 @@ struct Config {
   // also serves nodes only on the main mesh: requests go out on both radios,
   // and a transfer asked for only on the main radio is answered there.
   uint8_t share = 0;
+  // radio2.repeat ("Repeat MediaMesh"): relay what is heard on radio2, on
+  // radio2, like Client Repeat does for the main mesh but leaving the main
+  // mesh alone. A standalone becomes a MediaMesh repeater (on 2.4 GHz too).
+  uint8_t relay = 0;
   // Client Repeat switched radio2 off: the mode it had (off, rx or rxtx), put
   // back when Client Repeat is turned off. kNotHeld when Client Repeat is off.
   uint8_t held = 0xFF;
@@ -102,6 +115,36 @@ static constexpr uint8_t kNotHeld = 0xFF;
 static constexpr float kDefaultFreq = 911.150f;
 static constexpr float kDefaultBw = 250.0f;
 static constexpr float kRangeBw = 125.0f;
+
+// The 2.4 GHz preset (LR1121, LR2021), balanced for speed and distance:
+// 2424.5 MHz sits in the gap between Wi-Fi channels 1 and 6; 406.25 kHz SF8
+// moves about 10 kb/s, the same as the 900 MHz 250 kHz preset, and hears
+// about 5.5 dB deeper than the fastest 2.4 GHz setting (812.5 kHz SF7: 3 dB
+// from the width, 2.5 from the SF), nearly twice the distance in the open.
+// At 2.4 GHz the same distance loses about 8.5 dB more than at 915 MHz, and
+// the 2.4 GHz PA gives about 9 dB less than the sub-GHz one at +22 dBm, so
+// it still reaches less far than the 900 MHz presets.
+static constexpr float k24Freq = 2424.5f;
+static constexpr float k24Bw = 406.25f;
+static constexpr uint8_t k24Sf = 8;
+inline bool is24GHz(float freq) { return freq >= 2400.0f && freq <= 2500.0f; }
+// Whether this radio does 2.4 GHz LoRa: built for one that can
+// (MEDIAMESH_HAS_24GHZ) and, on the device, the chip itself said so at start-
+// up (MediaMesh.cpp begin() asks it: an LR1121, LR1120 or LR2021, not an
+// LR1110 fitted where an LR1121 was expected). Until it has been asked, the
+// build decides.
+inline bool& has24GHzChip() {
+  static bool v = true;
+  return v;
+}
+inline void setHas24GHz(bool chip_can) { has24GHzChip() = chip_can; }
+inline bool has24GHz() {
+#ifdef MEDIAMESH_HAS_24GHZ
+  return has24GHzChip();
+#else
+  return false;
+#endif
+}
 
 // ---- Find MediaMesh -------------------------------------------------------------
 // Which preset a MediaMesh nearby uses. radio2 listens (rx, tempradio2) on each
@@ -244,6 +287,7 @@ inline void defaults(Config& c) {
   c.media = TX_AUTO;
   c.cross = CROSS_AUTO;
   c.share = 0;
+  c.relay = 0;
   c.held = kNotHeld;
   c.p.freq = kDefaultFreq;
   c.p.bw = kDefaultBw;
@@ -274,10 +318,27 @@ inline bool validBw(float bw) {
   return false;
 }
 
-inline bool validParams(const Params& p) {
-  return isfinite(p.freq) && p.freq >= 150.0f && p.freq <= 960.0f && validBw(p.bw)
-      && p.sf >= 5 && p.sf <= 12 && p.cr >= 5 && p.cr <= 8
+// LoRa widths at 2.4 GHz (SX128x-compatible; the LR1121's only ones there).
+inline bool validBw24(float bw) {
+  static const float bws[] = {203.125f, 406.25f, 812.5f};
+  for (float b : bws) if (fabsf(bw - b) < 0.01f) return true;
+  return false;
+}
+
+inline bool validShape(const Params& p) {
+  return p.sf >= 5 && p.sf <= 12 && p.cr >= 5 && p.cr <= 8
       && (p.preamble == 0 || (p.preamble >= 8 && p.preamble <= kMaxPreamble));
+}
+
+// A sub-GHz profile: what the main radio (and tempradio) can use.
+inline bool validSubGhz(const Params& p) {
+  return isfinite(p.freq) && p.freq >= 150.0f && p.freq <= 960.0f && validBw(p.bw) && validShape(p);
+}
+
+// A radio2 profile: sub-GHz, or 2.4 GHz on a radio that has it.
+inline bool validParams(const Params& p) {
+  if (validSubGhz(p)) return true;
+  return has24GHz() && isfinite(p.freq) && is24GHz(p.freq) && validBw24(p.bw) && validShape(p);
 }
 
 inline bool sameParams(const Params& a, const Params& b) {
@@ -334,10 +395,12 @@ inline const char* maskName(uint8_t mask) {
 // nothing ever crossed. v2: byte 4 is a Policy and byte 7 the cross mode. A v1
 // blob keeps its behaviour: media where it was, crossing off. v3 adds byte 18,
 // mediamesh.share; older blobs read as share off. v4 adds byte 19, the radio2
-// mode Client Repeat is holding (0xFF none).
+// mode Client Repeat is holding (0xFF none). v5 adds byte 20, the developer
+// switch (mediamesh.main). v6 adds byte 21, radio2.repeat.
 
-static constexpr uint8_t kBlobVersion = 5;
-static constexpr size_t kBlobSize = 21;
+static constexpr uint8_t kBlobVersion = 6;
+static constexpr size_t kBlobSize = 22;
+static constexpr size_t kBlobSizeV5 = 21;
 static constexpr size_t kBlobSizeV4 = 20;
 static constexpr size_t kBlobSizeV2 = 18;
 static constexpr size_t kBlobSizeV3 = 19;
@@ -352,12 +415,14 @@ inline size_t encode(const Config& c, uint8_t out[kBlobSize]) {
   out[18] = c.share ? 1 : 0;
   out[19] = c.held;
   out[20] = c.main_ok ? 1 : 0;
+  out[21] = c.relay ? 1 : 0;
   return kBlobSize;
 }
 
 inline bool decode(const uint8_t* in, size_t len, Config& c) {
-  if (!in || len < kBlobSizeV2 || in[0] != 'M' || in[1] != 'M' || in[2] < 1 || in[2] > 5) return false;
-  if ((in[2] == 3 && len < kBlobSizeV3) || (in[2] == 4 && len < kBlobSizeV4) || (in[2] == 5 && len < kBlobSize))
+  if (!in || len < kBlobSizeV2 || in[0] != 'M' || in[1] != 'M' || in[2] < 1 || in[2] > 6) return false;
+  if ((in[2] == 3 && len < kBlobSizeV3) || (in[2] == 4 && len < kBlobSizeV4) || (in[2] == 5 && len < kBlobSizeV5)
+      || (in[2] == 6 && len < kBlobSize))
     return false;
   Config d;
   d.mode = in[3] <= MODE_RXTX ? in[3] : (uint8_t)MODE_OFF;
@@ -375,6 +440,7 @@ inline bool decode(const uint8_t* in, size_t len, Config& c) {
   d.share = in[2] >= 3 && in[18] == 1 ? 1 : 0;
   d.held = in[2] >= 4 && in[19] <= MODE_RXTX ? in[19] : kNotHeld;
   d.main_ok = in[2] >= 5 && in[20] == 1 ? 1 : 0;
+  d.relay = in[2] >= 6 && in[21] == 1 ? 1 : 0;
   if (!validParams(d.p)) return false;
   c = d;
   return true;
@@ -523,6 +589,9 @@ inline uint32_t msLeft(uint32_t now_ms, uint32_t deadline_ms) {
 inline bool canTransmit(const Runtime& r, uint8_t profile) {
   return profile == 0 || (profile == 1 && r.enabled() && r.active2().mode == MODE_RXTX);
 }
+
+/** radio2.repeat: whether a packet heard on radio2 is relayed (on radio2). */
+inline bool relaysRadio2(const Runtime& r) { return r.saved.relay && canTransmit(r, 1); }
 
 // radio2.cross: `auto` crosses between two permanent or two temporary profiles
 // and isolates a permanent one from a temporary one.
@@ -1143,7 +1212,18 @@ inline void endTemp2(Runtime& r) {
  *  current setting every loop: radio2 turned on meanwhile (from the app, the
  *  Terminal or a schedule) goes off again, and that newer choice is the one
  *  restored. True when the saved settings changed (save and apply them). */
+//
+// A radio2 on 2.4 GHz is left on: it shares no band with the main mesh, so
+// Client Repeat relays it too (what arrives on radio2 goes back out there),
+// and a standalone repeating at 900 MHz repeats MediaMesh at 2.4 GHz as well.
+// Moving radio2 to 2.4 GHz while it is held puts its mode back.
 inline bool holdForClientRepeat(Runtime& r, bool on) {
+  if (on && is24GHz(r.saved.p.freq) && validParams(r.saved.p)) {
+    if (r.saved.held == kNotHeld) return false;
+    r.saved.mode = r.saved.held;
+    r.saved.held = kNotHeld;
+    return true;
+  }
   if (!on) {
     if (r.saved.held == kNotHeld) return false;
     r.saved.mode = r.saved.held;
@@ -1191,13 +1271,14 @@ inline CliResult handleCli(const char* cmd, Runtime& r, const Env& env, char* re
   const bool status_key = !strcmp(key, "radio2.status");
   const bool summary = !strcmp(key, "mediamesh");
   const bool share = !strcmp(key, "mediamesh.share");
+  const bool repeat = !strcmp(key, "radio2.repeat");
   const bool main_key = !strcmp(key, "mediamesh.main");   // developer switch, not in the help
   const bool temp1 = !strcmp(key, "tempradio");
   const bool normal = !strcmp(key, "normalradio");
   if (verb == BARE && !temp1 && !normal) return res;
   if (verb != BARE && (normal || (temp1 && verb == DEL))) return res;
   if (!base && !temp && !sched && !media && !cross && !timing_key && !scan_key && !status_key && !summary
-      && !share && !main_key && !temp1 && !normal) {
+      && !share && !repeat && !main_key && !temp1 && !normal) {
     return res;
   }
   if (verb == DEL && !sched) return res;
@@ -1212,8 +1293,9 @@ inline CliResult handleCli(const char* cmd, Runtime& r, const Env& env, char* re
       char p[64];
       if (r.saved.mode == MODE_OFF) snprintf(p, sizeof p, "off");
       else formatTuple(savedProfile(r.saved), t.valid ? t.preamble[1] : 0, p, sizeof p);
-      snprintf(reply, cap, "> radio2=%s; tx.media=%s; cross=%s; share=%s%s; %s", p, policyName(r.saved.media),
-               crossName(r.saved.cross), r.saved.share ? "on" : "off", r.temp2 ? "; tempradio2 on" : "",
+      snprintf(reply, cap, "> radio2=%s; tx.media=%s; cross=%s; share=%s; repeat=%s%s; %s", p,
+               policyName(r.saved.media), crossName(r.saved.cross), r.saved.share ? "on" : "off",
+               r.saved.relay ? "on" : "off", r.temp2 ? "; tempradio2 on" : "",
                !env.supported ? "unsupported on this radio"
                : r.saved.held != kNotHeld ? "radio2 off for client repeat"
                : (policyMask(r, r.saved.media) & 2) ? "media on radio2" : "media on radio");
@@ -1344,6 +1426,25 @@ inline CliResult handleCli(const char* cmd, Runtime& r, const Env& env, char* re
     return res;
   }
 
+  // ---- radio2.repeat ----
+  if (repeat) {
+    if (verb == GET && !*arg) {
+      snprintf(reply, cap, "> %s%s", r.saved.relay ? "on" : "off",
+               r.saved.relay && !canTransmit(r, 1) ? " (radio2 isn't sending: nothing is relayed)" : "");
+      return res;
+    }
+    if (verb != SET || (strcmp(arg, "on") && strcmp(arg, "off"))) {
+      snprintf(reply, cap, "Error: use get radio2.repeat or set radio2.repeat on|off");
+      return res;
+    }
+    const uint8_t v = !strcmp(arg, "on") ? 1 : 0;
+    res.save = v != r.saved.relay;
+    r.saved.relay = v;
+    snprintf(reply, cap, "OK - radio2.repeat %s (%s)", v ? "on" : "off",
+             v ? "relaying what radio2 hears, on radio2" : "not relaying radio2");
+    return res;
+  }
+
   // ---- radio2.cross ----
   if (cross) {
     if (verb == GET && !*arg) { snprintf(reply, cap, "> %s", crossName(r.saved.cross)); return res; }
@@ -1390,7 +1491,7 @@ inline CliResult handleCli(const char* cmd, Runtime& r, const Env& env, char* re
     p.sf = (uint8_t)sf;
     p.cr = (uint8_t)cr;
     if (ok && count == 6) ok = parsePreambleField(f[5], p.preamble);
-    if (!ok || !validParams(p)) {
+    if (!ok || !validSubGhz(p)) {   // the main radio stays sub-GHz
       snprintf(reply, cap, "ERR usage: tempradio freq,bw,sf,cr,minutes (minutes 1-%lu)", (unsigned long)kMaxTempMinutes);
       return res;
     }

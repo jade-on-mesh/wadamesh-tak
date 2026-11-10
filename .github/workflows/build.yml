@@ -112,6 +112,9 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_mediamesh test/test_mediamesh_core.cpp
           /tmp/test_mediamesh
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_mediamesh_24ghz test/test_mediamesh_24ghz.cpp
+          /tmp/test_mediamesh_24ghz
       - name: Quick replies (golden bytes and report hashes shared with Open TAK)
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
@@ -447,6 +450,22 @@ jobs:
         run: |
           [ -f build-lcd.log ] || exit 0
           { grep -E "error:|undefined reference|FAILED|Error" build-lcd.log || true; } | head -30 | while IFS= read -r l; do echo "::error::lcd: ${l}"; done
+      # The LR2021 build: the only LR2021 code (MediaMesh's 2.4 GHz radio2 among
+      # it), so it compiles on every pull request too.
+      - name: Build the LR2021 variant
+        id: lr2021
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/w" -w /w espressif/idf:v5.5.1 \
+            bash scripts/build/ci-p4.sh dev-check dist tdisplay-p4-lr2021 WADA_P4_LR2021=1 2>&1 | tee build-lr2021.log
+          sudo chown -R "$(id -u)" dist
+      - name: LR2021 errors as annotations
+        if: failure() && steps.lr2021.outcome == 'failure'
+        shell: bash
+        run: |
+          [ -f build-lr2021.log ] || exit 0
+          { grep -E " error:|undefined reference|CMake Error" build-lr2021.log || true; } | head -30 | while IFS= read -r l; do echo "::error::lr2021: ${l}"; done
       # The CrowPanel Advanced 10.1" P4: its own IDF project, released by hand
       # (p4-release.sh), so built here to catch breakage on the pull request.
       # (It went unbuilt for weeks and stopped compiling without anyone seeing.)

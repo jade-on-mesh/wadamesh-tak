@@ -237,7 +237,18 @@ const Runtime& runtime() {
 
 void begin(SavedPrimaryFn saved_primary) {
   s_saved_primary = saved_primary;
+#if defined(MEDIAMESH_RADIO) && defined(MEDIAMESH_HAS_24GHZ)
+  // Ask the chip whether it really does 2.4 GHz (the build only says it might).
+  setHas24GHz(radio_driver.chipDoes24GHz());
+#endif
   ensureLoaded();
+  if (is24GHz(s_rt.saved.p.freq) && !has24GHz()) {
+    // A 2.4 GHz radio2 saved on a chip without it: the sub-GHz default for
+    // now, and the saved choice left as it is for a radio that can.
+    Config d;
+    defaults(d);
+    s_rt.saved.p = d.p;
+  }
   // Never set up: radio2 on where its default frequency is legal (decided at
   // each boot until something is saved, so a radio moved to another band
   // doesn't keep transmitting on 911 MHz).
@@ -384,6 +395,13 @@ bool forwardedOnOtherRadioOnly(const mesh::Packet* pkt) {
 }
 
 uint8_t rxOrigin() { return s_rx_origin == kNoMark ? 0 : s_rx_origin; }
+
+bool relayingRadio2Packet() {
+  ensureLoaded();
+  // Only a packet the radio says came in on radio2: a guess would relay
+  // main-mesh traffic onto radio2.
+  return rxOriginKnown() && s_rx_origin == 1 && relaysRadio2(s_rt);
+}
 
 // A packet's profiles, decided as it is queued (mikecarper/MeshCore fixes them
 // when the packet is created):

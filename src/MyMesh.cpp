@@ -3418,7 +3418,9 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
-  return _prefs.client_repeat != 0;
+  // Client Repeat relays everything; Repeat MediaMesh (radio2.repeat) only
+  // what arrived on radio2, which then goes back out on radio2.
+  return _prefs.client_repeat != 0 || mediamesh::relayingRadio2Packet();
 }
 
 // Fingerprint + track an originated flood, but only for chat messages — DM text

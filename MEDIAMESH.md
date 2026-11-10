@@ -256,6 +256,7 @@ the millisecond clock, so setting the clock cannot stretch them.
 get radio2.cross | set radio2.cross auto|on|off
 get tx.media | set tx.media auto|radio|radio2|both|off
 get mediamesh.share | set mediamesh.share on|off
+get radio2.repeat | set radio2.repeat on|off
 get tx.user | get tx.user "Alice" | set tx.user key:0123456789AB radio2
 get tx.channel | get tx.channel 0 | set tx.channel #wardriving both
 ```
@@ -506,6 +507,50 @@ after turning it on.
 
 Tanmatsu shows "This radio can't run MediaMesh" and answers radio2 commands
 with an error. `tempradio` works on every board.
+
+### radio2 on 2.4 GHz (LR1121, LR2021)
+
+The LR1121 (T-LoRa Pager LR1121) and the LR2021 (T-Display P4 LR2021 build) also
+do LoRa at 2.4 GHz, so their radio2 can leave the 900 MHz band altogether.
+Settings → MediaMesh → **Preset** has a third choice there, **2.4 GHz**,
+balanced for speed and distance: 2424.5 MHz (between Wi-Fi channels 1 and 6),
+406.25 kHz, SF8, CR 4/5. Or type any 2400-2500 MHz frequency with a 203.125,
+406.25 or 812.5 kHz width (`set radio2 2424.5,406.25,8,5,rxtx`). Picking 250 or 125 kHz again puts radio2
+back on 911.150 MHz. The main radio stays sub-GHz (`tempradio` refuses 2.4 GHz).
+
+- Only LR1121 and LR2021 radios can join a 2.4 GHz radio2. The SX1262 boards,
+  the ThinkNode M9's LR1110, Keymind Cascade companions and repeaters can't
+  hear it, so a phone with MeshCore Open TAK can't use it.
+- The scan still time-shares one radio: it hops between 900 MHz and 2.4 GHz,
+  calibrating each band once rather than on every hop. It is not full duplex.
+- Each band has its own power amplifier. The TX power goes back on at each band
+  change, clamped to what the 2.4 GHz amplifier can do (+13 dBm on the LR1121,
+  +12 on the LR2021).
+- Why 406 kHz SF8: it moves about 10 kb/s, the same as the 900 MHz 250 kHz
+  preset, and hears about 5.5 dB deeper than the fastest 2.4 GHz setting
+  (812.5 kHz SF7), nearly twice the distance in the open. Over the same
+  distance 2.4 GHz loses about 8.5 dB more than 915 MHz, and its amplifier
+  gives about 9 dB less than the sub-GHz one at +22 dBm, so it still reaches
+  less far than the 900 MHz presets. Other trades, typed in: 812.5 kHz SF7
+  (about 1.8x faster, shorter) or 203.125 kHz SF9 (about 3.5x slower, about
+  1.6x farther again). The board needs an antenna for 2.4 GHz on the radio's
+  2.4 GHz port. Check `radio2.status` after turning it on: rx/tx counts on both
+  profiles.
+
+## Repeat MediaMesh
+
+Settings → MediaMesh → **Repeat MediaMesh** (`set radio2.repeat on|off`) makes
+a standalone relay what it hears on radio2, back out on radio2, like a
+MediaMesh repeater. Main-mesh traffic isn't relayed; that is still Client
+repeat. It needs radio2 On (listen and send). On a 2.4 GHz radio2, a few
+standalones with it on make a 2.4 GHz MediaMesh with no repeaters on 900 MHz
+involved.
+
+**Client repeat** normally turns radio2 off. A radio2 on 2.4 GHz is left on
+instead: it shares no band with the main mesh, so a standalone in Client repeat
+relays the main mesh at 900 MHz and MediaMesh at 2.4 GHz, each on the band it
+arrived on, with no extra setting. Moving radio2 to 2.4 GHz while Client repeat
+holds it off turns it back on.
 
 ## Limits
 

@@ -813,6 +813,8 @@ int main() {
   testAlias();
   testLbt();
   testDefaultOn();
+  // No 2.4 GHz on this build (an SX126x or LR1110): radio2 stays sub-GHz.
+  assert(!has24GHz() && !validParams(P(k24Freq, k24Bw, 7, 5)));
   printf("mediamesh core: ok\n");
   return 0;
 }
