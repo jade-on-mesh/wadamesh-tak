@@ -1119,6 +1119,35 @@ async function pickPort() {
   return S.port;
 }
 
+// Restart a board whose USB port is run by its firmware into its ROM download mode.
+// Returns true once the old port has gone (the board re-enumerates as a new device).
+async function restartToBootloader(port) {
+  const gone = async ms => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      await sleep(250);
+      try { if (navigator.serial.getPorts && !(await navigator.serial.getPorts()).includes(port)) return true; } catch {}
+      if (!S.port) return true;   // the page's own disconnect listener cleared it
+    }
+    return false;
+  };
+  try {   // 1. esptool's DTR/RTS sequence, which Arduino's USB CDC turns into "reboot to download mode"
+    await port.open({ baudRate: 115200 });
+    await port.setSignals({ dataTerminalReady: false, requestToSend: true }); await sleep(100);
+    await port.setSignals({ dataTerminalReady: true, requestToSend: false }); await sleep(100);
+    await port.setSignals({ dataTerminalReady: false, requestToSend: false }); await sleep(50);
+  } catch (e) { if (/Failed to open|NetworkError|InvalidState/i.test(`${e.name} ${e.message}`)) throw portBusy(e); }
+  try { await port.close(); } catch {}
+  if (await gone(2500)) return true;
+  try {   // 2. the 1200-baud "touch" Arduino uses to upload to TinyUSB boards
+    await port.open({ baudRate: 1200 }); await sleep(100); await port.close();
+  } catch {}
+  return gone(3000);
+}
+function portBusy(e) {
+  return new Error(`The page couldn't open the board's USB port (${e.message || e}). Something else is probably using it: close the MeshCore app, any other tab with this flasher or a MeshCore web console, and serial monitors such as Arduino IDE or PlatformIO. If nothing else has it open, unplug the board, plug it back in, then press Install and pick its port again.`);
+}
+
 /* ---------- nRF52: Adafruit bootloader serial DFU ----------
    The same protocol as adafruit-nrfutil (nordicsemi/dfu/dfu_transport_serial.py)
    and the MeshCore web flasher: HCI packets in SLIP frames at 115200 baud;
@@ -1287,6 +1316,24 @@ $("install").onclick = async () => {
                                    if (otg) { await pause(200); await signals(tr, { requestToSend: false }); await pause(200); return; }
                                    await signals(tr, { dataTerminalReady: false, requestToSend: true }); await pause(100);
                                    await signals(tr, { dataTerminalReady: false, requestToSend: false }); } }) });
+    // Boards whose USB port belongs to the running firmware (Espressif VID, but not the
+    // chip's built-in USB-Serial-JTAG 303a:1001 or its ROM port, e.g. Arduino TinyUSB
+    // 303a:0002 on the Heltec V4). Restarting into download mode makes the board drop off
+    // USB and come back as a new device, which this port object can't follow, so restart
+    // it here and have the user pick the new port on the next press.
+    const appUsb = info.usbVendorId === 0x303a && info.usbProductId !== 0x1001 && info.usbProductId !== img.chipId;
+    if (appUsb && !S.manualBoot) {
+      setPhase("Restarting into download mode", 0, "");
+      log("This board's USB port belongs to its firmware, so the flasher restarts it into download mode first…", "d");
+      if (await restartToBootloader(port)) {
+        S.port = null; S.manualBoot = true;
+        setPhase("Pick the new port", 0, "");
+        log("The board restarted and now shows up as a new USB device.", "o");
+        result("ok", `<b>Step 2: press Install firmware again and pick the board's new port.</b> It may be named “USB JTAG/serial debug unit”, “ESP32-S3” or show a new COM number. The board stays in download mode until it's flashed.`);
+        return;
+      }
+      log("The board didn't restart on its own; trying the normal connection.", "w");
+    }
     const manual = S.manualBoot;
     // First try: exactly what Espressif's own esptool-js page does (the library's default
     // resets, picked from the USB IDs). Our own reset variants are only the fallback.
@@ -1302,6 +1349,7 @@ $("install").onclick = async () => {
       loader = new ESPLoader({ transport, baudrate: CONFIG.baud, terminal, debugLogging: detail, ...(plans[i].resets ? { resetConstructors: plans[i].resets } : {}) });
       try { desc = await loader.main(plans[i].mode); S.manualBoot = false; break; }
       catch (e) {
+        if (/Failed to open|NetworkError|already open/i.test(`${e?.name} ${e?.message || e}`)) { S.port = null; throw portBusy(e); }
         if (i === plans.length - 1 || !/connect|sync|timed? ?out/i.test(String(e?.message || e))) {
           if (/connect|sync|timed? ?out/i.test(String(e?.message || e))) S.manualBoot = true;   // next press: no reset
           throw e;
