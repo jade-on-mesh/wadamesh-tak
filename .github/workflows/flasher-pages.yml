@@ -51,7 +51,10 @@ jobs:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     env:
-      KEEP: "6"   # how many of the newest releases get their bins mirrored
+      # How many of the newest Wadamesh TAK releases get their USB images copied (13 boards,
+      # ~70 MB per release). GitHub Pages aborts a deploy after 10 minutes, which a ~750 MB
+      # site hit; older releases stay listed and install from a downloaded file.
+      KEEP: "2"
     steps:
       - uses: actions/checkout@v4
 
