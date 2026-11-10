@@ -2402,6 +2402,12 @@ bool touchPrefsGetIgnoreTinyMsgs() {
   return s_prefs.getUChar("ign_tiny", 0) != 0;
 }
 void touchPrefsSetIgnoreTinyMsgs(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("ign_tiny", on ? 1 : 0); }
+// Off by default for the same reason: it changes what other people's messages look like.
+bool touchPrefsGetHideTakTexts() {
+  if (!s_begun) touchPrefsBegin();
+  return s_prefs.getUChar("hide_tak", 0) != 0;
+}
+void touchPrefsSetHideTakTexts(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("hide_tak", on ? 1 : 0); }
 uint8_t touchPrefsGetP4KbLight(uint8_t def) {
   if (!s_begun) touchPrefsBegin();
   return s_prefs.getUChar("p4kb_light", def);
@@ -2595,6 +2601,19 @@ uint8_t touchPrefsGetColorStyle() {
 void touchPrefsSetColorStyle(uint8_t style) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("col_style", style > TOUCH_LOOK_PASTEL ? TOUCH_LOOK_REGULAR : style); }
 bool touchPrefsGetRainbow() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("col_rb", 0) != 0; }
 void touchPrefsSetRainbow(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("col_rb", on ? 1 : 0); }
+bool touchPrefsGetMuted() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("ui_mute", 0) != 0; }
+void touchPrefsSetMuted(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("ui_mute", on ? 1 : 0); }
+uint8_t touchPrefsGetMuteTone() {
+  if (!s_begun) touchPrefsBegin();
+  const uint8_t v = s_prefs.getUChar("ui_mute_tn", TOUCH_MUTE_TONE_SLATE);
+  return v < TOUCH_MUTE_TONE_N ? v : TOUCH_MUTE_TONE_SLATE;
+}
+void touchPrefsSetMuteTone(uint8_t tone) {
+  if (!s_begun) touchPrefsBegin();
+  prefsPutUChar("ui_mute_tn", tone < TOUCH_MUTE_TONE_N ? tone : TOUCH_MUTE_TONE_SLATE);
+}
+bool touchPrefsGetMuteTint() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("ui_mute_wh", 1) != 0; }
+void touchPrefsSetMuteTint(bool whole) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("ui_mute_wh", whole ? 1 : 0); }
 bool touchPrefsGetGlassTiles() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("glass", 1) != 0; }
 void touchPrefsSetGlassTiles(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("glass", on ? 1 : 0); }
 bool touchPrefsGetAntExtAlways() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("ant_ext", 0) == 1; }
@@ -2690,6 +2709,11 @@ uint8_t touchPrefsGetSoundVolume() {
   // percentage than the T-Deck's I2S amp/Tanmatsu's ES8156 — 70% clips into
   // uncomfortable territory, so this board gets a quieter first-boot default.
   uint8_t v = s_prefs.getUChar("snd_vol", 50);
+#elif defined(THINKNODE_M9_BUZZER_PIN)
+  // The M9 piezo had no volume before; 100% is the drive it always had, so an
+  // M9 that never set a volume keeps sounding the way it did. Same macro as the
+  // LEDC chime and the Volume row in UITask.cpp.
+  uint8_t v = s_prefs.getUChar("snd_vol", 100);
 #else
   uint8_t v = s_prefs.getUChar("snd_vol", 70);
 #endif
@@ -3041,7 +3065,7 @@ static int backupKeys(BkKey* out, int cap) {
   };
   add(KEY_CFG, 'b');
   static const char* const k_u8[] = {
-    "snd_msg", "snd_men", "snd_dm", "snd_vol", "vibrate", "vib_pat", "ign_tiny", "dsc_evict", "dsc_hops",
+    "snd_msg", "snd_men", "snd_dm", "snd_vol", "vibrate", "vib_pat", "ign_tiny", "hide_tak", "dsc_evict", "dsc_hops",
     "ent_send", "clk_12h", "nav_mbk", "tb_rev", "tb_edgesc", "lock_off", "glance_lck",
     "glance_en", "msg_led", "dnd_en", "dnd_ss", "dnd_es", "kbd_bl",
 #if defined(TLORA_PAGER)

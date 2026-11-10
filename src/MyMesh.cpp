@@ -2349,6 +2349,8 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
   // source hash. Anything else is anonymous on the wire and stays that way
   // here -- see UiRxRec::org_kind.
   uint8_t org_kind = 0, org[4] = {0, 0, 0, 0};
+  const uint8_t* flood_path = nullptr;   // repeaters this flood passed through
+  uint8_t flood_path_bytes = 0, flood_path_sz = 1;
   if (len > 0) {
     rt = raw[0] & 0x03;
     const bool xp = (rt == ROUTE_TYPE_TRANSPORT_FLOOD || rt == ROUTE_TYPE_TRANSPORT_DIRECT);
@@ -2361,6 +2363,11 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
     const uint8_t plb = (ps < len) ? raw[ps] : 0;
     hops = (uint8_t)(plb & 0x3F);
     const int payload = ps + 1 + (int)hops * (int)(((plb >> 6) & 0x03) + 1);
+    if ((rt == ROUTE_TYPE_FLOOD || rt == ROUTE_TYPE_TRANSPORT_FLOOD) && payload <= len) {
+      flood_path = &raw[ps + 1];
+      flood_path_bytes = (uint8_t)(payload - ps - 1);
+      flood_path_sz = (uint8_t)(((plb >> 6) & 0x03) + 1);
+    }
     switch ((raw[0] >> 2) & 0x0F) {
       case PAYLOAD_TYPE_ADVERT:
         if (payload + 32 <= len) { org_kind = 1; memcpy(org, &raw[payload], 4); }
@@ -2388,7 +2395,8 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
   if (len > 0) {
     uiRxLogPush(now_ms, (int8_t)rssi, snr_q4,
                 (uint8_t)((raw[0] >> 2) & 0x0F), rt, hops,
-                (uint8_t)(len > 255 ? 255 : len), org_kind, org);
+                (uint8_t)(len > 255 ? 255 : len), org_kind, org,
+                flood_path, flood_path_bytes, flood_path_sz);
   }
 #if defined(DISPLAY_CLASS)
   // Diagnostic: log EVERY received frame so we can prove what reaches the
@@ -2712,9 +2720,11 @@ bool MyMesh::uiImportBackup(Stream& in, uint8_t sections,
     void* reallocate(void* p, size_t n) override { void* q = heap_caps_realloc(p, n, MALLOC_CAP_SPIRAM); return q ? q : realloc(p, n); }
   } alloc;
   JsonDocument doc(&alloc);
-  if (deserializeJson(doc, in)) return false;
+  // The serial line says why, for a report: a file that parses on a computer but not here (#822).
+  const DeserializationError parse_err = deserializeJson(doc, in);
+  if (parse_err) { Serial.printf("[BACKUP] import failed: %s\n", parse_err.c_str()); return false; }
   JsonObjectConst root = doc.as<JsonObjectConst>();
-  if (root.isNull()) return false;
+  if (root.isNull()) { Serial.println("[BACKUP] import failed: not a JSON object"); return false; }
 
   bool prefs_dirty = false;
   if (sections & 0x01) {  // identity: name + private key
@@ -3267,6 +3277,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
 #ifdef DISPLAY_CLASS
   // we only want to show text messages on display, not cli data
   bool should_display = txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN;
+  if (txt_type == TXT_TYPE_PLAIN && _ui && _ui->hidesIncomingText(text, false)) should_display = false;
   if (should_display && _ui) {
     /* notify BEFORE newMsgFromPub: UITask::newMsg keys on g_last_event to
      * decide channel-thread vs DM-thread. Previously this fired only when
@@ -3525,8 +3536,9 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
    * to decide whether the message lands in a channel thread or a DM thread.
    * Used to only fire when the serial client was disconnected, which meant
    * channel messages got appended as DMs whenever TCP/BLE was up. */
-  if (_ui) _ui->notify(UIEventType::channelMessage);
-  if (_ui) {
+  const bool ui_shows = _ui && !_ui->hidesIncomingText(text, true);
+  if (ui_shows) _ui->notify(UIEventType::channelMessage);
+  if (ui_shows) {
     const int8_t snr_q4 = (int8_t)(pkt->getSNR() * 4);
     const int8_t rssi   = (int8_t)(_radio->getLastRSSI());
     const bool   is_flood = pkt->isRouteFlood();
