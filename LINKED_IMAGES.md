@@ -19,7 +19,7 @@ GIFs work the way they do in MeshCore Open. A GIF is sent as `g:<id>`, a Giphy G
 - **Receiving:** a GIF message reads **GIF**. With Linked images on and Wi-Fi up, the GIF plays, small, in its bubble. Its still shows first; the animated copy follows, after any linked pictures waiting to download. Tap it to play it full screen, and tap again to close.
 - **Play GIFs in chat** (Settings → General → Linked images, on by default): turn it off to keep bubbles still. A tap still plays the GIF full screen.
 - **Giphy links:** `media.giphy.com/media/<id>/giphy.gif` and `giphy.com/gifs/<title>-<id>` messages count as GIFs too.
-- **Sending:** in a chat, open the emoji picker and pick **GIF** (it is next to 🔍). Trending GIFs show first. Type to search; results come after a short pause. Tap one and it is sent straight to the chat.
+- **Sending:** in a chat, open the emoji picker and pick **GIF** (it is next to 🔍). Trending GIFs show first. Type to search; results come after a short pause. Tap one to preview it: it plays full size with **Send** under it. Send sends it to the chat; Back (the status bar) returns to the picker, which finishes loading its stills.
 - **Previews and notifications** say "GIF".
 - **In a bubble** a GIF plays from Giphy's 100 px copy, at most 48 frames (768 KB), so a longer GIF loops its first part there. The last four GIFs' frames are kept and shared by every bubble showing them. At most ten GIFs play at once; any more stay still.
 - **The player** downloads Giphy's 200 px animated copy and decodes up to 150 frames (4 MB) into PSRAM. A longer GIF plays its first part. It is kept on the SD card like other linked pictures.
