@@ -1193,6 +1193,7 @@ void setup() {
     if (!sd_mounted) Serial.println("[BOOT] CrowPanel SD unavailable; using SPIFFS");
 #elif defined(TLORA_PAGER)
     sdMountDiagBegin();
+    uint32_t pager_sd_hz = 4000000;
     if (!_spi) {
       Serial.println("[BOOT] SD: shared SPI unavailable");
     } else if (!board.sdCardPresent()) {
@@ -1232,8 +1233,15 @@ void setup() {
         digitalWrite(PIN_SD_CS, HIGH);
       }
       Serial.printf("[BOOT] SD mount: %s\n", sd_mounted ? "ok" : "failed");
+      // Raise the operating clock once the 4 MHz mount has proved the card
+      // (read-verified, falls back to 4 MHz; no-op without SD_SPI_FAST_HZ).
+      if (sd_mounted) {
+        pager_sd_hz = sdTryFastClock(PIN_SD_CS, *_spi, 4000000, "BOOT");
+        sd_mounted = pager_sd_hz != 0;
+        if (sd_mounted) { extern uint32_t g_sd_operating_hz; g_sd_operating_hz = pager_sd_hz; }
+      }
     }
-    sdMountDiagSetMounted(sd_mounted, sd_mounted ? 4000000 : 0);
+    sdMountDiagSetMounted(sd_mounted, sd_mounted ? pager_sd_hz : 0);
 #else
     sdMountDiagBegin();
     uint32_t mounted_hz = 0;
@@ -2240,6 +2248,7 @@ void loop() {
 #ifdef DISPLAY_CLASS
   { perfOutside("wifi-sm", micros() - _wfu0); uint32_t _wfdt = millis() - _wf0; if (_wfdt >= 200) stallLog("wifi-sm", _wfdt); }
 #endif
+  serial_interface.retireWebCodeIfIdle();   // the tick below only runs with Wi-Fi up
   // Defer TCP and WebSocket until after splash dismisses so the_mesh.loop() never blocks on accept() before ui_task.loop() runs.
   static const uint32_t TCP_DEFER_MS = 5000;   // 5 s: don't start TCP/WS until version screen has dismissed
   /* Only start TCP / WS when WiFi was actually brought up. In BLE-only mode
