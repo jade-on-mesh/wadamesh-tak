@@ -53,6 +53,13 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -I test \
               -o /tmp/test_link_image test/test_link_image.cpp src/helpers/LinkImage.cpp
           /tmp/test_link_image
+      - name: Linked pictures fit the 16 KB worker's stack (no frame over 12 KB)
+        run: |
+          # The decoders run on a worker with a 16 KB stack. stb's GIF loader kept its
+          # 34 KB state on the stack and crashed the T-Deck on the first GIF it got.
+          d=$(mktemp -d)
+          g++ -std=c++17 -Os -fstack-usage -c -I src src/helpers/LinkImage.cpp -o "$d/li.o"
+          awk -F'\t' '$2 > 12288 { print "::error::" $1 " uses " $2 " bytes of stack"; bad = 1 } END { exit bad }' "$d"/li.su
       - name: Photos and voice off on Public and #public (PublicMedia.h)
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -I src -o /tmp/test_public_media test/test_public_media.cpp
