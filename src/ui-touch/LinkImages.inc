@@ -336,8 +336,12 @@ static lv_img_dsc_t s_gp_dsc;
 static uint16_t* s_gp_px = nullptr;
 static int s_gp_w = 0, s_gp_h = 0, s_gp_n = 0, s_gp_at = 0;
 static uint16_t s_gp_delays[kGifMaxFrames];
+// A preview from the GIF picker: the GIF it plays, and a Send button under it.
+static char s_gp_send[giphy::kIdMax] = "";
+static void gifSendId(const char* id);
 
 static void gifPlayerClose() {
+  s_gp_send[0] = 0;
   settingsSubPageClose(gifPlayerClose);
   if (s_gp_timer) { lv_timer_del(s_gp_timer); s_gp_timer = nullptr; }
   if (s_gp_root) {
@@ -361,7 +365,10 @@ static void gifPlayerStep(lv_timer_t* t) {
 
 // Takes the frames (lvglPsramAlloc'd) and plays them.
 static void gifPlayerShow(uint16_t* frames, int w, int h, int n, const uint16_t* delays_ms) {
+  char send[giphy::kIdMax];
+  snprintf(send, sizeof send, "%s", s_gp_send);
   gifPlayerClose();
+  snprintf(s_gp_send, sizeof s_gp_send, "%s", send);
   s_gp_px = frames;
   s_gp_w = w;
   s_gp_h = h;
@@ -376,7 +383,8 @@ static void gifPlayerShow(uint16_t* frames, int w, int h, int n, const uint16_t*
   s_gp_dsc.data = (const uint8_t*)frames;
   s_gp_root = settingsSubPageOpen("GIF", gifPlayerClose);
   lv_obj_set_style_bg_color(s_gp_root, lv_color_black(), LV_PART_MAIN);
-  lv_obj_add_event_cb(s_gp_root, [](lv_event_t*) { gifPlayerClose(); }, LV_EVENT_CLICKED, nullptr);   // a tap closes it
+  if (!s_gp_send[0])   // a tap closes it; a preview waits for Send or Back
+    lv_obj_add_event_cb(s_gp_root, [](lv_event_t*) { gifPlayerClose(); }, LV_EVENT_CLICKED, nullptr);
   s_gp_img = lv_img_create(s_gp_root);
   lv_img_set_src(s_gp_img, &s_gp_dsc);
   lv_obj_clear_flag(s_gp_img, LV_OBJ_FLAG_CLICKABLE);
@@ -388,6 +396,21 @@ static void gifPlayerShow(uint16_t* frames, int w, int h, int n, const uint16_t*
   lv_img_set_antialias(s_gp_img, false);
   lv_obj_center(s_gp_img);
   if (n > 1) s_gp_timer = lv_timer_create(gifPlayerStep, delays_ms[0], nullptr);
+  if (s_gp_send[0]) {
+    lv_obj_t* b = lv_btn_create(s_gp_root);
+    stylePrimary(b);
+    lv_obj_set_style_radius(b, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_align(b, LV_ALIGN_BOTTOM_MID, 0, -SC(8));
+    lv_obj_add_event_cb(b, [](lv_event_t*) {
+      char id[giphy::kIdMax];
+      snprintf(id, sizeof id, "%s", s_gp_send);
+      gifPlayerClose();
+      gifSendId(id);
+    }, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t* l = lv_label_create(b);
+    lv_label_set_text(l, LV_SYMBOL_OK "  " "Send");
+    lv_obj_center(l);
+  }
 }
 
 // ---- The GIF picker: Giphy's trending GIFs, or a search; one sends it ------------
@@ -411,28 +434,33 @@ struct GifSearch {
   uint16_t* px[kGifResults] = {};   // malloc'd; the grid takes them
   int w[kGifResults] = {}, h[kGifResults] = {};
   volatile uint8_t got[kGifResults] = {};   // 1 here, 2 failed
+  bool resume = false;                      // fetch the stills a preview stopped, not search again
 };
 static GifSearch s_gs;
 
 static void gifSearchBody() {
   GifSearch& g = s_gs;
   char url[320], esc[160];
+  uint8_t* buf = (uint8_t*)heap_caps_malloc(kGifJsonMax, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  size_t len = 0;
+  bool over = false;
+  int n = g.n;
+  if (g.resume) goto stills;   // after a preview: the stills it stopped
   if (g.q[0] && giphy::queryEscape(g.q, esc, sizeof esc))
     snprintf(url, sizeof url, "https://api.giphy.com/v1/gifs/search?api_key=%s&q=%s&limit=%d&rating=g", kGiphyKey,
              esc, kGifResults);
   else
     snprintf(url, sizeof url, "https://api.giphy.com/v1/gifs/trending?api_key=%s&limit=%d&rating=g", kGiphyKey,
              kGifResults);
-  uint8_t* buf = (uint8_t*)heap_caps_malloc(kGifJsonMax, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  size_t len = 0;
-  bool over = false;
   g.http = buf ? liGet(url, buf, kGifJsonMax, &len, &over, "application/json") : -1;
-  int n = 0;
+  n = 0;
   if (g.http == HTTP_CODE_OK && len) n = giphy::idsInJson((const char*)buf, len, g.ids, kGifResults);
   g.n = n;
+stills:
   __sync_synchronize();
   g.state = 2;
   for (int i = 0; i < n && !g.cancel; ++i) {
+    if (g.got[i]) continue;
     char su[160];
     uint8_t ok = 2;
     if (buf && giphy::mediaUrl(g.ids[i], "100w_s", su, sizeof su) &&
@@ -478,9 +506,26 @@ static void gifStillFreeCb(lv_event_t* e) {
 
 // Starts a search for what's typed (trending when nothing is). False while the
 // network is busy; the poll tries again.
+static int s_gs_preview = -1;   // a GIF tapped: played (with Send) once the network is free
+static bool s_gs_noted = false;  // the note says "Opening GIF...": put it back after
+
+static bool gifWorkerStart() {
+  s_gif_busy = true;
+  s_gs.state = 1;
+  if (!VoxAudioTask::run(gifSearchWorkerFn, nullptr) &&
+      xTaskCreatePinnedToCore(gifSearchTaskFn, "gifsearch", 16384, nullptr, 2, nullptr, 0) != pdPASS) {
+    s_gs.state = 0;
+    s_gif_busy = false;
+    return false;
+  }
+  return true;
+}
+
 static bool gifSearchStart() {
   GifSearch& g = s_gs;
   if (g.state == 1 || g.state == 2 || s_li_job.state != 0) return false;
+  g.resume = false;
+  s_gs_preview = -1;
   for (int i = 0; i < kGifResults; ++i) { free(g.px[i]); g.px[i] = nullptr; }   // ones a closed sheet left
   const char* q = s_gs_ta ? lv_textarea_get_text(s_gs_ta) : "";
   g.cancel = false;
@@ -490,14 +535,7 @@ static bool gifSearchStart() {
   memset((void*)g.got, 0, sizeof g.got);
   memset(s_gs_shown, 0, sizeof s_gs_shown);
   s_gs_listed = false;
-  s_gif_busy = true;
-  g.state = 1;
-  if (!VoxAudioTask::run(gifSearchWorkerFn, nullptr) &&
-      xTaskCreatePinnedToCore(gifSearchTaskFn, "gifsearch", 16384, nullptr, 2, nullptr, 0) != pdPASS) {
-    g.state = 0;
-    s_gif_busy = false;
-    return false;
-  }
+  if (!gifWorkerStart()) return false;
   if (s_gs_grid) lv_obj_clean(s_gs_grid);
   if (s_gs_note) lv_label_set_text(s_gs_note, TR("Searching..."));
   return true;
@@ -512,21 +550,45 @@ static void gifPickerClose() {
   s_gs_ta = s_gs_grid = s_gs_note = nullptr;
 }
 
+static void gifSendId(const char* id) {
+  char msg[8 + giphy::kIdMax];
+  const bool ok = giphy::message(id, msg, sizeof msg);
+  gifPickerClose();
+  if (ok && g_lv.task && g_lv.task->composerSend(msg)) g_lv.dirty_timeline = true;   // composerSend says why not
+}
+
+// A tap previews: the stills stop, the GIF plays full size with Send under it.
 static void gifSendCb(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   const int i = (int)(intptr_t)lv_event_get_user_data(e);
   if (i < 0 || i >= s_gs.n) return;
   lv_indev_t* a = lv_indev_get_act();
   if (a) lv_indev_wait_release(a);
-  char msg[8 + giphy::kIdMax];
-  const bool ok = giphy::message(s_gs.ids[i], msg, sizeof msg);
-  gifPickerClose();
-  if (ok && g_lv.task && g_lv.task->composerSend(msg)) g_lv.dirty_timeline = true;   // composerSend says why not
+  s_gs.cancel = true;
+  s_gs_preview = i;
+  s_gs_noted = true;
+  if (s_gs_note) lv_label_set_text(s_gs_note, TR("Opening GIF..."));
 }
 
 // Every 300 ms while open: a pending search, then the results and stills as they land.
 static void gifPickerPoll(lv_timer_t*) {
   GifSearch& g = s_gs;
+  const bool idle = g.state != 1 && g.state != 2 && s_li_job.state == 0;
+  if (idle && s_gs_preview >= 0) {   // the tapped GIF, now the network is free
+    char url[96];
+    snprintf(s_gp_send, sizeof s_gp_send, "%s", g.ids[s_gs_preview]);
+    s_gs_preview = -1;
+    if (!giphy::mediaUrl(s_gp_send, "200w", url, sizeof url) ||
+        !linkImgStart(true, linkimg::urlId(url), url, "GIF", true))
+      s_gp_send[0] = 0;
+  } else if (idle && !s_gp_root && !s_gp_send[0] && g.n > 0) {
+    // Back from a preview: the note, and the stills it stopped.
+    if (s_gs_noted && s_gs_note) lv_label_set_text(s_gs_note, TR("Powered by GIPHY"));
+    s_gs_noted = false;
+    bool missing = false;
+    for (int i = 0; i < g.n; ++i) missing |= g.got[i] == 0;
+    if (missing) { g.cancel = false; g.resume = true; gifWorkerStart(); }
+  }
   if (s_gs_again && (uint32_t)(millis() - s_gs_typed_ms) > 900 && gifSearchStart()) s_gs_again = false;
   if (!s_gs_grid || g.state < 2) return;
   if (!s_gs_listed) {
@@ -788,7 +850,10 @@ static void linkImgTick() {
       }
     } else if (j.view && j.anim) {
       if (j.res == linkimg::kOk && j.px && j.frames > 0) gifPlayerShow(j.px, j.w, j.h, j.frames, j.delays);
-      else if (g_lv.task) g_lv.task->showAlert(TR(linkImgWhy(j)), 2200);
+      else {
+        s_gp_send[0] = 0;   // a preview that didn't come: the picker carries on
+        if (g_lv.task) g_lv.task->showAlert(TR(linkImgWhy(j)), 2200);
+      }
       if (j.res != linkimg::kOk && j.px) lvglPsramFree(j.px);
     } else if (j.view) {
       if (j.res == linkimg::kOk && j.px) {
