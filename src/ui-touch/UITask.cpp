@@ -49975,8 +49975,8 @@ static void chatReactionsGather() {
   for (int k = nr - 1; k >= 0; --k) {   // oldest first: emoji line up in the order they came
     UITask::UIMessage r;
     uint16_t h = 0;
-    int e = -1;
-    if (!g_lv.task->getMessageByIndex(ridx[k], r) || !reactions::parse(r.text, &h, &e)) continue;
+    char e[reactions::kEmojiBytes];
+    if (!g_lv.task->getMessageByIndex(ridx[k], r) || !reactions::parseStored(r.text, &h, e)) continue;
     int target = -1;
     for (int i = 0; i < nm && target < 0; ++i) if (mok[i] && mhash[i] == h) target = midx[i];
     if (target < 0) continue;   // names nothing here (the app drops it too)
@@ -88819,12 +88819,15 @@ void UITask::newMsgImpl(uint8_t path_len, const char* from_name, const char* tex
   // app's format when it names a message in this chat; one that doesn't is shown as
   // the text it is, as the app shows it.
   {
-    char norm[12];
-    const char* rtext = reactions::isReaction(body) ? body : nullptr;
+    char norm[12 + reactions::kEmojiBytes];
+    // Only the app's own form off the air: "r:HASH:=EMOJI" is this firmware's to store.
+    const char* rtext = reactions::parse(body, nullptr, nullptr) ? body : nullptr;
     const int rt = findThreadByName(thread, channel);
     reactions::Mc1 mc;
-    const int mc_emoji = (!rtext && rt >= 0 && reactions::parseMc1(body, &mc)) ? reactions::emojiIndex(mc.emoji) : -1;
-    if (mc_emoji >= 0) {
+    // Any emoji: the app sends ones outside its table this way (its full emoji set).
+    const bool mc_ok = !rtext && rt >= 0 && reactions::parseMc1(body, &mc) &&
+                       strlen(mc.emoji) < reactions::kEmojiBytes;
+    if (mc_ok) {
       int idx[128];
       const int n = getThreadMessageIndexes(rt, idx, 128, true);   // newest first
       for (int i = 0; i < n && !rtext; ++i) {
@@ -88837,8 +88840,9 @@ void UITask::newMsgImpl(uint8_t path_len, const char* from_name, const char* tex
         reactions::hashMc1(ts, ch ? reactions::replyBody(txt) : txt, h);
         if (strcmp(h, mc.hash) != 0) continue;
         if (strcmp(mc.has_name ? mc.name : "", named ? who : "") != 0) continue;   // as the app's "hash:name"
-        reactions::format(reactions::hashOfMessage(ts, named ? who : nullptr, txt, ch), mc_emoji, norm, sizeof norm);
-        rtext = norm;
+        if (reactions::formatStored(reactions::hashOfMessage(ts, named ? who : nullptr, txt, ch), mc.emoji,
+                                    norm, sizeof norm))
+          rtext = norm;
       }
     }
     if (rtext) {

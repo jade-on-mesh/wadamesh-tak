@@ -128,10 +128,39 @@ static void tally() {
   assert(s[0] == '\0');
 }
 
+static void anyEmoji() {
+  // An emoji in the app's table is stored in the app's form.
+  char t[48];
+  assert(formatStored(0xe779, "\xF0\x9F\x91\x8D", t, sizeof t) && strcmp(t, "r:e779:00") == 0);
+  // One outside it (a banana, the trans flag) as "r:HASH:=EMOJI".
+  const char* banana = "\xF0\x9F\x8D\x8C";
+  const char* trans = "\xF0\x9F\x8F\xB3\xEF\xB8\x8F\xE2\x80\x8D\xE2\x9A\xA7\xEF\xB8\x8F";
+  assert(emojiIndex(banana) < 0 && emojiIndex(trans) < 0);
+  assert(formatStored(0x00af, banana, t, sizeof t) && strcmp(t, "r:00af:=\xF0\x9F\x8D\x8C") == 0);
+  uint16_t h = 0;
+  char e[kEmojiBytes];
+  assert(parseStored(t, &h, e) && h == 0x00af && strcmp(e, banana) == 0);
+  assert(isReaction(t));
+  assert(formatStored(0x1234, trans, t, sizeof t) && parseStored(t, &h, e) && strcmp(e, trans) == 0);
+  // The app's form still reads, emoji filled in.
+  assert(parseStored("r:e779:01", &h, e) && h == 0xe779 && strcmp(e, "\xE2\x9D\xA4\xEF\xB8\x8F") == 0);
+  // Not reactions: ASCII after '=', nothing after it, no '='.
+  assert(!isReaction("r:00af:=x") && !isReaction("r:00af:=") && !isReaction("r:00af:x\xF0\x9F\x8D\x8C"));
+  assert(!formatStored(1, "x", t, sizeof t));
+  // The tally takes them as text.
+  Tally y;
+  assert(y.add(banana, "Ann") && y.add(banana, "Bob") && !y.add(banana, "Ann"));
+  assert(y.add(0, "Ann"));
+  char s[64];
+  y.text(s, sizeof s);
+  assert(strcmp(s, "\xF0\x9F\x8D\x8C 2  \xF0\x9F\x91\x8D") == 0);
+}
+
 int main() {
   ours();
   mc1();
   tally();
+  anyEmoji();
   puts("test_reactions: ok");
   return 0;
 }
