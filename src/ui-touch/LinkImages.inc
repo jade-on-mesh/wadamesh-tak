@@ -574,69 +574,14 @@ static void gifPickerOpen() {
     g_lv.task->showAlert(TR("Wi-Fi not connected (Settings \xe2\x86\x92 Wi-Fi)"), 2000);
     return;
   }
-  const lv_coord_t sw = lv_disp_get_hor_res(nullptr);
-  const lv_coord_t sh = lv_disp_get_ver_res(nullptr);
-  s_gs_sheet = lv_obj_create(lv_layer_top());
-  lv_obj_remove_style_all(s_gs_sheet);
-  lv_obj_set_size(s_gs_sheet, sw, sh - STATUSBAR_H);
-  lv_obj_set_pos(s_gs_sheet, 0, STATUSBAR_H);
-  lv_obj_set_style_bg_color(s_gs_sheet, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(s_gs_sheet, LV_OPA_60, LV_PART_MAIN);
-  lv_obj_clear_flag(s_gs_sheet, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_event_cb(s_gs_sheet, gifPickerBackdropCb, LV_EVENT_CLICKED, nullptr);
-
-  const lv_coord_t cardw = sw - 16;
-  const lv_coord_t cardh = sh - STATUSBAR_H - 16;
-  lv_obj_t* card = lv_obj_create(s_gs_sheet);
-  lv_obj_remove_style_all(card);
-  lv_obj_set_size(card, cardw, cardh);
-  lv_obj_align(card, LV_ALIGN_CENTER, 0, 0);
-  styleSurface(card, COLOR_PANEL, 8);
-  lv_obj_set_style_border_color(card, lv_color_hex(COLOR_BORDER), LV_PART_MAIN);
-  lv_obj_set_style_border_width(card, 1, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(card, 8, LV_PART_MAIN);
-  lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
-
-  lv_obj_t* title = lv_label_create(card);
-  lv_label_set_text(title, "GIF");
-  lv_obj_set_style_text_color(title, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
-  lv_obj_set_style_text_font(title, &g_font_14, LV_PART_MAIN);
-  lv_obj_set_pos(title, 2, 0);
-  addCloseXBadge(card, gifPickerBackdropCb);
-
-  const lv_coord_t inner_w = cardw - 16;
-  const lv_coord_t ta_y = lv_font_get_line_height(&g_font_14) + 6;
-  const lv_coord_t ta_h = 34;
-  s_gs_ta = lv_textarea_create(card);
-  lv_obj_set_size(s_gs_ta, inner_w - 30, ta_h);
-  lv_obj_set_pos(s_gs_ta, 0, ta_y);
-  styleCard(s_gs_ta);
-  lv_textarea_set_one_line(s_gs_ta, true);
-  lv_textarea_set_max_length(s_gs_ta, 60);
-  taSetPlaceholder(s_gs_ta, TR("Search GIPHY"));
-  lv_obj_set_style_text_color(s_gs_ta, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
-  lv_obj_set_style_text_font(s_gs_ta, &g_font_14, LV_PART_MAIN);
-  lv_obj_add_event_cb(s_gs_ta, gifPickerTaCb, LV_EVENT_VALUE_CHANGED, nullptr);
-  lv_obj_add_event_cb(s_gs_ta, gifPickerTaCb, LV_EVENT_READY, nullptr);
-  attachSettingsTaEvents(s_gs_ta);
-
-  const lv_coord_t note_y = ta_y + ta_h + 4;
-  s_gs_note = lv_label_create(card);
-  lv_obj_set_style_text_color(s_gs_note, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
-  lv_obj_set_style_text_font(s_gs_note, &g_font_12, LV_PART_MAIN);
-  lv_obj_set_pos(s_gs_note, 2, note_y);
+  SearchSheet o;
+  searchSheetBuild(o, "GIF", TR("Search GIPHY"), 60, gifPickerBackdropCb, gifPickerTaCb);
+  s_gs_sheet = o.sheet;
+  s_gs_ta = o.ta;
+  s_gs_note = o.note;
+  s_gs_grid = o.grid;
   lv_label_set_text(s_gs_note, TR("Searching..."));
-
-  const lv_coord_t grid_y = note_y + lv_font_get_line_height(&g_font_12) + 4;
-  s_gs_grid = lv_obj_create(card);
-  lv_obj_remove_style_all(s_gs_grid);
-  lv_obj_set_size(s_gs_grid, inner_w, cardh - 16 - grid_y);
-  lv_obj_set_pos(s_gs_grid, 0, grid_y);
-  lv_obj_set_flex_flow(s_gs_grid, LV_FLEX_FLOW_ROW_WRAP);
-  lv_obj_set_style_pad_row(s_gs_grid, 4, LV_PART_MAIN);
-  lv_obj_set_style_pad_column(s_gs_grid, 4, LV_PART_MAIN);
-  lv_obj_set_scroll_dir(s_gs_grid, LV_DIR_VER);
-  lv_obj_set_scrollbar_mode(s_gs_grid, LV_SCROLLBAR_MODE_AUTO);
+  const lv_coord_t inner_w = lv_disp_get_hor_res(nullptr) - 32;
   // Three across at least, about 100 px each where there's room.
   int cols = (int)((inner_w + 4) / 104);
   if (cols < 3) cols = 3;
@@ -646,11 +591,7 @@ static void gifPickerOpen() {
   s_gs_typed_ms = millis() - 1000;
   s_gs_timer = lv_timer_create(gifPickerPoll, 300, nullptr);
 
-#if CAP_KEYBOARD && CAP_KEYPAD_NAV
-  lv_async_call(physicalKeyboardModalAutoFocusAsync, s_gs_sheet);
-#else
-  if (g_lv.keyboard) kbMirrorBind(s_gs_ta);
-#endif
+  searchSheetFocus(o);
 }
 
 // From the UI loop: collects a finished job, then starts the next download.

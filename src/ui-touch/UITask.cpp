@@ -15027,30 +15027,26 @@ static void emojiSearchBackdropCb(lv_event_t* e) {
   emojiSearchRefocus(ta);
 }
 
-static void emojiSearchOpen(lv_obj_t* ta, void (*cb)(const char* utf8)) {
-  emojiSearchClose();
-  if (!emojiPackSearchable()) {
-    if (g_lv.task)
-      g_lv.task->showAlert(TR("Emoji search needs the full emoji set. It downloads by itself on Wi-Fi; About shows "
-                              "how far it is."), 3200);
-    return;
-  }
-  s_esearch_target = ta;
-  s_esearch_cb = cb;
+// The search sheets' frame (emoji search here, GIFs in LinkImages.inc): a card over
+// a dimmed backdrop with a title, the close badge, a one-line field, a note under
+// it and a scrolling grid of results; the field gets the keyboard.
+struct SearchSheet { lv_obj_t* sheet; lv_obj_t* ta; lv_obj_t* note; lv_obj_t* grid; };
+static void searchSheetBuild(SearchSheet& o, const char* title_text, const char* placeholder, uint32_t max_len,
+                             lv_event_cb_t close_cb, lv_event_cb_t ta_cb) {
   const lv_coord_t sw = lv_disp_get_hor_res(nullptr);
   const lv_coord_t sh = lv_disp_get_ver_res(nullptr);
-  s_esearch_sheet = lv_obj_create(lv_layer_top());
-  lv_obj_remove_style_all(s_esearch_sheet);
-  lv_obj_set_size(s_esearch_sheet, sw, sh - STATUSBAR_H);
-  lv_obj_set_pos(s_esearch_sheet, 0, STATUSBAR_H);
-  lv_obj_set_style_bg_color(s_esearch_sheet, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(s_esearch_sheet, LV_OPA_60, LV_PART_MAIN);
-  lv_obj_clear_flag(s_esearch_sheet, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_event_cb(s_esearch_sheet, emojiSearchBackdropCb, LV_EVENT_CLICKED, nullptr);
+  o.sheet = lv_obj_create(lv_layer_top());
+  lv_obj_remove_style_all(o.sheet);
+  lv_obj_set_size(o.sheet, sw, sh - STATUSBAR_H);
+  lv_obj_set_pos(o.sheet, 0, STATUSBAR_H);
+  lv_obj_set_style_bg_color(o.sheet, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(o.sheet, LV_OPA_60, LV_PART_MAIN);
+  lv_obj_clear_flag(o.sheet, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(o.sheet, close_cb, LV_EVENT_CLICKED, nullptr);
 
   const lv_coord_t cardw = sw - 16;
   const lv_coord_t cardh = sh - STATUSBAR_H - 16;
-  lv_obj_t* card = lv_obj_create(s_esearch_sheet);
+  lv_obj_t* card = lv_obj_create(o.sheet);
   lv_obj_remove_style_all(card);
   lv_obj_set_size(card, cardw, cardh);
   lv_obj_align(card, LV_ALIGN_CENTER, 0, 0);
@@ -15061,57 +15057,77 @@ static void emojiSearchOpen(lv_obj_t* ta, void (*cb)(const char* utf8)) {
   lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
   lv_obj_t* title = lv_label_create(card);
-  lv_label_set_text(title, TR("Search emoji"));
+  lv_label_set_text(title, title_text);
   lv_obj_set_style_text_color(title, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
   lv_obj_set_style_text_font(title, &g_font_14, LV_PART_MAIN);
   lv_obj_set_pos(title, 2, 0);
-  addCloseXBadge(card, emojiSearchBackdropCb);
+  addCloseXBadge(card, close_cb);
 
   const lv_coord_t inner_w = cardw - 16;
   const lv_coord_t ta_y = lv_font_get_line_height(&g_font_14) + 6;
   const lv_coord_t ta_h = 34;
-  s_esearch_ta = lv_textarea_create(card);
-  lv_obj_set_size(s_esearch_ta, inner_w - 30, ta_h);
-  lv_obj_set_pos(s_esearch_ta, 0, ta_y);
-  styleCard(s_esearch_ta);
-  lv_textarea_set_one_line(s_esearch_ta, true);
-  lv_textarea_set_max_length(s_esearch_ta, 40);
-  taSetPlaceholder(s_esearch_ta, TR("Name"));
-  lv_obj_set_style_text_color(s_esearch_ta, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
-  lv_obj_set_style_text_font(s_esearch_ta, &g_font_14, LV_PART_MAIN);
-  lv_obj_add_event_cb(s_esearch_ta, emojiSearchTaCb, LV_EVENT_VALUE_CHANGED, nullptr);
-  lv_obj_add_event_cb(s_esearch_ta, emojiSearchTaCb, LV_EVENT_READY, nullptr);
-  attachSettingsTaEvents(s_esearch_ta);
+  o.ta = lv_textarea_create(card);
+  lv_obj_set_size(o.ta, inner_w - 30, ta_h);
+  lv_obj_set_pos(o.ta, 0, ta_y);
+  styleCard(o.ta);
+  lv_textarea_set_one_line(o.ta, true);
+  lv_textarea_set_max_length(o.ta, max_len);
+  taSetPlaceholder(o.ta, placeholder);
+  lv_obj_set_style_text_color(o.ta, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+  lv_obj_set_style_text_font(o.ta, &g_font_14, LV_PART_MAIN);
+  lv_obj_add_event_cb(o.ta, ta_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_obj_add_event_cb(o.ta, ta_cb, LV_EVENT_READY, nullptr);
+  attachSettingsTaEvents(o.ta);
 
   const lv_coord_t note_y = ta_y + ta_h + 4;
-  s_esearch_note = lv_label_create(card);
-  lv_obj_set_style_text_color(s_esearch_note, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
-  lv_obj_set_style_text_font(s_esearch_note, &g_font_12, LV_PART_MAIN);
-  lv_obj_set_pos(s_esearch_note, 2, note_y);
+  o.note = lv_label_create(card);
+  lv_obj_set_style_text_color(o.note, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+  lv_obj_set_style_text_font(o.note, &g_font_12, LV_PART_MAIN);
+  lv_obj_set_pos(o.note, 2, note_y);
 
   const lv_coord_t grid_y = note_y + lv_font_get_line_height(&g_font_12) + 4;
-  lv_obj_t* grid = lv_obj_create(card);
-  lv_obj_remove_style_all(grid);
-  lv_obj_set_size(grid, inner_w, cardh - 16 - grid_y);
-  lv_obj_set_pos(grid, 0, grid_y);
-  lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
-  lv_obj_set_style_pad_row(grid, 4, LV_PART_MAIN);
-  lv_obj_set_style_pad_column(grid, 4, LV_PART_MAIN);
-  lv_obj_set_scroll_dir(grid, LV_DIR_VER);
-  lv_obj_set_scrollbar_mode(grid, LV_SCROLLBAR_MODE_AUTO);
-  s_esearch_grid = grid;
+  o.grid = lv_obj_create(card);
+  lv_obj_remove_style_all(o.grid);
+  lv_obj_set_size(o.grid, inner_w, cardh - 16 - grid_y);
+  lv_obj_set_pos(o.grid, 0, grid_y);
+  lv_obj_set_flex_flow(o.grid, LV_FLEX_FLOW_ROW_WRAP);
+  lv_obj_set_style_pad_row(o.grid, 4, LV_PART_MAIN);
+  lv_obj_set_style_pad_column(o.grid, 4, LV_PART_MAIN);
+  lv_obj_set_scroll_dir(o.grid, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(o.grid, LV_SCROLLBAR_MODE_AUTO);
+}
+// The field takes the keyboard (after the sheet's first fill).
+static void searchSheetFocus(const SearchSheet& o) {
+#if CAP_KEYBOARD && CAP_KEYPAD_NAV
+  lv_async_call(physicalKeyboardModalAutoFocusAsync, o.sheet);
+#else
+  if (g_lv.keyboard) kbMirrorBind(o.ta);
+#endif
+}
+
+static void emojiSearchOpen(lv_obj_t* ta, void (*cb)(const char* utf8)) {
+  emojiSearchClose();
+  if (!emojiPackSearchable()) {
+    if (g_lv.task)
+      g_lv.task->showAlert(TR("Emoji search needs the full emoji set. It downloads by itself on Wi-Fi; About shows "
+                              "how far it is."), 3200);
+    return;
+  }
+  s_esearch_target = ta;
+  s_esearch_cb = cb;
+  SearchSheet o;
+  searchSheetBuild(o, TR("Search emoji"), TR("Name"), 40, emojiSearchBackdropCb, emojiSearchTaCb);
+  s_esearch_sheet = o.sheet;
+  s_esearch_ta = o.ta;
+  s_esearch_note = o.note;
+  s_esearch_grid = o.grid;
 #if CAP_LARGE_SCREEN
   s_esearch_cell = 48;
 #else
   s_esearch_cell = 38;
 #endif
   emojiSearchRefresh();
-
-#if CAP_KEYBOARD && CAP_KEYPAD_NAV
-  lv_async_call(physicalKeyboardModalAutoFocusAsync, s_esearch_sheet);
-#else
-  if (g_lv.keyboard) kbMirrorBind(s_esearch_ta);
-#endif
+  searchSheetFocus(o);
 }
 
 // ===== Text selection + edit menu ==========================================
