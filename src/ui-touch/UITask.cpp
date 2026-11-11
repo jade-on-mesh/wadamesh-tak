@@ -21538,7 +21538,7 @@ static void buildGeneralPage() {
 #if CAP_LINK_IMAGES
   {
     lv_obj_t* c = setCard("Linked images");
-    setSwitchRow(c, "Download over Wi-Fi", "A link to a picture (.jpg, .png, .gif, .webp, .bmp) in a channel or a DM "
+    setSwitchRow(c, "Download over Wi-Fi", "A link to a picture (.jpg, .png, .gif, .webp) in a channel or a DM "
                  "is downloaded while Wi-Fi is on and shown in its bubble; tap it to see it full size. The picture's "
                  "server sees this radio's address. Kept on the SD card when there is one.",
                  linkImgOn(), linkImgToggleCb);

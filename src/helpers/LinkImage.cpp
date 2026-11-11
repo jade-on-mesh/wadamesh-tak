@@ -40,7 +40,6 @@ static void liWorkFree(void* p) { free(p); }   // heap_caps memory frees with fr
 #define STBI_ONLY_JPEG
 #define STBI_ONLY_PNG
 #define STBI_ONLY_GIF
-#define STBI_ONLY_BMP
 #define STBI_MAX_DIMENSIONS 8192
 #define STBI_ASSERT(x) ((void)0)
 #define STBI_MALLOC(sz) liWorkAlloc(sz)
@@ -76,7 +75,7 @@ bool ciPrefix(const char* s, const char* p) {
 bool pictureExt(const char* a, const char* b) {
   const char* end = a;
   while (end < b && *end != '?' && *end != '#') end++;
-  static const char* const kExt[] = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"};
+  static const char* const kExt[] = {".jpg", ".jpeg", ".png", ".gif", ".webp"};
   for (const char* e : kExt) {
     const size_t n = strlen(e);
     if ((size_t)(end - a) <= n) continue;
@@ -186,7 +185,7 @@ Kind sniff(const uint8_t* d, size_t n) {
   if (n >= 8 && !memcmp(d, "\x89PNG\r\n\x1a\n", 8)) return kPng;
   if (n >= 6 && (!memcmp(d, "GIF87a", 6) || !memcmp(d, "GIF89a", 6))) return kGif;
   if (n >= 12 && !memcmp(d, "RIFF", 4) && !memcmp(d + 8, "WEBP", 4)) return kWebp;
-  if (n >= 2 && d[0] == 'B' && d[1] == 'M') return kBmp;
+  // BMP isn't decoded (its decoder's flash went to GIFs in their bubbles): not a picture here.
   return kUnknown;
 }
 

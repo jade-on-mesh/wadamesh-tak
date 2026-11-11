@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // ---- Linked pictures ---------------------------------------------------------------
-// Someone posts a link to a picture (https://.../cat.jpg, .png, .gif, .webp, .bmp) in a
+// Someone posts a link to a picture (https://.../cat.jpg, .png, .gif, .webp) in a
 // channel or a DM. With Settings > General > Linked images on, the radio downloads it
 // over Wi-Fi and the bubble shows it above the text; a tap on it opens it full size.
 // On by default (fetching a link tells that server this radio's address: turn it off
@@ -233,7 +233,7 @@ static void linkImgJobBody() {
     if (!linkimg::fetchUrl(j.url, kLiFetchSide, fetch, sizeof fetch)) snprintf(fetch, sizeof fetch, "%s", j.url);
     bool over = false;
     const int code = liGet(fetch, raw, kLiMaxBytes, &len, &over,
-                           "image/jpeg,image/png,image/gif,image/webp,image/bmp;q=0.9,*/*;q=0.5");
+                           "image/jpeg,image/png,image/gif,image/webp;q=0.9,*/*;q=0.5");
     j.http = code;
     if (over) { free(raw); j.res = linkimg::kTooLarge; j.state = 2; return; }
     if (code != HTTP_CODE_OK || !len) { free(raw); j.res = linkimg::kBroken; j.state = 2; return; }

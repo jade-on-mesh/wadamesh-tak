@@ -7,7 +7,7 @@
 //
 // This file is the part with no radio in it, so it runs (and is tested) on a
 // computer: finding the link in a message, naming it, and decoding the file
-// (JPEG, PNG, GIF, BMP with stb_image; WebP with simplewebp) into RGB565
+// (JPEG, PNG, GIF with stb_image; WebP with simplewebp) into RGB565
 // pixels the size the screen wants. The downloading and the bubble are in
 // ui-touch/LinkImages.inc. Tested by test/test_link_image.cpp.
 
@@ -19,7 +19,7 @@ namespace linkimg {
 enum Kind : uint8_t { kUnknown = 0, kJpeg, kPng, kGif, kWebp, kBmp };
 
 // The first http(s) link in `text` whose path ends in a picture's extension
-// (.jpg .jpeg .png .gif .webp .bmp, any case; a ?query or #part may follow).
+// (.jpg .jpeg .png .gif .webp, any case; a ?query or #part may follow).
 // False when there's none, or it doesn't fit in `cap`.
 bool findUrl(const char* text, char* out, size_t cap);
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // LinkImage: finding a picture's link in a message, and decoding each kind
-// (JPEG, progressive JPEG, PNG with alpha, GIF, BMP, WebP lossy and lossless)
+// (JPEG, progressive JPEG, PNG with alpha, GIF, WebP lossy and lossless; BMP is not decoded)
 // to RGB565 at the size asked for.
 //   g++ -std=c++17 -I src test/test_link_image.cpp src/helpers/LinkImage.cpp
 #include <assert.h>
@@ -85,7 +85,7 @@ int main() {
   url("(https://x.org/p.png).", "https://x.org/p.png");
   url("https://cdn.x.org/cat.webp?w=640&h=480 wow", "https://cdn.x.org/cat.webp?w=640&h=480");
   url("gif: https://media.site.net/a/b/c.gif#frag", "https://media.site.net/a/b/c.gif#frag");
-  url("old https://x.org/scan.bmp!", "https://x.org/scan.bmp");
+  url("old https://x.org/scan.bmp!", nullptr);   // BMP isn't decoded
   url("page https://x.org/index.html then https://x.org/pic.jpg", "https://x.org/pic.jpg");
   url("https://x.org/jpg", nullptr);                 // no extension, just the word
   url("https://x.org/photo.jpg.html", nullptr);
@@ -121,7 +121,7 @@ int main() {
   picture("progressive jpeg", k_jpeg_prog, sizeof k_jpeg_prog, linkimg::kJpeg, false, true);
   picture("png", k_png_alpha, sizeof k_png_alpha, linkimg::kPng, true, false);
   picture("gif", k_gif, sizeof k_gif, linkimg::kGif, false, false);
-  picture("bmp", k_bmp, sizeof k_bmp, linkimg::kBmp, false, false);
+  CHECK(linkimg::sniff(k_bmp, sizeof k_bmp) == linkimg::kUnknown);   // BMP isn't decoded
   picture("webp lossy", k_webp_lossy, sizeof k_webp_lossy, linkimg::kWebp, false, true);
   picture("webp lossless", k_webp_lossless, sizeof k_webp_lossless, linkimg::kWebp, true, false);
 
