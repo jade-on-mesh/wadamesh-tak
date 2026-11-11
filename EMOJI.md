@@ -21,7 +21,9 @@ So a standalone on Wi-Fi gets it on its own. To install it on one that never use
 
 ## Searching
 
-With the full set loaded, the emoji picker's first cell is 🔍. Pick it to open a search sheet.
+The emoji picker's first cell is 🔍. Pick it to open a search sheet. The **React** sheet has 🔍 too, so you can react with any emoji ([REACTIONS.md](REACTIONS.md)).
+
+Search needs the full set. If the set isn't loaded yet, 🔍 says so; it downloads by itself on Wi-Fi, and **About** shows how far along it is.
 
 - **Typing** shows emoji whose name or keywords start with what you type. `fish` finds 🐟 🐠 🎣, `trop fi` finds 🐠, and `heart` finds every heart.
 - **Flags** come up by country name or code: `lesotho`, `united states`, `us`.

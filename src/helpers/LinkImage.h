@@ -7,7 +7,7 @@
 //
 // This file is the part with no radio in it, so it runs (and is tested) on a
 // computer: finding the link in a message, naming it, and decoding the file
-// (JPEG, PNG, GIF, BMP with stb_image; WebP with simplewebp) into RGB565
+// (JPEG, PNG, GIF with stb_image; WebP with simplewebp) into RGB565
 // pixels the size the screen wants. The downloading and the bubble are in
 // ui-touch/LinkImages.inc. Tested by test/test_link_image.cpp.
 
@@ -19,7 +19,7 @@ namespace linkimg {
 enum Kind : uint8_t { kUnknown = 0, kJpeg, kPng, kGif, kWebp, kBmp };
 
 // The first http(s) link in `text` whose path ends in a picture's extension
-// (.jpg .jpeg .png .gif .webp .bmp, any case; a ?query or #part may follow).
+// (.jpg .jpeg .png .gif .webp, any case; a ?query or #part may follow).
 // False when there's none, or it doesn't fit in `cap`.
 bool findUrl(const char* text, char* out, size_t cap);
 
@@ -56,5 +56,15 @@ const char* resultText(Result r);
 // use for its working copy.
 Result decode(const uint8_t* data, size_t len, int max_side, size_t budget, uint16_t bg,
               void* (*out_alloc)(size_t), uint16_t** out, int* out_w, int* out_h);
+
+// An animated GIF's frames, each scaled to fit `max_side` (never up), over `bg`:
+// RGB565, w*h per frame, one after another in memory grown with `out_realloc` (the
+// caller frees it with the matching free). At most `max_frames`, and no more than
+// `budget` (bytes) holds with the decoder's own working memory: a longer GIF plays
+// its first part. `delays_ms[i]` (room for max_frames) is how long frame i shows;
+// one that asks for under 20 ms gets 100, as browsers do. A GIF of one frame is one.
+Result decodeFrames(const uint8_t* data, size_t len, int max_side, size_t budget, uint16_t bg, int max_frames,
+                    void* (*out_realloc)(void*, size_t), uint16_t** out, int* out_w, int* out_h, int* out_n,
+                    uint16_t* delays_ms);
 
 }  // namespace linkimg

@@ -12,6 +12,13 @@ your draft.
 
 Emoji this radio can't draw are left out of the sheet. The app still shows any you receive.
 
+**🔍** at the start of the sheet searches every emoji in the full emoji set by name (see [EMOJI.md](EMOJI.md#searching)), not just the app's list:
+
+- An emoji from the app's list goes out as `r:HASH:II`.
+- Any other emoji goes out the way MeshCore Open TAK sends those: MeshCore One's `@[name]🥳` (just `🥳` in a direct chat), then a new line and the 8-character hash.
+
+Either way it shows under the message here and in the app.
+
 ## Reading
 
 Reactions are shown as a line under the message they're for, e.g. `👍 2  ❤️`. In

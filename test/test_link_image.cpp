@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // LinkImage: finding a picture's link in a message, and decoding each kind
-// (JPEG, progressive JPEG, PNG with alpha, GIF, BMP, WebP lossy and lossless)
+// (JPEG, progressive JPEG, PNG with alpha, GIF, WebP lossy and lossless; BMP is not decoded)
 // to RGB565 at the size asked for.
 //   g++ -std=c++17 -I src test/test_link_image.cpp src/helpers/LinkImage.cpp
 #include <assert.h>
@@ -85,7 +85,7 @@ int main() {
   url("(https://x.org/p.png).", "https://x.org/p.png");
   url("https://cdn.x.org/cat.webp?w=640&h=480 wow", "https://cdn.x.org/cat.webp?w=640&h=480");
   url("gif: https://media.site.net/a/b/c.gif#frag", "https://media.site.net/a/b/c.gif#frag");
-  url("old https://x.org/scan.bmp!", "https://x.org/scan.bmp");
+  url("old https://x.org/scan.bmp!", nullptr);   // BMP isn't decoded
   url("page https://x.org/index.html then https://x.org/pic.jpg", "https://x.org/pic.jpg");
   url("https://x.org/jpg", nullptr);                 // no extension, just the word
   url("https://x.org/photo.jpg.html", nullptr);
@@ -121,9 +121,30 @@ int main() {
   picture("progressive jpeg", k_jpeg_prog, sizeof k_jpeg_prog, linkimg::kJpeg, false, true);
   picture("png", k_png_alpha, sizeof k_png_alpha, linkimg::kPng, true, false);
   picture("gif", k_gif, sizeof k_gif, linkimg::kGif, false, false);
-  picture("bmp", k_bmp, sizeof k_bmp, linkimg::kBmp, false, false);
+  CHECK(linkimg::sniff(k_bmp, sizeof k_bmp) == linkimg::kUnknown);   // BMP isn't decoded
   picture("webp lossy", k_webp_lossy, sizeof k_webp_lossy, linkimg::kWebp, false, true);
   picture("webp lossless", k_webp_lossless, sizeof k_webp_lossless, linkimg::kWebp, true, false);
+
+  // ---- an animated GIF's frames: red 50 ms, green 10 ms (shown 100), blue 200 ms
+  {
+    static const uint8_t anim[] = {0x47,0x49,0x46,0x38,0x39,0x61,0x08,0x00,0x06,0x00,0x81,0x00,0x00,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x21,0xff,0x0b,0x4e,0x45,0x54,0x53,0x43,0x41,0x50,0x45,0x32,0x2e,0x30,0x03,0x01,0x00,0x00,0x00,0x21,0xf9,0x04,0x04,0x05,0x00,0x00,0x00,0x2c,0x00,0x00,0x00,0x00,0x08,0x00,0x06,0x00,0x00,0x08,0x0e,0x00,0x01,0x08,0x1c,0x48,0xb0,0xa0,0xc1,0x83,0x08,0x13,0x0e,0x0c,0x08,0x00,0x21,0xf9,0x04,0x05,0x01,0x00,0x01,0x00,0x2c,0x00,0x00,0x00,0x00,0x08,0x00,0x06,0x00,0x81,0x00,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x08,0x0e,0x00,0x01,0x08,0x1c,0x48,0xb0,0xa0,0xc1,0x83,0x08,0x13,0x0e,0x0c,0x08,0x00,0x21,0xf9,0x04,0x05,0x14,0x00,0x01,0x00,0x2c,0x00,0x00,0x00,0x00,0x08,0x00,0x06,0x00,0x81,0x00,0x00,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x08,0x0e,0x00,0x01,0x08,0x1c,0x48,0xb0,0xa0,0xc1,0x83,0x08,0x13,0x0e,0x0c,0x08,0x00,0x3b};
+    uint16_t* fr = nullptr;
+    uint16_t delays[8] = {};
+    int fw = 0, fh = 0, fn = 0;
+    CHECK(linkimg::decodeFrames(anim, sizeof anim, 64, 1u << 20, 0, 8, realloc, &fr, &fw, &fh, &fn, delays) == linkimg::kOk);
+    CHECK(fw == 8 && fh == 6 && fn == 3);
+    CHECK(fr && fr[0] == 0xF800 && fr[48] == 0x07E0 && fr[96] == 0x001F);
+    CHECK(delays[0] == 50 && delays[1] == 100 && delays[2] == 200);
+    free(fr);
+    // Scaled down, and cut short to what's asked for.
+    CHECK(linkimg::decodeFrames(anim, sizeof anim, 4, 1u << 20, 0, 2, realloc, &fr, &fw, &fh, &fn, delays) == linkimg::kOk);
+    CHECK(fw == 4 && fh == 3 && fn == 2 && fr[0] == 0xF800 && fr[12] == 0x07E0);
+    free(fr);
+    // No room, not a GIF.
+    CHECK(linkimg::decodeFrames(anim, sizeof anim, 64, 1000, 0, 8, realloc, &fr, &fw, &fh, &fn, delays) == linkimg::kTooLarge);
+    CHECK(linkimg::decodeFrames(k_png_alpha, sizeof k_png_alpha, 64, 1u << 20, 0, 8, realloc, &fr, &fw, &fh, &fn, delays) ==
+          linkimg::kNotPicture);
+  }
 
   // ---- not pictures
   static const uint8_t html[] = "<!doctype html><html></html>";

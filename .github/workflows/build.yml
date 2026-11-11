@@ -67,6 +67,11 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_contact_photo test/test_contact_photo.cpp
           /tmp/test_contact_photo
+      - name: GIFs as MeshCore Open sends them (GiphyText.h)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_giphy_text test/test_giphy_text.cpp
+          /tmp/test_giphy_text
       - name: New map points flash (MapHighlight.h)
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \

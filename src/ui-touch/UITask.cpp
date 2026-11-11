@@ -164,6 +164,7 @@ static void* wadaMp3Scratch() { return s_wada_mp3_scratch; }
 #include "ChannelSenderSplit.h"  // host-tested "SenderName: body" split for channel/room posts
 #include "MentionText.h"         // "@[name]" shows as "@name" on a chip, as MeshCore Open shows it
 #include "TakTexts.h"            // host-tested MeshCore Open TAK / MediaMesh text rules
+#include "GiphyText.h"          // host-tested: GIFs as MeshCore Open sends them ("g:<id>")
 #include "ReactionCodec.h"       // host-tested emoji reactions from MeshCore Open / One (#791)
 #include "PasteHexKey.h"        // host-tested key extraction for pasted key fields (#526)
 #include "NavSpatial.h"         // host-tested keypad spatial step (navMoveDir)
@@ -13329,6 +13330,16 @@ static bool emojiPackSearchable();                                        // Emo
 static int  emojiPackSearch(const char* query, const char** out, int max); // EmojiPackUI.inc
 static void emojiSearchOpen(lv_obj_t* ta, void (*cb)(const char* utf8));   // with attachSettingsTaEvents
 static const char kEmojiSearchItem[] = "\xF0\x9F\x94\x8D";   // 🔍 (told apart by its address)
+static const char kEmojiGifItem[] = "GIF";   // a chat's picker: GIFs (LinkImages.inc), by its address too
+#if CAP_LINK_IMAGES
+static void gifPickerOpen();
+#endif
+// The full emoji set (EmojiPackUI.inc) can be on this board: its picker offers search.
+#if LV_USE_IMGFONT && defined(ESP32) && !defined(HAS_TANMATSU)
+static constexpr bool kEmojiSearchHere = true;
+#else
+static constexpr bool kEmojiSearchHere = false;
+#endif
 
 // Curated insert set, grouped. Kept in sync with what the extras fonts bake
 // (see scripts/build/regen-extras-fonts.sh) — a glyph here that isn't in the
@@ -13434,6 +13445,13 @@ static void emojiSheetCloseCb(lv_event_t* e) {
 // Insert item `idx` into the active composer and close. Shared by finger-tap
 // (emojiPickCb) and the trackball selector (emojiSelectorClick).
 static void emojiInsertIndex(int idx) {
+#if CAP_LINK_IMAGES
+  if (idx >= 0 && idx < s_glyph_count && s_glyph_items[idx] == kEmojiGifItem) {
+    closeEmojiSheet();
+    gifPickerOpen();
+    return;
+  }
+#endif
   if (idx >= 0 && idx < s_glyph_count && s_glyph_items[idx] == kEmojiSearchItem) {
     lv_obj_t* ta = s_emoji_target_ta;
     void (*cb)(const char*) = s_emoji_pick_cb;
@@ -13544,12 +13562,17 @@ static void openEmojiPicker(lv_obj_t* ta, const char* const* items = k_emoji_ite
   closeEmojiSheet();
   s_emoji_target_ta = ta;
   const bool emoji_set = (items == k_emoji_items);
-  static const char* s_with_search[k_emoji_count + 1];
-  if (emoji_set && emojiPackSearchable()) {
-    s_with_search[0] = kEmojiSearchItem;
-    for (int i = 0; i < k_emoji_count; ++i) s_with_search[i + 1] = k_emoji_items[i];
+  // First come search (🔍; it says what it needs when the full set isn't here) and,
+  // in a chat on a board with Wi-Fi pictures, GIF.
+  static const char* s_with_search[k_emoji_count + 2];
+  const bool gif = CAP_LINK_IMAGES && emoji_set && ta && (ta == g_lv.ch.composer_ta || ta == g_lv.dm.composer_ta);
+  if (emoji_set && (kEmojiSearchHere || gif)) {
+    int k = 0;
+    if (kEmojiSearchHere) s_with_search[k++] = kEmojiSearchItem;
+    if (gif) s_with_search[k++] = kEmojiGifItem;
+    for (int i = 0; i < k_emoji_count; ++i) s_with_search[k + i] = k_emoji_items[i];
     items = s_with_search;
-    count = k_emoji_count + 1;
+    count = k_emoji_count + k;
   }
   s_glyph_items = items;
   s_glyph_count = count;
@@ -13663,7 +13686,7 @@ static void openEmojiPicker(lv_obj_t* ta, const char* const* items = k_emoji_ite
 #if CAP_LARGE_SCREEN && LV_USE_IMGFONT
     // Baked colour-emoji → draw it as a zoomed image (1.7× ≈ 70% bigger than the 16 px
     // font glyph). Special chars (no emoji dsc) fall through to the text label below.
-    if (big_emoji) {
+    if (big_emoji && s_glyph_items[i] != kEmojiGifItem) {
       uint32_t goff = 0;
       const lv_img_dsc_t* ed = emojiForLetter(_lv_txt_encoded_next(s_glyph_items[i], &goff));
       if (ed) {
@@ -15004,25 +15027,26 @@ static void emojiSearchBackdropCb(lv_event_t* e) {
   emojiSearchRefocus(ta);
 }
 
-static void emojiSearchOpen(lv_obj_t* ta, void (*cb)(const char* utf8)) {
-  emojiSearchClose();
-  if (!emojiPackSearchable()) return;
-  s_esearch_target = ta;
-  s_esearch_cb = cb;
+// The search sheets' frame (emoji search here, GIFs in LinkImages.inc): a card over
+// a dimmed backdrop with a title, the close badge, a one-line field, a note under
+// it and a scrolling grid of results; the field gets the keyboard.
+struct SearchSheet { lv_obj_t* sheet; lv_obj_t* ta; lv_obj_t* note; lv_obj_t* grid; };
+static void searchSheetBuild(SearchSheet& o, const char* title_text, const char* placeholder, uint32_t max_len,
+                             lv_event_cb_t close_cb, lv_event_cb_t ta_cb) {
   const lv_coord_t sw = lv_disp_get_hor_res(nullptr);
   const lv_coord_t sh = lv_disp_get_ver_res(nullptr);
-  s_esearch_sheet = lv_obj_create(lv_layer_top());
-  lv_obj_remove_style_all(s_esearch_sheet);
-  lv_obj_set_size(s_esearch_sheet, sw, sh - STATUSBAR_H);
-  lv_obj_set_pos(s_esearch_sheet, 0, STATUSBAR_H);
-  lv_obj_set_style_bg_color(s_esearch_sheet, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(s_esearch_sheet, LV_OPA_60, LV_PART_MAIN);
-  lv_obj_clear_flag(s_esearch_sheet, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_event_cb(s_esearch_sheet, emojiSearchBackdropCb, LV_EVENT_CLICKED, nullptr);
+  o.sheet = lv_obj_create(lv_layer_top());
+  lv_obj_remove_style_all(o.sheet);
+  lv_obj_set_size(o.sheet, sw, sh - STATUSBAR_H);
+  lv_obj_set_pos(o.sheet, 0, STATUSBAR_H);
+  lv_obj_set_style_bg_color(o.sheet, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(o.sheet, LV_OPA_60, LV_PART_MAIN);
+  lv_obj_clear_flag(o.sheet, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(o.sheet, close_cb, LV_EVENT_CLICKED, nullptr);
 
   const lv_coord_t cardw = sw - 16;
   const lv_coord_t cardh = sh - STATUSBAR_H - 16;
-  lv_obj_t* card = lv_obj_create(s_esearch_sheet);
+  lv_obj_t* card = lv_obj_create(o.sheet);
   lv_obj_remove_style_all(card);
   lv_obj_set_size(card, cardw, cardh);
   lv_obj_align(card, LV_ALIGN_CENTER, 0, 0);
@@ -15033,57 +15057,77 @@ static void emojiSearchOpen(lv_obj_t* ta, void (*cb)(const char* utf8)) {
   lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
   lv_obj_t* title = lv_label_create(card);
-  lv_label_set_text(title, TR("Search emoji"));
+  lv_label_set_text(title, title_text);
   lv_obj_set_style_text_color(title, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
   lv_obj_set_style_text_font(title, &g_font_14, LV_PART_MAIN);
   lv_obj_set_pos(title, 2, 0);
-  addCloseXBadge(card, emojiSearchBackdropCb);
+  addCloseXBadge(card, close_cb);
 
   const lv_coord_t inner_w = cardw - 16;
   const lv_coord_t ta_y = lv_font_get_line_height(&g_font_14) + 6;
   const lv_coord_t ta_h = 34;
-  s_esearch_ta = lv_textarea_create(card);
-  lv_obj_set_size(s_esearch_ta, inner_w - 30, ta_h);
-  lv_obj_set_pos(s_esearch_ta, 0, ta_y);
-  styleCard(s_esearch_ta);
-  lv_textarea_set_one_line(s_esearch_ta, true);
-  lv_textarea_set_max_length(s_esearch_ta, 40);
-  taSetPlaceholder(s_esearch_ta, TR("Name"));
-  lv_obj_set_style_text_color(s_esearch_ta, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
-  lv_obj_set_style_text_font(s_esearch_ta, &g_font_14, LV_PART_MAIN);
-  lv_obj_add_event_cb(s_esearch_ta, emojiSearchTaCb, LV_EVENT_VALUE_CHANGED, nullptr);
-  lv_obj_add_event_cb(s_esearch_ta, emojiSearchTaCb, LV_EVENT_READY, nullptr);
-  attachSettingsTaEvents(s_esearch_ta);
+  o.ta = lv_textarea_create(card);
+  lv_obj_set_size(o.ta, inner_w - 30, ta_h);
+  lv_obj_set_pos(o.ta, 0, ta_y);
+  styleCard(o.ta);
+  lv_textarea_set_one_line(o.ta, true);
+  lv_textarea_set_max_length(o.ta, max_len);
+  taSetPlaceholder(o.ta, placeholder);
+  lv_obj_set_style_text_color(o.ta, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+  lv_obj_set_style_text_font(o.ta, &g_font_14, LV_PART_MAIN);
+  lv_obj_add_event_cb(o.ta, ta_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_obj_add_event_cb(o.ta, ta_cb, LV_EVENT_READY, nullptr);
+  attachSettingsTaEvents(o.ta);
 
   const lv_coord_t note_y = ta_y + ta_h + 4;
-  s_esearch_note = lv_label_create(card);
-  lv_obj_set_style_text_color(s_esearch_note, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
-  lv_obj_set_style_text_font(s_esearch_note, &g_font_12, LV_PART_MAIN);
-  lv_obj_set_pos(s_esearch_note, 2, note_y);
+  o.note = lv_label_create(card);
+  lv_obj_set_style_text_color(o.note, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+  lv_obj_set_style_text_font(o.note, &g_font_12, LV_PART_MAIN);
+  lv_obj_set_pos(o.note, 2, note_y);
 
   const lv_coord_t grid_y = note_y + lv_font_get_line_height(&g_font_12) + 4;
-  lv_obj_t* grid = lv_obj_create(card);
-  lv_obj_remove_style_all(grid);
-  lv_obj_set_size(grid, inner_w, cardh - 16 - grid_y);
-  lv_obj_set_pos(grid, 0, grid_y);
-  lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
-  lv_obj_set_style_pad_row(grid, 4, LV_PART_MAIN);
-  lv_obj_set_style_pad_column(grid, 4, LV_PART_MAIN);
-  lv_obj_set_scroll_dir(grid, LV_DIR_VER);
-  lv_obj_set_scrollbar_mode(grid, LV_SCROLLBAR_MODE_AUTO);
-  s_esearch_grid = grid;
+  o.grid = lv_obj_create(card);
+  lv_obj_remove_style_all(o.grid);
+  lv_obj_set_size(o.grid, inner_w, cardh - 16 - grid_y);
+  lv_obj_set_pos(o.grid, 0, grid_y);
+  lv_obj_set_flex_flow(o.grid, LV_FLEX_FLOW_ROW_WRAP);
+  lv_obj_set_style_pad_row(o.grid, 4, LV_PART_MAIN);
+  lv_obj_set_style_pad_column(o.grid, 4, LV_PART_MAIN);
+  lv_obj_set_scroll_dir(o.grid, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(o.grid, LV_SCROLLBAR_MODE_AUTO);
+}
+// The field takes the keyboard (after the sheet's first fill).
+static void searchSheetFocus(const SearchSheet& o) {
+#if CAP_KEYBOARD && CAP_KEYPAD_NAV
+  lv_async_call(physicalKeyboardModalAutoFocusAsync, o.sheet);
+#else
+  if (g_lv.keyboard) kbMirrorBind(o.ta);
+#endif
+}
+
+static void emojiSearchOpen(lv_obj_t* ta, void (*cb)(const char* utf8)) {
+  emojiSearchClose();
+  if (!emojiPackSearchable()) {
+    if (g_lv.task)
+      g_lv.task->showAlert(TR("Emoji search needs the full emoji set. It downloads by itself on Wi-Fi; About shows "
+                              "how far it is."), 3200);
+    return;
+  }
+  s_esearch_target = ta;
+  s_esearch_cb = cb;
+  SearchSheet o;
+  searchSheetBuild(o, TR("Search emoji"), TR("Name"), 40, emojiSearchBackdropCb, emojiSearchTaCb);
+  s_esearch_sheet = o.sheet;
+  s_esearch_ta = o.ta;
+  s_esearch_note = o.note;
+  s_esearch_grid = o.grid;
 #if CAP_LARGE_SCREEN
   s_esearch_cell = 48;
 #else
   s_esearch_cell = 38;
 #endif
   emojiSearchRefresh();
-
-#if CAP_KEYBOARD && CAP_KEYPAD_NAV
-  lv_async_call(physicalKeyboardModalAutoFocusAsync, s_esearch_sheet);
-#else
-  if (g_lv.keyboard) kbMirrorBind(s_esearch_ta);
-#endif
+  searchSheetFocus(o);
 }
 
 // ===== Text selection + edit menu ==========================================
@@ -21467,6 +21511,8 @@ static void histSyncPickCb(lv_event_t* e) {
 #if CAP_LINK_IMAGES
 static bool linkImgOn();                   // LinkImages.inc
 static void linkImgToggleCb(lv_event_t* e);
+static bool gifPlayOn();
+static void gifPlayToggleCb(lv_event_t* e);
 #endif
 static void buildGeneralPage() {
   {
@@ -21492,10 +21538,12 @@ static void buildGeneralPage() {
 #if CAP_LINK_IMAGES
   {
     lv_obj_t* c = setCard("Linked images");
-    setSwitchRow(c, "Download over Wi-Fi", "A link to a picture (.jpg, .png, .gif, .webp, .bmp) in a channel or a DM "
+    setSwitchRow(c, "Download over Wi-Fi", "A link to a picture (.jpg, .png, .gif, .webp) in a channel or a DM "
                  "is downloaded while Wi-Fi is on and shown in its bubble; tap it to see it full size. The picture's "
                  "server sees this radio's address. Kept on the SD card when there is one.",
                  linkImgOn(), linkImgToggleCb);
+    setSwitchRow(c, "Play GIFs in chat", "A GIF plays, small, in its bubble. Off: its still shows; tap it to play.",
+                 gifPlayOn(), gifPlayToggleCb);
   }
 #endif
 #if CAP_SD || defined(TLORA_PAGER)
@@ -49754,6 +49802,8 @@ static bool msgPreviewText(const char* body_in, char* out, size_t cap) {
     }
     return true;
   }
+  char gid[giphy::kIdMax];
+  if (giphy::idOf(body, gid, sizeof gid)) { snprintf(out, cap, "GIF"); return true; }
   snprintf(out, cap, "%s", body);
   return true;
 }
@@ -50088,9 +50138,16 @@ static void chatParseMessageDisplay(const UITask::UIMessage& m, bool channel_mod
       d.thumb_h = (lv_coord_t)th;
     }
   }
+  else {
+    // A GIF (GiphyText.h) says so instead of "g:<id>"; with Wi-Fi pictures its
+    // still shows above that, and a tap plays it.
+    char gid[giphy::kIdMax];
+    const bool gif = giphy::idOf(d.show_text, gid, sizeof gid);
 #if CAP_LINK_IMAGES
-  else linkImgBubble(d.show_text, d);   // a picture's link: shown when it's here, asked for when not
+    linkImgBubble(d.show_text, d);   // a picture's link: shown when it's here, asked for when not
 #endif
+    if (gif) d.show_text = LV_SYMBOL_IMAGE "  GIF";
+  }
   // Reactions on it (Reactions.h): their own line under the text (on the same line,
   // spaced off, in compact rows). Measure and build both read this, so the bubble's
   // height includes it.
@@ -84134,7 +84191,7 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
     }
     {
       const int slot = _ui_msg_head;   // appendMessage writes _ui_msgs[head]
-      if (appendMessage(_ui_threads[_active_thread_idx].name, sender, truncated, true, true, false,
+      if (appendMessage(_ui_threads[_active_thread_idx].name, sender, _store_as ? _store_as : truncated, true, true, false,
                         0, DELIV_NONE, 0, 0, 0, 0, nullptr, 0, the_mesh.uiLastSentFp()) >= 0)
         stampSentTs(_ui_msgs, slot, ts);
     }
@@ -84220,7 +84277,7 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
   }
   if (r == MSG_SEND_FAILED) {
     showAlert(TR("Send failed"), 1200);
-    appendMessage(_ui_threads[_active_thread_idx].name, sender, truncated, false, true, false,
+    appendMessage(_ui_threads[_active_thread_idx].name, sender, _store_as ? _store_as : truncated, false, true, false,
                   expected_ack, DELIV_FAILED);
     return false;
   }
@@ -84229,7 +84286,7 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
   the_mesh.uiRegisterExpectedAck(expected_ack, recipient.id.pub_key);
   {
     const int slot = _ui_msg_head;   // appendMessage writes _ui_msgs[head]
-    if (appendMessage(_ui_threads[_active_thread_idx].name, sender, truncated, false, true, false,
+    if (appendMessage(_ui_threads[_active_thread_idx].name, sender, _store_as ? _store_as : truncated, false, true, false,
                       expected_ack, DELIV_SENT, 0, 0, 0, 0, nullptr, 0, the_mesh.uiLastSentFp()) >= 0)
       stampSentTs(_ui_msgs, slot, ts);
   }
