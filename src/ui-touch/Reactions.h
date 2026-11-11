@@ -22,6 +22,9 @@
 //
 // Only the app's format is sent. A MeshCore One reaction that matches a message
 // here is stored in the app's format, so the rest of the firmware sees one kind.
+// The app sends emoji outside its table (since its full emoji set) in MeshCore
+// One's format; those are stored as "r:HASH:=EMOJI", this firmware's own form
+// (never sent), and shown under their message like the rest.
 //
 // Pure logic, header-only, host-tested against the app's golden values in
 // test/test_reactions.cpp. The emoji table is generated from the app's
@@ -303,8 +306,48 @@ inline bool parse(const char* t, uint16_t* hash, int* emoji_index) {
   return true;
 }
 
+// The longest emoji a stored reaction keeps, NUL included (a ZWJ family is ~25 bytes).
+constexpr size_t kEmojiBytes = 32;
+
+// A stored reaction, either form: the app's "r:HASH:II", or "r:HASH:=EMOJI" for
+// an emoji outside the table. `emoji` (kEmojiBytes) gets the emoji's UTF-8.
+inline bool parseStored(const char* t, uint16_t* hash, char* emoji) {
+  int idx = -1;
+  if (parse(t, hash, &idx)) {
+    if (emoji) snprintf(emoji, kEmojiBytes, "%s", kEmojis[idx]);
+    return true;
+  }
+  if (!t || strncmp(t, "r:", 2) != 0 || strlen(t) < 9 || t[6] != ':' || t[7] != '=') return false;
+  uint32_t h = 0;
+  for (int i = 2; i < 6; i++) {
+    const int v = detail::hexv(t[i]);
+    if (v < 0) return false;
+    h = (h << 4) | (uint32_t)v;
+  }
+  const char* e = t + 8;
+  const size_t n = strlen(e);
+  if (!n || n >= kEmojiBytes || (uint8_t)e[0] < 0x80) return false;   // an emoji is never ASCII-led
+  if (hash) *hash = (uint16_t)h;
+  if (emoji) memcpy(emoji, e, n + 1);
+  return true;
+}
+
+// Stores a reaction to the message with `hash`: the app's form when the emoji is
+// in its table, else "r:HASH:=EMOJI". False when the emoji doesn't fit.
+inline bool formatStored(uint16_t hash, const char* emoji, char* out, size_t cap) {
+  const int idx = emojiIndex(emoji);
+  if (idx >= 0) {
+    format(hash, idx, out, cap);
+    return true;
+  }
+  const size_t n = emoji ? strlen(emoji) : 0;
+  if (!n || n >= kEmojiBytes || (uint8_t)emoji[0] < 0x80) return false;
+  const int w = snprintf(out, cap, "r:%04x:=%s", (unsigned)hash, emoji);
+  return w > 0 && (size_t)w < cap;
+}
+
 // A stored reaction: what the timeline hides and gathers under its message.
-inline bool isReaction(const char* t) { return parse(t, nullptr, nullptr); }
+inline bool isReaction(const char* t) { return parseStored(t, nullptr, nullptr); }
 
 // ---- MeshCore One's format ------------------------------------------------------------------
 
@@ -507,18 +550,23 @@ inline void hashMc1(uint32_t sent_epoch, const char* text, char out[9]) {
 // seen, as the app's reactions map.
 struct Tally {
   static constexpr int kMax = 8;
-  uint8_t emoji[kMax];
+  char emoji[kMax][kEmojiBytes];
   uint8_t count[kMax];
   uint32_t who[kMax][4];   // up to 4 people per emoji, by name hash (one each)
   int n = 0;
 
   // False when this person already reacted with it (or it's full).
   bool add(int emoji_index, const char* person) {
+    const char* e = emojiAt(emoji_index);
+    return e && add(e, person);
+  }
+  bool add(const char* emoji_text, const char* person) {
+    if (!emoji_text || !emoji_text[0] || strlen(emoji_text) >= kEmojiBytes) return false;
     quickreply::DartHash d;
     d.utf8(person ? person : "");
     const uint32_t p = d.done();
     for (int i = 0; i < n; i++) {
-      if (emoji[i] != (uint8_t)emoji_index) continue;
+      if (strcmp(emoji[i], emoji_text) != 0) continue;
       const int seen = count[i] < 4 ? count[i] : 4;
       for (int j = 0; j < seen; j++) if (who[i][j] == p) return false;
       if (count[i] < 4) who[i][count[i]] = p;
@@ -526,7 +574,7 @@ struct Tally {
       return true;
     }
     if (n >= kMax) return false;
-    emoji[n] = (uint8_t)emoji_index;
+    snprintf(emoji[n], kEmojiBytes, "%s", emoji_text);
     count[n] = 1;
     who[n][0] = p;
     n++;
@@ -539,8 +587,8 @@ struct Tally {
     if (cap) out[0] = '\0';
     for (int i = 0; i < n && at + 1 < cap; i++) {
       const int w = count[i] > 1
-          ? snprintf(out + at, cap - at, "%s%s %u", i ? "  " : "", kEmojis[emoji[i]], (unsigned)count[i])
-          : snprintf(out + at, cap - at, "%s%s", i ? "  " : "", kEmojis[emoji[i]]);
+          ? snprintf(out + at, cap - at, "%s%s %u", i ? "  " : "", emoji[i], (unsigned)count[i])
+          : snprintf(out + at, cap - at, "%s%s", i ? "  " : "", emoji[i]);
       if (w < 0 || (size_t)w >= cap - at) { out[at] = '\0'; break; }
       at += (size_t)w;
     }

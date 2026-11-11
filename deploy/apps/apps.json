@@ -30,8 +30,8 @@
     {
       "id": "protreck",
       "name": "ProTreck",
-      "ver": "1.2",
-      "desc": "Outdoor watch: ASTRO (sun/moon + 3 alarms), CMPAS (compass rose + waypoint), CHRONO (laps), TIMER (countdown), ALTI (altitude + trend + déniv). Swipe left/right to switch tabs. Contributed by samuelcoustet.",
+      "ver": "1.3",
+      "desc": "Outdoor watch: ASTRO (sun/moon + 3 alarms + local sun times), CMPAS (compass rose + waypoint), CHRONO (laps), TIMER (countdown), ALTI (altitude + trend + déniv). Swipe left/right to switch tabs. Contributed by samuelcoustet.",
       "requires": "sdk_ext",
       "seed": false
     },
@@ -132,6 +132,15 @@
       "ver": "1.1",
       "desc": "Classic alien shooter with shields, a bonus UFO and rising levels. Swipe or use keys to move, up or tap the middle to fire. Keeps your high score.",
       "icon": "game",
+      "seed": false
+    },
+    {
+      "id": "ebook",
+      "name": "Ebook",
+      "ver": "1.0",
+      "desc": "Reads .epub books from the app's folder (text only), with chapters, text sizes and a remembered place. Books must be stored uncompressed: repack them with scripts/ebook-prep.py.",
+      "icon": "list",
+      "requires": "sdk_ext",
       "seed": false
     }
   ]

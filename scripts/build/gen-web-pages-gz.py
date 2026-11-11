@@ -83,6 +83,13 @@ def literal(src, name):
             out += src[k + 1:j].encode("utf-8")
             i = j + len(end)
             continue
+        ident = re.match(r"[A-Za-z_]\w*", src[i:])
+        if ident:
+            # A macro of string literals in the page (upstream's WS_AUTH_HTML /
+            # WS_AUTH_JS): its literals, spliced in.
+            out += macro(src, ident.group(0), name)
+            i += len(ident.group(0))
+            continue
         if src[i] != '"':
             raise ValueError(name + ": not a plain string literal at " + src[i:i + 20])
         j = i + 1
@@ -90,6 +97,15 @@ def literal(src, name):
             j += 2 if src[j] == "\\" else 1
         out += unescape(src[i + 1:j])
         i = j + 1
+
+
+def macro(src, ident, name):
+    """The bytes of `#define IDENT "..." "..."` (continued with backslashes)."""
+    m = re.search(r"^#define\s+" + ident + r"\b[ \t]*((?:.*\\\n)*.*)$", src, re.M)
+    if not m:
+        raise ValueError(name + ": " + ident + " is not a #define in the same file")
+    body = re.sub(r"\\\n", "\n", m.group(1))
+    return literal("static const char X[] = " + body + ";", "X")
 
 
 def page_gz(raw):
