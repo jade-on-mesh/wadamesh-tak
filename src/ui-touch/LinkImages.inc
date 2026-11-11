@@ -45,6 +45,9 @@ static constexpr int kGifMaxFrames = 150;
 static constexpr int kGifSide = 200;
 static constexpr size_t kGifMaxBytes = 4u << 20;
 static volatile bool s_gif_busy = false;   // the GIF picker is using the network: links wait
+// A GIF in its bubble: thumbnail-sized frames, a few GIFs' worth kept.
+static constexpr int kGifBubbleFrames = 48;
+static constexpr size_t kGifBubbleBytes = 768u * 1024u;
 
 // Settings > General > Linked images.
 static int8_t s_li_on = -1;
@@ -62,6 +65,24 @@ static void linkImgToggleCb(lv_event_t* e) {
   const uint8_t v = on ? 1 : 0;
   touchPrefsSetBlob("linkimg2", &v, 1);
   ++s_chat_thumb_gen;   // the open chat lays out again: pictures in or out
+  g_lv.dirty_timeline = true;
+}
+
+// Settings > General > Play GIFs in chat: on unless switched off.
+static int8_t s_gif_play = -1;
+static bool gifPlayOn() {
+  if (s_gif_play < 0) {
+    uint8_t v = 1;
+    s_gif_play = (touchPrefsGetBlob("gifplay", &v, 1) == 1 && !v) ? 0 : 1;
+  }
+  return s_gif_play == 1;
+}
+static void gifPlayToggleCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+  const uint8_t v = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED) ? 1 : 0;
+  s_gif_play = (int8_t)v;
+  touchPrefsSetBlob("gifplay", &v, 1);
+  ++s_chat_thumb_gen;   // the open chat draws its bubbles again
   g_lv.dirty_timeline = true;
 }
 
@@ -231,9 +252,11 @@ static void linkImgJobBody() {
 
   const size_t free_ps = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
   const size_t budget = free_ps > kLiKeepFree ? free_ps - kLiKeepFree : 0;
-  if (j.anim) {
-    j.res = linkimg::decodeFrames(raw, len, kGifSide, budget < kGifMaxBytes ? budget : kGifMaxBytes, 0x0000,
-                                  kGifMaxFrames, lvglPsramRealloc, &j.px, &j.w, &j.h, &j.frames, j.delays);
+  if (j.anim) {   // the player's (view), or a bubble's: thumbnail-sized, fewer
+    const size_t cap = j.view ? kGifMaxBytes : kGifBubbleBytes;
+    j.res = linkimg::decodeFrames(raw, len, j.view ? kGifSide : VoxPhotos::kThumbMax, budget < cap ? budget : cap,
+                                  j.view ? 0x0000 : 0x2104, j.view ? kGifMaxFrames : kGifBubbleFrames,
+                                  lvglPsramRealloc, &j.px, &j.w, &j.h, &j.frames, j.delays);
     free(raw);
     j.state = 2;
     return;
@@ -594,6 +617,125 @@ static void gifPickerOpen() {
   searchSheetFocus(o);
 }
 
+// ---- GIFs playing in their bubbles (Settings > General > Play GIFs in chat) -----
+// A bubble's GIF shows its still first; its small animated copy (Giphy's 100 px
+// one) comes after, one at a time like every linked picture, and then plays in the
+// still's place. The frames are kept for the last few GIFs, shared by every bubble
+// showing one, and freed once no bubble is.
+struct GifAnim { uint32_t id; uint16_t* px; int w, h, n; uint16_t delays[kGifBubbleFrames]; uint8_t refs; uint32_t used; };
+static GifAnim s_ga[4];
+struct GifLive { lv_obj_t* img; uint32_t id; lv_img_dsc_t* still; lv_img_dsc_t dsc; int8_t a; uint8_t at; uint32_t next_ms; };
+static GifLive s_gl[10];
+static lv_timer_t* s_gl_timer = nullptr;
+static uint32_t s_ga_want[6];
+static char s_ga_want_url[6][96];
+static uint8_t s_ga_want_n = 0;
+static uint32_t s_ga_failed[16];
+static uint8_t s_ga_failed_at = 0;
+
+static int gifAnimFind(uint32_t id) {
+  for (int i = 0; i < 4; ++i) if (s_ga[i].px && s_ga[i].id == id) return i;
+  return -1;
+}
+
+static void gifLiveStep(lv_timer_t*) {
+  const uint32_t now = millis();
+  bool any = false;
+  for (auto& l : s_gl) {
+    if (!l.img || l.a < 0) continue;
+    any = true;
+    const GifAnim& g = s_ga[(int)l.a];
+    if (g.n < 2 || (int32_t)(now - l.next_ms) < 0) continue;
+    l.at = (uint8_t)((l.at + 1) % g.n);
+    l.dsc.data = (const uint8_t*)(g.px + (size_t)l.at * g.w * g.h);
+    lv_img_cache_invalidate_src(&l.dsc);
+    lv_obj_invalidate(l.img);
+    l.next_ms = now + g.delays[l.at];
+  }
+  if (!any && s_gl_timer) { lv_timer_del(s_gl_timer); s_gl_timer = nullptr; }
+}
+
+static void gifLiveAttach(GifLive& l, int a) {
+  GifAnim& g = s_ga[a];
+  ++g.refs;
+  g.used = millis();
+  l.a = (int8_t)a;
+  l.at = 0;
+  memset(&l.dsc, 0, sizeof l.dsc);
+  l.dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+  l.dsc.header.w = (uint32_t)g.w;
+  l.dsc.header.h = (uint32_t)g.h;
+  l.dsc.data_size = (uint32_t)g.w * (uint32_t)g.h * 2u;
+  l.dsc.data = (const uint8_t*)g.px;
+  lv_img_cache_invalidate_src(&l.dsc);
+  lv_img_set_src(l.img, &l.dsc);
+  l.next_ms = millis() + g.delays[0];
+  if (!s_gl_timer) s_gl_timer = lv_timer_create(gifLiveStep, 30, nullptr);
+}
+
+// A bubble's still that is a GIF's: it plays once its frames are here.
+static void gifLiveAdd(lv_obj_t* img, lv_img_dsc_t* still, const char* still_url) {
+  char gid[giphy::kIdMax], url[96];
+  if (!gifPlayOn() || !giphy::idOfMediaUrl(still_url, gid, sizeof gid) || !giphy::mediaUrl(gid, "100w", url, sizeof url))
+    return;
+  GifLive* l = nullptr;
+  for (auto& e : s_gl) if (!e.img) { l = &e; break; }
+  if (!l) return;   // more GIFs on screen than this plays: the rest stay still
+  const uint32_t id = linkimg::urlId(url);
+  l->img = img;
+  l->id = id;
+  l->still = still;
+  l->a = -1;
+  const int a = gifAnimFind(id);
+  if (a >= 0) { gifLiveAttach(*l, a); return; }
+  for (uint32_t f : s_ga_failed) if (f == id) return;
+  for (uint8_t i = 0; i < s_ga_want_n; ++i) if (s_ga_want[i] == id) return;
+  if (s_ga_want_n == 6) {   // full: the oldest goes
+    memmove(&s_ga_want[0], &s_ga_want[1], sizeof s_ga_want[0] * 5);
+    memmove(&s_ga_want_url[0], &s_ga_want_url[1], sizeof s_ga_want_url[0] * 5);
+    --s_ga_want_n;
+  }
+  s_ga_want[s_ga_want_n] = id;
+  snprintf(s_ga_want_url[s_ga_want_n], sizeof s_ga_want_url[0], "%s", url);
+  ++s_ga_want_n;
+}
+
+// The bubble's image is going: its still goes with it, its GIF's frames when no
+// other bubble shows them. False when it wasn't a GIF's.
+static bool gifLiveGone(lv_obj_t* img) {
+  for (auto& l : s_gl) {
+    if (l.img != img) continue;
+    if (l.a >= 0 && s_ga[(int)l.a].refs) --s_ga[(int)l.a].refs;
+    lv_img_cache_invalidate_src(&l.dsc);
+    if (l.still) { free((void*)l.still->data); free(l.still); }
+    l = GifLive();
+    return true;
+  }
+  return false;
+}
+
+// A GIF's frames came (on the UI loop): kept, and every bubble showing it plays.
+static void gifAnimLanded(uint32_t id, uint16_t* px, int w, int h, int n, const uint16_t* delays) {
+  int slot = -1;
+  for (int i = 0; i < 4; ++i) if (!s_ga[i].px) { slot = i; break; }
+  if (slot < 0)   // the least recently started one nothing shows
+    for (int i = 0; i < 4; ++i)
+      if (!s_ga[i].refs && (slot < 0 || (int32_t)(s_ga[i].used - s_ga[slot].used) < 0)) slot = i;
+  if (slot < 0) { lvglPsramFree(px); return; }   // all on screen: this one stays still
+  GifAnim& g = s_ga[slot];
+  if (g.px) lvglPsramFree(g.px);
+  g.id = id;
+  g.px = px;
+  g.w = w;
+  g.h = h;
+  g.n = n < kGifBubbleFrames ? n : kGifBubbleFrames;
+  memcpy(g.delays, delays, sizeof(uint16_t) * (size_t)g.n);
+  g.refs = 0;
+  g.used = millis();
+  for (auto& l : s_gl)
+    if (l.img && l.a < 0 && l.id == id) gifLiveAttach(l, slot);
+}
+
 // From the UI loop: collects a finished job, then starts the next download.
 static void linkImgTick() {
   LiJob& j = s_li_job;
@@ -638,7 +780,13 @@ static void linkImgTick() {
         lvglPsramFree(rgb);
       }
     }
-    if (j.view && j.anim) {
+    if (j.anim && !j.view) {
+      if (j.res == linkimg::kOk && j.px && j.frames > 0) gifAnimLanded(id, j.px, j.w, j.h, j.frames, j.delays);
+      else {
+        if (j.px) lvglPsramFree(j.px);
+        s_ga_failed[s_ga_failed_at++ % 16] = id;
+      }
+    } else if (j.view && j.anim) {
       if (j.res == linkimg::kOk && j.px && j.frames > 0) gifPlayerShow(j.px, j.w, j.h, j.frames, j.delays);
       else if (g_lv.task) g_lv.task->showAlert(TR(linkImgWhy(j)), 2200);
       if (j.res != linkimg::kOk && j.px) lvglPsramFree(j.px);
@@ -674,7 +822,16 @@ static void linkImgTick() {
     j.state = 0;
     return;
   }
-  if (!s_li_want_n || !linkImgOn() || !linkImgWifiUp() || s_gif_busy) return;
+  if (!linkImgOn() || !linkImgWifiUp() || s_gif_busy) return;
+  if (!s_li_want_n) {   // pictures first, then GIFs to play in their bubbles
+    if (!s_ga_want_n) return;
+    --s_ga_want_n;
+    const uint32_t id = s_ga_want[s_ga_want_n];
+    bool shown = false;   // still on screen?
+    for (const auto& l : s_gl) shown |= (l.img && l.id == id && l.a < 0);
+    if (shown && gifAnimFind(id) < 0) linkImgStart(false, id, s_ga_want_url[s_ga_want_n], nullptr, true);
+    return;
+  }
   if (s_li_retry_ms && (int32_t)(millis() - s_li_retry_ms) < 0) return;
   s_li_retry_ms = 0;
   const LiWant w = s_li_want[--s_li_want_n];   // newest first: the one on screen
@@ -711,7 +868,7 @@ static void linkImgThumbEventCb(lv_event_t* e) {
   char* url = (char*)lv_event_get_user_data(e);
   if (lv_event_get_code(e) == LV_EVENT_DELETE) {
     lv_img_dsc_t* dsc = (lv_img_dsc_t*)lv_img_get_src(lv_event_get_target(e));
-    if (dsc) { free((void*)dsc->data); free(dsc); }
+    if (!gifLiveGone(lv_event_get_target(e)) && dsc) { free((void*)dsc->data); free(dsc); }
     free(url);
     return;
   }
@@ -738,6 +895,7 @@ static void linkImgAddThumb(lv_obj_t* parent, const ChatBubbleDisplay& d, lv_coo
   lv_obj_set_style_radius(img, 4, LV_PART_MAIN);
   lv_obj_set_style_clip_corner(img, true, LV_PART_MAIN);
   lv_obj_add_event_cb(img, linkImgThumbEventCb, LV_EVENT_ALL, url);
+  gifLiveAdd(img, dsc, url);   // a GIF's still: it plays when its frames come
 }
 
 #endif  // CAP_LINK_IMAGES

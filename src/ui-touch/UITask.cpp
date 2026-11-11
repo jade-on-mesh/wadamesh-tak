@@ -21511,6 +21511,8 @@ static void histSyncPickCb(lv_event_t* e) {
 #if CAP_LINK_IMAGES
 static bool linkImgOn();                   // LinkImages.inc
 static void linkImgToggleCb(lv_event_t* e);
+static bool gifPlayOn();
+static void gifPlayToggleCb(lv_event_t* e);
 #endif
 static void buildGeneralPage() {
   {
@@ -21540,6 +21542,8 @@ static void buildGeneralPage() {
                  "is downloaded while Wi-Fi is on and shown in its bubble; tap it to see it full size. The picture's "
                  "server sees this radio's address. Kept on the SD card when there is one.",
                  linkImgOn(), linkImgToggleCb);
+    setSwitchRow(c, "Play GIFs in chat", "A GIF plays, small, in its bubble. Off: its still shows; tap it to play.",
+                 gifPlayOn(), gifPlayToggleCb);
   }
 #endif
 #if CAP_SD || defined(TLORA_PAGER)
