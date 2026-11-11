@@ -96,6 +96,26 @@ Hold a photo message (one that's on this standalone: sent from it, or downloaded
 
 For a message with a linked picture (LINKED_IMAGES.md), **Copy photo** copies the picture's link, so Paste puts the link in the text box; standalones and apps with linked images on show it as the picture.
 
+## Contact photos
+
+A direct chat can show a photo instead of its glyph or chat icon, cut in a circle. It is shown in Chats, Contacts, the chat's header, the lock screen, the glance card and OTP Messenger.
+
+- **From the chat:** open its sheet (hold the chat, or tap its gear), then **Contact photo**. Photos opens; tap the photo you want.
+- **From Photos:** hold a photo, then **Use as a contact photo**, then pick the chat.
+
+Either way the crop screen follows. Drag the photo until the face sits in the circle, use **−** and **+** to zoom, then tap **Use**. **Remove contact photo** in the chat's sheet brings the glyph or icon back.
+
+How it works:
+
+- The circle is cut from the photo's thumbnail (at most 96 px a side). It is stored as 64 × 64 RGB565 with an alpha channel, so the round edge is part of the picture.
+- Files are `/cph_<FNV-1a of the chat's name>.cp1`, about 12 KB each. They go on internal storage, or in `/meshcomod` on the SD card when internal storage is full or not mounted.
+- The photo is keyed on the same name as the chat icon, so it follows that chat everywhere the icon does.
+- Rooms and channels don't get one.
+- Photos stay on this radio; nothing is sent over the mesh.
+- The cropping is host-tested in `test/test_contact_photo.cpp`.
+
+The MeshCore Open TAK app has the same feature: in a contact's options, **Set photo**.
+
 ## Parity packets, zero-hop requests and backoff
 
 These follow MeshCore Open TAK, which defines them (`lib/vox/vox_fec.dart` and

@@ -17,6 +17,8 @@ static constexpr int kMaxListed = 240;
 static uint32_t s_seen_thumb_gen = 0;
 static uint32_t s_seen_state = 0;
 static uint32_t s_del_sid = 0;        // the photo a hold asked to delete
+// Pick mode (a direct chat's "Contact photo"): a tap crops the photo for this chat.
+static char s_pick_for[UITask::MAX_THREAD_NAME + 1] = "";
 
 static void pageBuild();
 static void pageClose();
@@ -89,6 +91,7 @@ static bool addThumb(lv_obj_t* cell, uint32_t sid) {
 static void openCb(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   const uint32_t sid = (uint32_t)(uintptr_t)lv_event_get_user_data(e);
+  if (sid && s_pick_for[0]) { cphoto::cropOpen(sid, s_pick_for, pageClose); return; }
   if (sid) voxShowStoredPhoto(sid, "photo.vi1");
 }
 
@@ -168,6 +171,38 @@ static void sendPick(uint32_t sid) {
   teamui::sheetBtn(card, TR("Close"), [](lv_event_t*) { teamui::sheetClose(); });
 }
 
+// "Use as a contact photo": the direct chats (not rooms), then the crop screen.
+static void contactPickedCb(lv_event_t* e) {
+  const int tidx = (int)(intptr_t)lv_event_get_user_data(e);
+  teamui::sheetClose();
+  bool ch = false; uint16_t unread = 0; uint32_t ts = 0; char name[UITask::MAX_THREAD_NAME + 1] = {0};
+  if (g_lv.task && g_lv.task->getThreadInfo(tidx, ch, unread, ts, name, sizeof name) && !ch && name[0])
+    cphoto::cropOpen(s_send_sid, name, nullptr);
+}
+static void contactPick(uint32_t sid) {
+  if (!sid || !g_lv.task) return;
+  s_send_sid = sid;
+  lv_obj_t* card = teamui::sheetOpen(TR("Contact photo for"), "");
+  int shown = 0;
+  for (int i = 0; i < UITask::MAX_UI_THREADS; i++) {
+    bool ch = false; uint16_t unread = 0; uint32_t ts = 0; char name[UITask::MAX_THREAD_NAME + 1] = {0};
+    if (!g_lv.task->getThreadInfo(i, ch, unread, ts, name, sizeof name) || !name[0] || ch) continue;
+    uint8_t pub[32];
+    if (g_lv.task->getThreadContactPub(i, pub)) {
+      const ContactInfo* c = the_mesh.lookupContactByPubKey(pub, PUB_KEY_SIZE);
+      if (c && c->type == ADV_TYPE_ROOM) continue;
+    }
+    teamui::sheetBtn(card, threadShownName(i, name), contactPickedCb, (void*)(intptr_t)i);
+    ++shown;
+  }
+  if (!shown) {
+    lv_obj_t* l = lv_label_create(card);
+    lv_label_set_text(l, TR("No direct chats yet."));
+    lv_obj_set_style_text_color(l, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+  }
+  teamui::sheetBtn(card, TR("Close"), [](lv_event_t*) { teamui::sheetClose(); });
+}
+
 static void holdCb(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_LONG_PRESSED) return;
   s_del_sid = (uint32_t)(uintptr_t)lv_event_get_user_data(e);
@@ -176,6 +211,7 @@ static void holdCb(lv_event_t* e) {
   if (a) lv_indev_wait_release(a);   // the hold's release mustn't also open it
   lv_obj_t* card = teamui::sheetOpen(TR("Photo"), "");
   teamui::sheetBtn(card, TR("Send to a chat"), [](lv_event_t*) { teamui::sheetClose(); sendPick(s_del_sid); });
+  teamui::sheetBtn(card, TR("Use as a contact photo"), [](lv_event_t*) { teamui::sheetClose(); contactPick(s_del_sid); });
   teamui::sheetBtn(card, TR("Delete"), [](lv_event_t*) {
     teamui::sheetClose();
     showConfirm(TR("Delete this photo?\nIt can be downloaded again\nwhile someone still has it."), TR("Delete"),
@@ -310,7 +346,12 @@ static void pageBuild() {
   }
   if (n) {
     lv_obj_t* tip = lv_label_create(s_body);
-    lv_label_set_text(tip, TR("Tap a photo to view it. Hold it to send it to a chat or delete it."));
+    char tipline[120];
+    if (s_pick_for[0])
+      snprintf(tipline, sizeof tipline, TR("Tap a photo to use it for %s."), senderShownName(s_pick_for));
+    else
+      snprintf(tipline, sizeof tipline, "%s", TR("Tap a photo to view it. Hold it to send it to a chat or delete it."));
+    lv_label_set_text(tip, tipline);
     lv_label_set_long_mode(tip, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(tip, LV_PCT(100));
     lv_obj_set_style_text_align(tip, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
@@ -322,6 +363,7 @@ static void pageBuild() {
 }
 
 static void pageClose() {
+  s_pick_for[0] = 0;
   if (s_timer) { lv_timer_del(s_timer); s_timer = nullptr; }
   s_body = nullptr;
   if (s_root) { lv_obj_t* r = s_root; s_root = nullptr; appPageDeleteRootAsync(r); }
@@ -340,6 +382,15 @@ static void pageOpen() {
     if (chatThumbGen() != s_seen_thumb_gen || VoxPhotos::stateVersion() != s_seen_state) pageBuild();
   }, 1500, nullptr);
   if (g_statusbar.root) lv_obj_move_foreground(g_statusbar.root);
+}
+
+// Opens Photos to pick one for a direct chat's contact photo.
+static void pickFor(const char* name) {
+  if (!name || !*name) return;
+  if (s_root) pageClose();
+  pageOpen();
+  snprintf(s_pick_for, sizeof s_pick_for, "%s", name);
+  pageBuild();   // the tip names the chat
 }
 
 }  // namespace photosui

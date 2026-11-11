@@ -232,6 +232,7 @@ static lv_obj_t* roundAccent(lv_obj_t* parent, const char* icon, lv_event_cb_t c
 static lv_obj_t* avatar(lv_obj_t* parent, const char* name, bool channel, lv_coord_t sz) {
   lv_obj_t* av = makeGlyphAvatar(parent, name, channel ? GLYPH_SQUARE : GLYPH_CIRCLE, sz);
   char eb[20];
+  if (!channel && avatarSetContactPhoto(av, name)) return av;   // its photo, if one is set
   if (touchPrefsGetChannelEmoji(name, eb, sizeof eb) || (!channel && nameFirstEmoji(name, eb, sizeof eb)))
     glyphAvatarSetEmoji(av, name, eb);
   return av;
