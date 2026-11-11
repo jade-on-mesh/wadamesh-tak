@@ -20,6 +20,7 @@
 
 #if CAP_LINK_IMAGES
 #include "../helpers/LinkImage.h"
+#include "GiphyText.h"
 
 static fs::FS* backupSdFs();   // (with the Backups page) the SD card, mounted on demand
 
@@ -38,6 +39,12 @@ static constexpr int kLiFetchSide = 640;
 #endif
 static constexpr int kLiThumbSide = 2 * VoxPhotos::kThumbMax;  // saveThumb averages it down
 static constexpr size_t kLiKeepFree = 1536u * 1024u;          // PSRAM left for everything else
+// GIFs (GiphyText.h): the player's frames, at most this many, this big a side, this
+// many bytes in all.
+static constexpr int kGifMaxFrames = 150;
+static constexpr int kGifSide = 200;
+static constexpr size_t kGifMaxBytes = 4u << 20;
+static volatile bool s_gif_busy = false;   // the GIF picker is using the network: links wait
 
 // Settings > General > Linked images.
 static int8_t s_li_on = -1;
@@ -100,6 +107,10 @@ struct LiJob {
   uint8_t* raw = nullptr; // a JPEG too big to decode here: the UI tries it scaled
   size_t raw_len = 0;
   bool progressive = false;   // ...and the scaled decoder can't do it (progressive)
+  // A GIF to play (anim): all its frames, w*h each, lvglPsramAlloc'd.
+  bool anim = false;
+  int frames = 0;
+  uint16_t delays[kGifMaxFrames] = {};
 };
 static LiJob s_li_job;
 
@@ -130,6 +141,44 @@ class LiSink final : public Stream {
   bool over_ = false;
 };
 
+// GET `url` into buf (at most cap bytes; `over` when it had more). The HTTP status,
+// or < 0 without a connection. On a worker: TLS wants its stack.
+static int liGet(const char* url, uint8_t* buf, size_t cap, size_t* len, bool* over, const char* accept) {
+  *len = 0;
+  *over = false;
+  HTTPClient http;
+  http.setReuse(false);
+  http.setConnectTimeout(9000);
+  http.setTimeout(15000);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setUserAgent("wadamesh");
+  WiFiClientSecure scli;
+  WiFiClient pcli;
+  const bool https = !strncasecmp(url, "https://", 8);
+  bool began;
+  if (https) { scli.setInsecure(); began = http.begin(scli, url); }
+  else began = http.begin(pcli, url);
+  int code = -1;
+  if (began) {
+    if (accept) http.addHeader("Accept", accept);
+    http.addHeader("Accept-Encoding", "identity");
+    code = http.GET();
+    if (code == HTTP_CODE_OK) {
+      const int clen = http.getSize();
+      if (clen > 0 && (size_t)clen > cap) {
+        *over = true;
+      } else {
+        LiSink sink(buf, cap);
+        http.writeToStream(&sink);
+        *len = sink.size();
+        *over = sink.over();
+      }
+    }
+  }
+  http.end();
+  return code;
+}
+
 // .im2: files kept before Pexels links asked for a baseline JPEG may be the
 // progressive copy this can't open; they're left behind, not reopened.
 static void linkImgPath(uint32_t id, char* p, size_t cap) {
@@ -159,41 +208,11 @@ static void linkImgJobBody() {
   if (!raw) {
     raw = (uint8_t*)heap_caps_malloc(kLiMaxBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!raw) { j.res = linkimg::kNoMemory; j.state = 2; return; }
-    HTTPClient http;
-    http.setReuse(false);
-    http.setConnectTimeout(9000);
-    http.setTimeout(15000);
-    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.setUserAgent("wadamesh");
-    WiFiClientSecure scli;
-    WiFiClient pcli;
-    // A smaller copy from hosts that make one (Pexels, Unsplash: their originals
-    // are several MB); the link itself everywhere else.
     char fetch[sizeof j.url + 64];
     if (!linkimg::fetchUrl(j.url, kLiFetchSide, fetch, sizeof fetch)) snprintf(fetch, sizeof fetch, "%s", j.url);
-    const bool https = !strncasecmp(fetch, "https://", 8);
-    bool began;
-    if (https) { scli.setInsecure(); began = http.begin(scli, fetch); }
-    else began = http.begin(pcli, fetch);
-    int code = -1;
     bool over = false;
-    if (began) {
-      http.addHeader("Accept", "image/jpeg,image/png,image/gif,image/webp,image/bmp;q=0.9,*/*;q=0.5");
-      http.addHeader("Accept-Encoding", "identity");
-      code = http.GET();
-      if (code == HTTP_CODE_OK) {
-        const int clen = http.getSize();
-        if (clen > 0 && (size_t)clen > kLiMaxBytes) {
-          over = true;
-        } else {
-          LiSink sink(raw, kLiMaxBytes);
-          http.writeToStream(&sink);
-          len = sink.size();
-          over = sink.over();
-        }
-      }
-    }
-    http.end();
+    const int code = liGet(fetch, raw, kLiMaxBytes, &len, &over,
+                           "image/jpeg,image/png,image/gif,image/webp,image/bmp;q=0.9,*/*;q=0.5");
     j.http = code;
     if (over) { free(raw); j.res = linkimg::kTooLarge; j.state = 2; return; }
     if (code != HTTP_CODE_OK || !len) { free(raw); j.res = linkimg::kBroken; j.state = 2; return; }
@@ -212,6 +231,13 @@ static void linkImgJobBody() {
 
   const size_t free_ps = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
   const size_t budget = free_ps > kLiKeepFree ? free_ps - kLiKeepFree : 0;
+  if (j.anim) {
+    j.res = linkimg::decodeFrames(raw, len, kGifSide, budget < kGifMaxBytes ? budget : kGifMaxBytes, 0x0000,
+                                  kGifMaxFrames, lvglPsramRealloc, &j.px, &j.w, &j.h, &j.frames, j.delays);
+    free(raw);
+    j.state = 2;
+    return;
+  }
   j.res = linkimg::decode(raw, len, j.view ? kLiViewSide : kLiThumbSide, budget, 0x2104,
                           j.view ? linkImgViewAlloc : linkImgThumbAlloc, &j.px, &j.w, &j.h);
   if (j.res == linkimg::kTooLarge && linkimg::sniff(raw, len) == linkimg::kJpeg) {
@@ -225,11 +251,12 @@ static void linkImgJobBody() {
 static void linkImgJobTaskFn(void*) { linkImgJobBody(); vTaskDelete(nullptr); }
 static void linkImgJobWorkerFn(void*) { linkImgJobBody(); }
 
-static bool linkImgStart(bool view, uint32_t id, const char* url, const char* title) {
+static bool linkImgStart(bool view, uint32_t id, const char* url, const char* title, bool anim = false) {
   LiJob& j = s_li_job;
-  if (j.state != 0) return false;
+  if (j.state != 0 || s_gif_busy) return false;
   j = LiJob();
   j.view = view;
+  j.anim = anim;
   j.id = id;
   snprintf(j.url, sizeof j.url, "%s", url ? url : "");
   snprintf(j.title, sizeof j.title, "%s", title ? title : "");
@@ -251,8 +278,13 @@ static const char* linkImgWhy(const LiJob& j) {
 }
 
 // Opens a linked picture full size: from the card, or downloaded now.
-static void linkImgView(const char* url) {
-  if (!url || !url[0] || !g_lv.task) return;
+static void linkImgView(const char* url_in) {
+  if (!url_in || !url_in[0] || !g_lv.task) return;
+  // A GIF's still (the bubble's) plays: its animated copy, from the card or the net.
+  char gid[giphy::kIdMax], anim_url[160];
+  const bool anim = giphy::idOfMediaUrl(url_in, gid, sizeof gid) &&
+                    giphy::mediaUrl(gid, "200w", anim_url, sizeof anim_url);
+  const char* url = anim ? anim_url : url_in;
   char path[40];
   const uint32_t id = linkimg::urlId(url);
   linkImgPath(id, path, sizeof path);
@@ -265,11 +297,360 @@ static void linkImgView(const char* url) {
   char title[48];
   snprintf(title, sizeof title, "%s", slash && slash[1] ? slash + 1 : "picture");
   if (char* q = strpbrk(title, "?#")) *q = 0;
-  if (!linkImgStart(true, id, url, title)) {
+  if (anim) snprintf(title, sizeof title, "GIF");
+  if (!linkImgStart(true, id, url, title, anim)) {
     g_lv.task->showAlert(TR("Busy, try again in a moment"), 1500);
     return;
   }
-  g_lv.task->showAlert(TR("Opening picture..."), 1500);
+  g_lv.task->showAlert(anim ? TR("Opening GIF...") : TR("Opening picture..."), 1500);
+}
+
+// ---- The GIF player: a GIF's frames, looped, full screen; Back closes it ----------
+static lv_obj_t* s_gp_root = nullptr;
+static lv_obj_t* s_gp_img = nullptr;
+static lv_timer_t* s_gp_timer = nullptr;
+static lv_img_dsc_t s_gp_dsc;
+static uint16_t* s_gp_px = nullptr;
+static int s_gp_w = 0, s_gp_h = 0, s_gp_n = 0, s_gp_at = 0;
+static uint16_t s_gp_delays[kGifMaxFrames];
+
+static void gifPlayerClose() {
+  settingsSubPageClose(gifPlayerClose);
+  if (s_gp_timer) { lv_timer_del(s_gp_timer); s_gp_timer = nullptr; }
+  if (s_gp_root) {
+    lv_obj_t* r = s_gp_root;
+    s_gp_root = s_gp_img = nullptr;
+    lv_obj_add_flag(r, LV_OBJ_FLAG_HIDDEN);   // never drawn again: its frames are freed below
+    lv_obj_del_async(r);
+  }
+  lv_img_cache_invalidate_src(&s_gp_dsc);
+  if (s_gp_px) { lvglPsramFree(s_gp_px); s_gp_px = nullptr; }
+}
+
+static void gifPlayerStep(lv_timer_t* t) {
+  if (!s_gp_img || s_gp_n < 2) return;
+  s_gp_at = (s_gp_at + 1) % s_gp_n;
+  s_gp_dsc.data = (const uint8_t*)(s_gp_px + (size_t)s_gp_at * s_gp_w * s_gp_h);
+  lv_img_cache_invalidate_src(&s_gp_dsc);
+  lv_obj_invalidate(s_gp_img);
+  lv_timer_set_period(t, s_gp_delays[s_gp_at]);
+}
+
+// Takes the frames (lvglPsramAlloc'd) and plays them.
+static void gifPlayerShow(uint16_t* frames, int w, int h, int n, const uint16_t* delays_ms) {
+  gifPlayerClose();
+  s_gp_px = frames;
+  s_gp_w = w;
+  s_gp_h = h;
+  s_gp_n = n;
+  s_gp_at = 0;
+  memcpy(s_gp_delays, delays_ms, sizeof(uint16_t) * (size_t)n);
+  memset(&s_gp_dsc, 0, sizeof s_gp_dsc);
+  s_gp_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+  s_gp_dsc.header.w = (uint32_t)w;
+  s_gp_dsc.header.h = (uint32_t)h;
+  s_gp_dsc.data_size = (uint32_t)w * (uint32_t)h * 2u;
+  s_gp_dsc.data = (const uint8_t*)frames;
+  s_gp_root = settingsSubPageOpen("GIF", gifPlayerClose);
+  lv_obj_set_style_bg_color(s_gp_root, lv_color_black(), LV_PART_MAIN);
+  lv_obj_add_event_cb(s_gp_root, [](lv_event_t*) { gifPlayerClose(); }, LV_EVENT_CLICKED, nullptr);   // a tap closes it
+  s_gp_img = lv_img_create(s_gp_root);
+  lv_img_set_src(s_gp_img, &s_gp_dsc);
+  lv_obj_clear_flag(s_gp_img, LV_OBJ_FLAG_CLICKABLE);
+  // As big as the page holds, up to three times its size.
+  const lv_coord_t pw = lv_obj_get_width(s_gp_root), ph = lv_obj_get_height(s_gp_root);
+  uint32_t zoom = (uint32_t)LV_MIN((int64_t)pw * 256 / w, (int64_t)ph * 256 / h);
+  if (zoom > 768) zoom = 768;
+  lv_img_set_zoom(s_gp_img, (uint16_t)LV_MAX(64u, zoom));
+  lv_img_set_antialias(s_gp_img, false);
+  lv_obj_center(s_gp_img);
+  if (n > 1) s_gp_timer = lv_timer_create(gifPlayerStep, delays_ms[0], nullptr);
+}
+
+// ---- The GIF picker: Giphy's trending GIFs, or a search; one sends it ------------
+// Opened from the chat's emoji picker ("GIF"). A GIF goes as "g:<id>", the way
+// MeshCore Open sends one, so the app shows it too. The search and the grid's
+// stills come over Wi-Fi on a worker, one at a time, while nothing else downloads.
+// The key is the one MeshCore Open ships (lib/widgets/gif_picker.dart).
+static constexpr const char* kGiphyKey = "sXpGFDGZs0Dv1mmNFvYaGUvYwKX0PWIh";
+static constexpr int kGifResults = 12;
+static constexpr size_t kGifJsonMax = 384u * 1024u;
+static constexpr size_t kGifStillMax = 96u * 1024u;
+
+struct GifSearch {
+  volatile uint8_t state = 0;   // 0 free, 1 searching, 2 stills coming, 3 done
+  volatile bool cancel = false;
+  char q[64] = "";
+  int side = 90;                // the grid's cell: stills fit it
+  char ids[kGifResults][giphy::kIdMax] = {};
+  volatile int n = 0;
+  int http = 0;
+  uint16_t* px[kGifResults] = {};   // malloc'd; the grid takes them
+  int w[kGifResults] = {}, h[kGifResults] = {};
+  volatile uint8_t got[kGifResults] = {};   // 1 here, 2 failed
+};
+static GifSearch s_gs;
+
+static void gifSearchBody() {
+  GifSearch& g = s_gs;
+  char url[320], esc[160];
+  if (g.q[0] && giphy::queryEscape(g.q, esc, sizeof esc))
+    snprintf(url, sizeof url, "https://api.giphy.com/v1/gifs/search?api_key=%s&q=%s&limit=%d&rating=g", kGiphyKey,
+             esc, kGifResults);
+  else
+    snprintf(url, sizeof url, "https://api.giphy.com/v1/gifs/trending?api_key=%s&limit=%d&rating=g", kGiphyKey,
+             kGifResults);
+  uint8_t* buf = (uint8_t*)heap_caps_malloc(kGifJsonMax, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  size_t len = 0;
+  bool over = false;
+  g.http = buf ? liGet(url, buf, kGifJsonMax, &len, &over, "application/json") : -1;
+  int n = 0;
+  if (g.http == HTTP_CODE_OK && len) n = giphy::idsInJson((const char*)buf, len, g.ids, kGifResults);
+  g.n = n;
+  __sync_synchronize();
+  g.state = 2;
+  for (int i = 0; i < n && !g.cancel; ++i) {
+    char su[160];
+    uint8_t ok = 2;
+    if (buf && giphy::mediaUrl(g.ids[i], "100w_s", su, sizeof su) &&
+        liGet(su, buf, kGifStillMax, &len, &over, "image/gif") == HTTP_CODE_OK && len && !over) {
+      uint16_t* px = nullptr;
+      int w = 0, h = 0;
+      if (linkimg::decode(buf, len, g.side, 1u << 20, 0x2104, linkImgThumbAlloc, &px, &w, &h) == linkimg::kOk) {
+        g.px[i] = px;
+        g.w[i] = w;
+        g.h[i] = h;
+        ok = 1;
+      }
+    }
+    __sync_synchronize();
+    g.got[i] = ok;
+  }
+  free(buf);
+  __sync_synchronize();
+  g.state = 3;
+  s_gif_busy = false;
+}
+static void gifSearchTaskFn(void*) { gifSearchBody(); vTaskDelete(nullptr); }
+static void gifSearchWorkerFn(void*) { gifSearchBody(); }
+
+static lv_obj_t* s_gs_sheet = nullptr;
+static lv_obj_t* s_gs_ta = nullptr;
+static lv_obj_t* s_gs_grid = nullptr;
+static lv_obj_t* s_gs_note = nullptr;
+static lv_timer_t* s_gs_timer = nullptr;
+static uint8_t s_gs_shown[kGifResults];    // 1 the cell is there, 2 and its still
+static bool s_gs_listed = false;
+static bool s_gs_again = false;            // the text changed while a search ran
+static uint32_t s_gs_typed_ms = 0;         // searched this long after the last key
+static lv_coord_t s_gs_cell = 90;
+
+static void gifStillFreeCb(lv_event_t* e) {
+  lv_img_dsc_t* d = (lv_img_dsc_t*)lv_event_get_user_data(e);
+  if (!d) return;
+  lv_img_cache_invalidate_src(d);
+  free((void*)d->data);
+  free(d);
+}
+
+// Starts a search for what's typed (trending when nothing is). False while the
+// network is busy; the poll tries again.
+static bool gifSearchStart() {
+  GifSearch& g = s_gs;
+  if (g.state == 1 || g.state == 2 || s_li_job.state != 0) return false;
+  for (int i = 0; i < kGifResults; ++i) { free(g.px[i]); g.px[i] = nullptr; }   // ones a closed sheet left
+  const char* q = s_gs_ta ? lv_textarea_get_text(s_gs_ta) : "";
+  g.cancel = false;
+  snprintf(g.q, sizeof g.q, "%s", q ? q : "");
+  g.side = s_gs_cell - 6;
+  g.n = 0;
+  memset((void*)g.got, 0, sizeof g.got);
+  memset(s_gs_shown, 0, sizeof s_gs_shown);
+  s_gs_listed = false;
+  s_gif_busy = true;
+  g.state = 1;
+  if (!VoxAudioTask::run(gifSearchWorkerFn, nullptr) &&
+      xTaskCreatePinnedToCore(gifSearchTaskFn, "gifsearch", 16384, nullptr, 2, nullptr, 0) != pdPASS) {
+    g.state = 0;
+    s_gif_busy = false;
+    return false;
+  }
+  if (s_gs_grid) lv_obj_clean(s_gs_grid);
+  if (s_gs_note) lv_label_set_text(s_gs_note, TR("Searching..."));
+  return true;
+}
+
+static void gifPickerClose() {
+  if (!s_gs_sheet) return;
+  s_gs.cancel = true;   // the worker stops after the still it's on
+  if (s_gs_timer) { lv_timer_del(s_gs_timer); s_gs_timer = nullptr; }
+  hideKb();
+  popupClose(&s_gs_sheet);
+  s_gs_ta = s_gs_grid = s_gs_note = nullptr;
+}
+
+static void gifSendCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  const int i = (int)(intptr_t)lv_event_get_user_data(e);
+  if (i < 0 || i >= s_gs.n) return;
+  lv_indev_t* a = lv_indev_get_act();
+  if (a) lv_indev_wait_release(a);
+  char msg[8 + giphy::kIdMax];
+  const bool ok = giphy::message(s_gs.ids[i], msg, sizeof msg);
+  gifPickerClose();
+  if (ok && g_lv.task && g_lv.task->composerSend(msg)) g_lv.dirty_timeline = true;   // composerSend says why not
+}
+
+// Every 300 ms while open: a pending search, then the results and stills as they land.
+static void gifPickerPoll(lv_timer_t*) {
+  GifSearch& g = s_gs;
+  if (s_gs_again && (uint32_t)(millis() - s_gs_typed_ms) > 900 && gifSearchStart()) s_gs_again = false;
+  if (!s_gs_grid || g.state < 2) return;
+  if (!s_gs_listed) {
+    s_gs_listed = true;
+    const int n = g.n;
+    if (s_gs_note) {
+      const bool trending = !g.q[0];
+      lv_label_set_text(s_gs_note, n ? (trending ? TR("Trending \xE2\x80\xA2 Powered by GIPHY") : TR("Powered by GIPHY"))
+                                     : g.http == HTTP_CODE_OK ? TR("No GIFs found")
+                                     : g.http < 0 ? TR("No connection to GIPHY") : TR("GIPHY said no"));
+    }
+    for (int i = 0; i < n; ++i) {
+      lv_obj_t* b = lv_btn_create(s_gs_grid);
+      lv_obj_set_size(b, s_gs_cell, s_gs_cell);
+      styleButton(b);
+      lv_obj_set_style_bg_color(b, lv_color_hex(COLOR_CONTROL), LV_PART_MAIN);
+      lv_obj_set_style_pad_all(b, 0, LV_PART_MAIN);
+      lv_obj_set_style_radius(b, 6, LV_PART_MAIN);
+      lv_obj_set_style_clip_corner(b, true, LV_PART_MAIN);
+      lv_obj_add_event_cb(b, gifSendCb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+      lv_obj_t* l = lv_label_create(b);
+      lv_label_set_text(l, "GIF");
+      lv_obj_set_style_text_color(l, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+      lv_obj_center(l);
+      s_gs_shown[i] = 1;
+    }
+#if CAP_KEYPAD_NAV
+    navMarkDirty();
+#endif
+  }
+  for (int i = 0; i < g.n; ++i) {
+    if (s_gs_shown[i] != 1 || g.got[i] != 1 || !g.px[i]) continue;
+    lv_obj_t* b = lv_obj_get_child(s_gs_grid, i);
+    lv_img_dsc_t* d = (lv_img_dsc_t*)calloc(1, sizeof(lv_img_dsc_t));
+    if (!b || !d) { free(d); continue; }
+    d->header.cf = LV_IMG_CF_TRUE_COLOR;
+    d->header.w = (uint32_t)g.w[i];
+    d->header.h = (uint32_t)g.h[i];
+    d->data_size = (uint32_t)g.w[i] * (uint32_t)g.h[i] * 2u;
+    d->data = (const uint8_t*)g.px[i];
+    g.px[i] = nullptr;   // the image owns it now
+    lv_obj_clean(b);
+    lv_obj_t* im = lv_img_create(b);
+    lv_img_set_src(im, d);
+    lv_obj_clear_flag(im, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(im, gifStillFreeCb, LV_EVENT_DELETE, d);
+    lv_obj_center(im);
+    s_gs_shown[i] = 2;
+  }
+}
+
+static void gifPickerTaCb(lv_event_t* e) {
+  const lv_event_code_t code = lv_event_get_code(e);
+  if (code == LV_EVENT_VALUE_CHANGED) { s_gs_again = true; s_gs_typed_ms = millis(); }
+  else if (code == LV_EVENT_READY) { s_gs_again = true; s_gs_typed_ms = millis() - 1000; }   // Enter: now
+}
+
+static void gifPickerBackdropCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  if (lv_event_get_target(e) != lv_event_get_current_target(e)) return;   // the backdrop only
+  gifPickerClose();
+}
+
+static void gifPickerOpen() {
+  gifPickerClose();
+  if (!g_lv.task) return;
+  if (!linkImgWifiUp()) {
+    g_lv.task->showAlert(TR("Wi-Fi not connected (Settings \xe2\x86\x92 Wi-Fi)"), 2000);
+    return;
+  }
+  const lv_coord_t sw = lv_disp_get_hor_res(nullptr);
+  const lv_coord_t sh = lv_disp_get_ver_res(nullptr);
+  s_gs_sheet = lv_obj_create(lv_layer_top());
+  lv_obj_remove_style_all(s_gs_sheet);
+  lv_obj_set_size(s_gs_sheet, sw, sh - STATUSBAR_H);
+  lv_obj_set_pos(s_gs_sheet, 0, STATUSBAR_H);
+  lv_obj_set_style_bg_color(s_gs_sheet, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(s_gs_sheet, LV_OPA_60, LV_PART_MAIN);
+  lv_obj_clear_flag(s_gs_sheet, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(s_gs_sheet, gifPickerBackdropCb, LV_EVENT_CLICKED, nullptr);
+
+  const lv_coord_t cardw = sw - 16;
+  const lv_coord_t cardh = sh - STATUSBAR_H - 16;
+  lv_obj_t* card = lv_obj_create(s_gs_sheet);
+  lv_obj_remove_style_all(card);
+  lv_obj_set_size(card, cardw, cardh);
+  lv_obj_align(card, LV_ALIGN_CENTER, 0, 0);
+  styleSurface(card, COLOR_PANEL, 8);
+  lv_obj_set_style_border_color(card, lv_color_hex(COLOR_BORDER), LV_PART_MAIN);
+  lv_obj_set_style_border_width(card, 1, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(card, 8, LV_PART_MAIN);
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t* title = lv_label_create(card);
+  lv_label_set_text(title, "GIF");
+  lv_obj_set_style_text_color(title, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+  lv_obj_set_style_text_font(title, &g_font_14, LV_PART_MAIN);
+  lv_obj_set_pos(title, 2, 0);
+  addCloseXBadge(card, gifPickerBackdropCb);
+
+  const lv_coord_t inner_w = cardw - 16;
+  const lv_coord_t ta_y = lv_font_get_line_height(&g_font_14) + 6;
+  const lv_coord_t ta_h = 34;
+  s_gs_ta = lv_textarea_create(card);
+  lv_obj_set_size(s_gs_ta, inner_w - 30, ta_h);
+  lv_obj_set_pos(s_gs_ta, 0, ta_y);
+  styleCard(s_gs_ta);
+  lv_textarea_set_one_line(s_gs_ta, true);
+  lv_textarea_set_max_length(s_gs_ta, 60);
+  taSetPlaceholder(s_gs_ta, TR("Search GIPHY"));
+  lv_obj_set_style_text_color(s_gs_ta, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+  lv_obj_set_style_text_font(s_gs_ta, &g_font_14, LV_PART_MAIN);
+  lv_obj_add_event_cb(s_gs_ta, gifPickerTaCb, LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_obj_add_event_cb(s_gs_ta, gifPickerTaCb, LV_EVENT_READY, nullptr);
+  attachSettingsTaEvents(s_gs_ta);
+
+  const lv_coord_t note_y = ta_y + ta_h + 4;
+  s_gs_note = lv_label_create(card);
+  lv_obj_set_style_text_color(s_gs_note, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+  lv_obj_set_style_text_font(s_gs_note, &g_font_12, LV_PART_MAIN);
+  lv_obj_set_pos(s_gs_note, 2, note_y);
+  lv_label_set_text(s_gs_note, TR("Searching..."));
+
+  const lv_coord_t grid_y = note_y + lv_font_get_line_height(&g_font_12) + 4;
+  s_gs_grid = lv_obj_create(card);
+  lv_obj_remove_style_all(s_gs_grid);
+  lv_obj_set_size(s_gs_grid, inner_w, cardh - 16 - grid_y);
+  lv_obj_set_pos(s_gs_grid, 0, grid_y);
+  lv_obj_set_flex_flow(s_gs_grid, LV_FLEX_FLOW_ROW_WRAP);
+  lv_obj_set_style_pad_row(s_gs_grid, 4, LV_PART_MAIN);
+  lv_obj_set_style_pad_column(s_gs_grid, 4, LV_PART_MAIN);
+  lv_obj_set_scroll_dir(s_gs_grid, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(s_gs_grid, LV_SCROLLBAR_MODE_AUTO);
+  // Three across at least, about 100 px each where there's room.
+  int cols = (int)((inner_w + 4) / 104);
+  if (cols < 3) cols = 3;
+  s_gs_cell = (lv_coord_t)((inner_w - 4 * (cols - 1)) / cols);
+
+  s_gs_again = !gifSearchStart();   // trending; busy: as soon as it's free
+  s_gs_typed_ms = millis() - 1000;
+  s_gs_timer = lv_timer_create(gifPickerPoll, 300, nullptr);
+
+#if CAP_KEYBOARD && CAP_KEYPAD_NAV
+  lv_async_call(physicalKeyboardModalAutoFocusAsync, s_gs_sheet);
+#else
+  if (g_lv.keyboard) kbMirrorBind(s_gs_ta);
+#endif
 }
 
 // From the UI loop: collects a finished job, then starts the next download.
@@ -316,7 +697,11 @@ static void linkImgTick() {
         lvglPsramFree(rgb);
       }
     }
-    if (j.view) {
+    if (j.view && j.anim) {
+      if (j.res == linkimg::kOk && j.px && j.frames > 0) gifPlayerShow(j.px, j.w, j.h, j.frames, j.delays);
+      else if (g_lv.task) g_lv.task->showAlert(TR(linkImgWhy(j)), 2200);
+      if (j.res != linkimg::kOk && j.px) lvglPsramFree(j.px);
+    } else if (j.view) {
       if (j.res == linkimg::kOk && j.px) {
         s_fm_img_path[0] = '\0';   // not a file the viewer can set as a wallpaper
         s_fm_img_on_sd = false;
@@ -348,7 +733,7 @@ static void linkImgTick() {
     j.state = 0;
     return;
   }
-  if (!s_li_want_n || !linkImgOn() || !linkImgWifiUp()) return;
+  if (!s_li_want_n || !linkImgOn() || !linkImgWifiUp() || s_gif_busy) return;
   if (s_li_retry_ms && (int32_t)(millis() - s_li_retry_ms) < 0) return;
   s_li_retry_ms = 0;
   const LiWant w = s_li_want[--s_li_want_n];   // newest first: the one on screen
@@ -361,7 +746,12 @@ static void linkImgTick() {
 static void linkImgBubble(const char* text, ChatBubbleDisplay& d) {
   if (!linkImgOn() || !text) return;
   char url[sizeof d.thumb_url];
-  if (!linkimg::findUrl(text, url, sizeof url)) return;
+  char gid[giphy::kIdMax];
+  if (giphy::idOf(text, gid, sizeof gid)) {
+    if (!giphy::mediaUrl(gid, "200w_s", url, sizeof url)) return;   // a GIF: its still, tapped to play
+  } else if (!linkimg::findUrl(text, url, sizeof url)) {
+    return;
+  }
   const uint32_t id = linkimg::urlId(url);
   int tw = 0, th = 0;
   if (VoxPhotos::thumbSize(id, &tw, &th)) {

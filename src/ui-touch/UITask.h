@@ -240,6 +240,7 @@ private:
   bool _composer_mode;
   int _composer_char_idx;
   int _composer_action_idx;
+  const char* _store_as = nullptr;   // composerSendAs: what this radio keeps instead
   char _compose_buf[MAX_MSG_TEXT + 1];   // full LoRa text length; was 128 -> silently chopped sends at 127 bytes (GH #119)
   unsigned long _next_mesh_thread_refresh;
   TouchUiScreen _touch_screen;
@@ -408,6 +409,15 @@ public:
   void composerBackspace() { backspaceComposerChar(); }
   // override_text != nullptr resends that exact text (msg action menu "Resend"); nullptr = composer draft.
   bool composerSend(const char* override_text = nullptr) { return sendComposerToActiveThread(override_text); }
+  /** Sends `wire` to the open chat but keeps `store` as this radio's copy of it: a
+   *  reaction goes out in the other app's form and is kept in the form that shows
+   *  it under its message (Reactions.h). */
+  bool composerSendAs(const char* wire, const char* store) {
+    _store_as = store;
+    const bool ok = sendComposerToActiveThread(wire);
+    _store_as = nullptr;
+    return ok;
+  }
   void composerTypingMode() { _composer_action_idx = -1; }
   /** Open DM thread for mesh contact index (e.g. Chats thread list / external hooks). */
   void openMeshContactDm(uint32_t mesh_contact_index);

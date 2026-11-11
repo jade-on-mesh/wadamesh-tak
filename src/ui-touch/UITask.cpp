@@ -164,6 +164,7 @@ static void* wadaMp3Scratch() { return s_wada_mp3_scratch; }
 #include "ChannelSenderSplit.h"  // host-tested "SenderName: body" split for channel/room posts
 #include "MentionText.h"         // "@[name]" shows as "@name" on a chip, as MeshCore Open shows it
 #include "TakTexts.h"            // host-tested MeshCore Open TAK / MediaMesh text rules
+#include "GiphyText.h"          // host-tested: GIFs as MeshCore Open sends them ("g:<id>")
 #include "ReactionCodec.h"       // host-tested emoji reactions from MeshCore Open / One (#791)
 #include "PasteHexKey.h"        // host-tested key extraction for pasted key fields (#526)
 #include "NavSpatial.h"         // host-tested keypad spatial step (navMoveDir)
@@ -13329,6 +13330,16 @@ static bool emojiPackSearchable();                                        // Emo
 static int  emojiPackSearch(const char* query, const char** out, int max); // EmojiPackUI.inc
 static void emojiSearchOpen(lv_obj_t* ta, void (*cb)(const char* utf8));   // with attachSettingsTaEvents
 static const char kEmojiSearchItem[] = "\xF0\x9F\x94\x8D";   // 🔍 (told apart by its address)
+static const char kEmojiGifItem[] = "GIF";   // a chat's picker: GIFs (LinkImages.inc), by its address too
+#if CAP_LINK_IMAGES
+static void gifPickerOpen();
+#endif
+// The full emoji set (EmojiPackUI.inc) can be on this board: its picker offers search.
+#if LV_USE_IMGFONT && defined(ESP32) && !defined(HAS_TANMATSU)
+static constexpr bool kEmojiSearchHere = true;
+#else
+static constexpr bool kEmojiSearchHere = false;
+#endif
 
 // Curated insert set, grouped. Kept in sync with what the extras fonts bake
 // (see scripts/build/regen-extras-fonts.sh) — a glyph here that isn't in the
@@ -13434,6 +13445,13 @@ static void emojiSheetCloseCb(lv_event_t* e) {
 // Insert item `idx` into the active composer and close. Shared by finger-tap
 // (emojiPickCb) and the trackball selector (emojiSelectorClick).
 static void emojiInsertIndex(int idx) {
+#if CAP_LINK_IMAGES
+  if (idx >= 0 && idx < s_glyph_count && s_glyph_items[idx] == kEmojiGifItem) {
+    closeEmojiSheet();
+    gifPickerOpen();
+    return;
+  }
+#endif
   if (idx >= 0 && idx < s_glyph_count && s_glyph_items[idx] == kEmojiSearchItem) {
     lv_obj_t* ta = s_emoji_target_ta;
     void (*cb)(const char*) = s_emoji_pick_cb;
@@ -13544,12 +13562,17 @@ static void openEmojiPicker(lv_obj_t* ta, const char* const* items = k_emoji_ite
   closeEmojiSheet();
   s_emoji_target_ta = ta;
   const bool emoji_set = (items == k_emoji_items);
-  static const char* s_with_search[k_emoji_count + 1];
-  if (emoji_set && emojiPackSearchable()) {
-    s_with_search[0] = kEmojiSearchItem;
-    for (int i = 0; i < k_emoji_count; ++i) s_with_search[i + 1] = k_emoji_items[i];
+  // First come search (🔍; it says what it needs when the full set isn't here) and,
+  // in a chat on a board with Wi-Fi pictures, GIF.
+  static const char* s_with_search[k_emoji_count + 2];
+  const bool gif = CAP_LINK_IMAGES && emoji_set && ta && (ta == g_lv.ch.composer_ta || ta == g_lv.dm.composer_ta);
+  if (emoji_set && (kEmojiSearchHere || gif)) {
+    int k = 0;
+    if (kEmojiSearchHere) s_with_search[k++] = kEmojiSearchItem;
+    if (gif) s_with_search[k++] = kEmojiGifItem;
+    for (int i = 0; i < k_emoji_count; ++i) s_with_search[k + i] = k_emoji_items[i];
     items = s_with_search;
-    count = k_emoji_count + 1;
+    count = k_emoji_count + k;
   }
   s_glyph_items = items;
   s_glyph_count = count;
@@ -13663,7 +13686,7 @@ static void openEmojiPicker(lv_obj_t* ta, const char* const* items = k_emoji_ite
 #if CAP_LARGE_SCREEN && LV_USE_IMGFONT
     // Baked colour-emoji → draw it as a zoomed image (1.7× ≈ 70% bigger than the 16 px
     // font glyph). Special chars (no emoji dsc) fall through to the text label below.
-    if (big_emoji) {
+    if (big_emoji && s_glyph_items[i] != kEmojiGifItem) {
       uint32_t goff = 0;
       const lv_img_dsc_t* ed = emojiForLetter(_lv_txt_encoded_next(s_glyph_items[i], &goff));
       if (ed) {
@@ -15006,7 +15029,12 @@ static void emojiSearchBackdropCb(lv_event_t* e) {
 
 static void emojiSearchOpen(lv_obj_t* ta, void (*cb)(const char* utf8)) {
   emojiSearchClose();
-  if (!emojiPackSearchable()) return;
+  if (!emojiPackSearchable()) {
+    if (g_lv.task)
+      g_lv.task->showAlert(TR("Emoji search needs the full emoji set. It downloads by itself on Wi-Fi; About shows "
+                              "how far it is."), 3200);
+    return;
+  }
   s_esearch_target = ta;
   s_esearch_cb = cb;
   const lv_coord_t sw = lv_disp_get_hor_res(nullptr);
@@ -49754,6 +49782,8 @@ static bool msgPreviewText(const char* body_in, char* out, size_t cap) {
     }
     return true;
   }
+  char gid[giphy::kIdMax];
+  if (giphy::idOf(body, gid, sizeof gid)) { snprintf(out, cap, "GIF"); return true; }
   snprintf(out, cap, "%s", body);
   return true;
 }
@@ -50088,9 +50118,16 @@ static void chatParseMessageDisplay(const UITask::UIMessage& m, bool channel_mod
       d.thumb_h = (lv_coord_t)th;
     }
   }
+  else {
+    // A GIF (GiphyText.h) says so instead of "g:<id>"; with Wi-Fi pictures its
+    // still shows above that, and a tap plays it.
+    char gid[giphy::kIdMax];
+    const bool gif = giphy::idOf(d.show_text, gid, sizeof gid);
 #if CAP_LINK_IMAGES
-  else linkImgBubble(d.show_text, d);   // a picture's link: shown when it's here, asked for when not
+    linkImgBubble(d.show_text, d);   // a picture's link: shown when it's here, asked for when not
 #endif
+    if (gif) d.show_text = LV_SYMBOL_IMAGE "  GIF";
+  }
   // Reactions on it (Reactions.h): their own line under the text (on the same line,
   // spaced off, in compact rows). Measure and build both read this, so the bubble's
   // height includes it.
@@ -84134,7 +84171,7 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
     }
     {
       const int slot = _ui_msg_head;   // appendMessage writes _ui_msgs[head]
-      if (appendMessage(_ui_threads[_active_thread_idx].name, sender, truncated, true, true, false,
+      if (appendMessage(_ui_threads[_active_thread_idx].name, sender, _store_as ? _store_as : truncated, true, true, false,
                         0, DELIV_NONE, 0, 0, 0, 0, nullptr, 0, the_mesh.uiLastSentFp()) >= 0)
         stampSentTs(_ui_msgs, slot, ts);
     }
@@ -84220,7 +84257,7 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
   }
   if (r == MSG_SEND_FAILED) {
     showAlert(TR("Send failed"), 1200);
-    appendMessage(_ui_threads[_active_thread_idx].name, sender, truncated, false, true, false,
+    appendMessage(_ui_threads[_active_thread_idx].name, sender, _store_as ? _store_as : truncated, false, true, false,
                   expected_ack, DELIV_FAILED);
     return false;
   }
@@ -84229,7 +84266,7 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
   the_mesh.uiRegisterExpectedAck(expected_ack, recipient.id.pub_key);
   {
     const int slot = _ui_msg_head;   // appendMessage writes _ui_msgs[head]
-    if (appendMessage(_ui_threads[_active_thread_idx].name, sender, truncated, false, true, false,
+    if (appendMessage(_ui_threads[_active_thread_idx].name, sender, _store_as ? _store_as : truncated, false, true, false,
                       expected_ack, DELIV_SENT, 0, 0, 0, 0, nullptr, 0, the_mesh.uiLastSentFp()) >= 0)
       stampSentTs(_ui_msgs, slot, ts);
   }

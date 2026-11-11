@@ -235,6 +235,47 @@ bool size(const uint8_t* d, size_t n, int* w, int* h) {
   return true;
 }
 
+// The size `sw` x `sh` takes to fit `max_side` a side, never larger.
+static void fitSize(int sw, int sh, int max_side, int* dw, int* dh) {
+  *dw = sw;
+  *dh = sh;
+  if (sw > max_side || sh > max_side) {
+    if (sw >= sh) { *dw = max_side; *dh = (int)(((long long)sh * max_side + sw / 2) / sw); }
+    else          { *dh = max_side; *dw = (int)(((long long)sw * max_side + sh / 2) / sh); }
+    if (*dw < 1) *dw = 1;
+    if (*dh < 1) *dh = 1;
+  }
+}
+
+// RGBA sw x sh down to RGB565 dw x dh: each pixel the average of the ones it
+// covers, see-through parts over bg.
+static void scaleTo565(const uint8_t* rgba, int sw, int sh, uint16_t* px, int dw, int dh, uint16_t bg) {
+  const int bg_r = ((bg >> 11) & 31) * 255 / 31, bg_g = ((bg >> 5) & 63) * 255 / 63, bg_b = (bg & 31) * 255 / 31;
+  for (int y = 0; y < dh; y++) {
+    const int y0 = (int)((long long)y * sh / dh);
+    int y1 = (int)((long long)(y + 1) * sh / dh);
+    if (y1 <= y0) y1 = y0 + 1;
+    for (int x = 0; x < dw; x++) {
+      const int x0 = (int)((long long)x * sw / dw);
+      int x1 = (int)((long long)(x + 1) * sw / dw);
+      if (x1 <= x0) x1 = x0 + 1;
+      uint32_t r = 0, g = 0, b = 0, cnt = 0;
+      for (int yy = y0; yy < y1; yy++) {
+        const uint8_t* p = rgba + ((size_t)yy * sw + x0) * 4;
+        for (int xx = x0; xx < x1; xx++, p += 4) {
+          const uint32_t a = p[3];
+          r += (p[0] * a + bg_r * (255 - a)) / 255;
+          g += (p[1] * a + bg_g * (255 - a)) / 255;
+          b += (p[2] * a + bg_b * (255 - a)) / 255;
+          cnt++;
+        }
+      }
+      r /= cnt; g /= cnt; b /= cnt;
+      px[(size_t)y * dw + x] = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+    }
+  }
+}
+
 size_t workBytes(const uint8_t* d, size_t n) {
   int w = 0, h = 0;
   if (!size(d, n, &w, &h)) return 0;
@@ -271,48 +312,76 @@ Result decode(const uint8_t* d, size_t n, int max_side, size_t budget, uint16_t 
     from_stb = true;
   }
 
-  // Scaled to fit max_side (never up), each pixel the average of the ones it
-  // covers, see-through parts over bg.
-  int dw = sw, dh = sh;
-  if (sw > max_side || sh > max_side) {
-    if (sw >= sh) { dw = max_side; dh = (int)(((long long)sh * max_side + sw / 2) / sw); }
-    else          { dh = max_side; dw = (int)(((long long)sw * max_side + sh / 2) / sh); }
-    if (dw < 1) dw = 1;
-    if (dh < 1) dh = 1;
-  }
+  int dw = 0, dh = 0;
+  fitSize(sw, sh, max_side, &dw, &dh);
   uint16_t* px = (uint16_t*)out_alloc((size_t)dw * dh * 2);
   if (!px) {
     if (from_stb) stbi_image_free(rgba); else liWorkFree(rgba);
     return kNoMemory;
   }
-  const int bg_r = ((bg >> 11) & 31) * 255 / 31, bg_g = ((bg >> 5) & 63) * 255 / 63, bg_b = (bg & 31) * 255 / 31;
-  for (int y = 0; y < dh; y++) {
-    const int y0 = (int)((long long)y * sh / dh);
-    int y1 = (int)((long long)(y + 1) * sh / dh);
-    if (y1 <= y0) y1 = y0 + 1;
-    for (int x = 0; x < dw; x++) {
-      const int x0 = (int)((long long)x * sw / dw);
-      int x1 = (int)((long long)(x + 1) * sw / dw);
-      if (x1 <= x0) x1 = x0 + 1;
-      uint32_t r = 0, g = 0, b = 0, cnt = 0;
-      for (int yy = y0; yy < y1; yy++) {
-        const uint8_t* p = rgba + ((size_t)yy * sw + x0) * 4;
-        for (int xx = x0; xx < x1; xx++, p += 4) {
-          const uint32_t a = p[3];
-          r += (p[0] * a + bg_r * (255 - a)) / 255;
-          g += (p[1] * a + bg_g * (255 - a)) / 255;
-          b += (p[2] * a + bg_b * (255 - a)) / 255;
-          cnt++;
-        }
-      }
-      r /= cnt; g /= cnt; b /= cnt;
-      px[(size_t)y * dw + x] = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
-    }
-  }
+  scaleTo565(rgba, sw, sh, px, dw, dh, bg);
   if (from_stb) stbi_image_free(rgba); else liWorkFree(rgba);
   *out = px;
   *out_w = dw;
   *out_h = dh;
+  return kOk;
+}
+
+Result decodeFrames(const uint8_t* d, size_t n, int max_side, size_t budget, uint16_t bg, int max_frames,
+                    void* (*out_realloc)(void*, size_t), uint16_t** out, int* out_w, int* out_h, int* out_n,
+                    uint16_t* delays_ms) {
+  if (!out || !out_w || !out_h || !out_n || !out_realloc || max_side < 1 || max_frames < 1) return kBroken;
+  *out = nullptr;
+  *out_n = 0;
+  if (sniff(d, n) != kGif) return kNotPicture;
+  int sw = 0, sh = 0;
+  if (!size(d, n, &sw, &sh)) return kBroken;
+  int dw = 0, dh = 0;
+  fitSize(sw, sh, max_side, &dw, &dh);
+  const size_t full = (size_t)sw * sh * 4, frame = (size_t)dw * dh * 2;
+  // The decoder's own state (its LZW table is 32 KB: never on a worker's stack), its
+  // canvas, background and history, and the frame two back that some GIFs restore.
+  const size_t fixed = sizeof(stbi__gif) + full * 4 + (size_t)sw * sh + n;
+  if (fixed + frame > budget) return kTooLarge;
+  int cap = (int)((budget - fixed) / frame);
+  if (cap > max_frames) cap = max_frames;
+  stbi__gif* g = (stbi__gif*)liWorkAlloc(sizeof(stbi__gif));
+  uint8_t* back = (uint8_t*)liWorkAlloc(full * 2);   // the last two frames, as stb wants them
+  if (!g || !back) { liWorkFree(g); liWorkFree(back); return kNoMemory; }
+  memset(g, 0, sizeof *g);
+  stbi__context ctx;
+  stbi__start_mem(&ctx, d, (int)n);
+  uint16_t* px = nullptr;
+  int count = 0;
+  Result r = kOk;
+  for (;;) {
+    int comp = 0;
+    stbi_uc* two_back = count >= 2 ? back + (size_t)(count % 2) * full : nullptr;
+    stbi_uc* u = stbi__gif_load_next(&ctx, g, &comp, 4, two_back);
+    if (u == (stbi_uc*)&ctx || !u) break;   // the end (or a broken tail: keep what came)
+    if (g->w != sw || g->h != sh) { r = kBroken; break; }
+    memcpy(back + (size_t)(count % 2) * full, u, full);
+    if (count >= cap) break;   // as many as the budget holds: the rest are left out
+    uint16_t* grown = (uint16_t*)out_realloc(px, frame * (size_t)(count + 1));
+    if (!grown) { r = count ? kOk : kNoMemory; break; }
+    px = grown;
+    scaleTo565(u, sw, sh, px + (size_t)count * dw * dh, dw, dh, bg);
+    if (delays_ms) delays_ms[count] = (uint16_t)(g->delay >= 20 ? (g->delay > 60000 ? 60000 : g->delay) : 100);
+    ++count;
+  }
+  liWorkFree(g->out);
+  liWorkFree(g->history);
+  liWorkFree(g->background);
+  liWorkFree(g);
+  liWorkFree(back);
+  if (!count) {
+    if (px) out_realloc(px, 0);
+    return r == kOk ? kBroken : r;
+  }
+  *out = px;
+  *out_w = dw;
+  *out_h = dh;
+  *out_n = count;
   return kOk;
 }
 

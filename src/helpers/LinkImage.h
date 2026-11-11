@@ -57,4 +57,14 @@ const char* resultText(Result r);
 Result decode(const uint8_t* data, size_t len, int max_side, size_t budget, uint16_t bg,
               void* (*out_alloc)(size_t), uint16_t** out, int* out_w, int* out_h);
 
+// An animated GIF's frames, each scaled to fit `max_side` (never up), over `bg`:
+// RGB565, w*h per frame, one after another in memory grown with `out_realloc` (the
+// caller frees it with the matching free). At most `max_frames`, and no more than
+// `budget` (bytes) holds with the decoder's own working memory: a longer GIF plays
+// its first part. `delays_ms[i]` (room for max_frames) is how long frame i shows;
+// one that asks for under 20 ms gets 100, as browsers do. A GIF of one frame is one.
+Result decodeFrames(const uint8_t* data, size_t len, int max_side, size_t budget, uint16_t bg, int max_frames,
+                    void* (*out_realloc)(void*, size_t), uint16_t** out, int* out_w, int* out_h, int* out_n,
+                    uint16_t* delays_ms);
+
 }  // namespace linkimg

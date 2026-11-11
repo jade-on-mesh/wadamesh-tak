@@ -12,6 +12,18 @@ When someone posts a link to a picture in a channel or a DM, the radio can downl
 - Tapping the link itself still opens the link menu, which now has **View picture** first when the link is to a picture.
 - With an SD card in, the picture is kept in `/linkimg/` on the card, so it opens again without Wi-Fi. Without a card only the thumbnail is kept, and viewing it full size downloads it again.
 
+## GIFs
+
+GIFs work the way they do in MeshCore Open. A GIF is sent as `g:<id>`, a Giphy GIF's id, so the app and a standalone show the same GIF.
+
+- **Receiving:** a GIF message reads **GIF**. With Linked images on and Wi-Fi up, its still shows in the bubble; tap it to play it full screen, looped, and tap again to close.
+- **Giphy links:** `media.giphy.com/media/<id>/giphy.gif` and `giphy.com/gifs/<title>-<id>` messages count as GIFs too.
+- **Sending:** in a chat, open the emoji picker and pick **GIF** (it is next to 🔍). Trending GIFs show first. Type to search; results come after a short pause. Tap one and it is sent straight to the chat.
+- **Previews and notifications** say "GIF".
+- **The player** downloads Giphy's 200 px animated copy and decodes up to 150 frames (4 MB) into PSRAM. A longer GIF plays its first part. It is kept on the SD card like other linked pictures.
+- **The picker** asks Giphy for 12 GIFs and fetches each one's 100 px still, one at a time. Other linked pictures wait while it works.
+- **Privacy:** fetching from Giphy tells Giphy this radio's address, as the app does. It uses MeshCore Open's API key.
+
 ## Limits
 
 - Up to 3 MB a picture on the T-Deck and the other 8 MB boards, and 8 MB on the P4 and the Tanmatsu.
