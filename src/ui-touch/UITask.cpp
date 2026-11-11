@@ -5476,6 +5476,7 @@ static void avatarApplyLook(lv_obj_t* av, const char* name, bool initials, bool 
                             uint8_t style, uint32_t raised, uint32_t glow) {
   if (!av) return;
   lv_obj_clean(av);
+  lv_obj_set_style_bg_opa(av, LV_OPA_COVER, LV_PART_MAIN);   // a contact photo had made it clear
   const lv_coord_t size = lv_obj_get_style_width(av, LV_PART_MAIN);
   const bool square = lv_obj_has_flag(av, AVATAR_SQUARE_FLAG);
   if (initials) {
@@ -5612,6 +5613,10 @@ static void glyphAvatarSetEmoji(lv_obj_t* av, const char* name, const char* utf8
 static bool nameFirstEmoji(const char* name, char* out, size_t cap) {
   return AvatarText::firstEmoji(name, out, cap, emojiIconVisible, nullptr);
 }
+// A direct chat's photo (ContactPhotoUI.inc) in place of all of the above: false,
+// and the avatar left alone, when the chat keyed `name` has none.
+static bool avatarSetContactPhoto(lv_obj_t* av, const char* name);
+static uint8_t contactPhotoGen();   // bumped when a photo is set or removed
 
 // E-paper badges: a filled pill thresholds to solid black on the Pro, and its small
 // anti-aliased white figures mostly fall under the one-bit cut, so the count reads as
@@ -12841,6 +12846,21 @@ static void threadSheetIconResetCb(lv_event_t* e) {
   if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) threadSheetIconResetDo();
 }
 
+// Contact photo (direct chats): Photos opens to pick one, then the crop screen
+// (ContactPhotoUI.inc); it takes the place of the glyph and the chat icon.
+namespace cphoto { static bool has(const char* name); static void removeFor(const char* name); }
+namespace photosui { static void pickFor(const char* name); }
+static void threadSheetPhotoDo() {
+  char nm[UITask::MAX_THREAD_NAME + 1] = "";
+  if (channelLongSheetName(nm, sizeof nm)) photosui::pickFor(nm);
+}
+static void threadSheetPhotoRemoveDo() {
+  char nm[UITask::MAX_THREAD_NAME + 1] = "";
+  if (!channelLongSheetName(nm, sizeof nm)) return;
+  cphoto::removeFor(nm);
+  if (g_lv.task) g_lv.task->showAlert(TR("Contact photo removed"), 1400);
+}
+
 // Per-thread settings sheet (DM or channel) — opened by long-press AND the per-row gear AND the
 // in-channel cog, so all are the SAME screen. Mark-as-read, mute messages / @ mentions, region &
 // scope, share secret, blocked users, remove/delete.
@@ -12904,6 +12924,10 @@ static void openThreadActionSheet(int thread_idx, const char* name, bool is_chan
     items[n++] = { LV_SYMBOL_CLOSE, TR("Blocked users"), channelLongSheetBlockedDo, false };
     items[n++] = { LV_SYMBOL_IMAGE, TR("Chat icon"), threadSheetIconDo, false };
     if (has_icon) items[n++] = { LV_SYMBOL_REFRESH, TR("Reset chat icon"), threadSheetIconResetDo, false };
+    if (!is_channel && !is_room_thread) {
+      items[n++] = { LV_SYMBOL_IMAGE, TR("Contact photo"), threadSheetPhotoDo, false };
+      if (cphoto::has(name)) items[n++] = { LV_SYMBOL_REFRESH, TR("Remove contact photo"), threadSheetPhotoRemoveDo, false };
+    }
     items[n++] = { LV_SYMBOL_TRASH, TR("Delete history"), threadSheetClearHistDo, false };
     items[n++] = is_channel ? ActItem{ LV_SYMBOL_TRASH, TR("Remove channel"), channelLongSheetDeleteDo, true }
                             : ActItem{ LV_SYMBOL_TRASH, TR("Delete chat"), threadSheetDeleteDmDo, true };
@@ -52838,6 +52862,7 @@ static void refreshChatList(LvChatPanel& p) {
   mix(s_avatar_gen);   // Settings > Theme > Chat icons redraws the rows
   mix(s_nick_gen);     // so does a contact's new nickname
   mix(s_deliv_gen);    // and a sent DM turning delivered (#670)
+  mix(contactPhotoGen());   // and a contact photo set or removed
   mix(p.inbox_combined ? 0xF1u + s_chats_filter : 0u);
   for (int i = 0; i < count; ++i) {
     bool ch = false; uint16_t unread = 0; uint32_t ts = 0;
@@ -52978,8 +53003,10 @@ static void refreshChatList(LvChatPanel& p) {
     lv_obj_align(av, LV_ALIGN_LEFT_MID, kPadL, 0);
     {
       char eb[20];
-      if (touchPrefsGetChannelEmoji(name, eb, sizeof eb) || (!ch && nameFirstEmoji(vis_name, eb, sizeof eb)))
+      if (!ch && avatarSetContactPhoto(av, name)) {
+      } else if (touchPrefsGetChannelEmoji(name, eb, sizeof eb) || (!ch && nameFirstEmoji(vis_name, eb, sizeof eb))) {
         glyphAvatarSetEmoji(av, vis_name, eb);
+      }
     }
 
     // Time, top right: lit while there is something unread.
@@ -53623,9 +53650,13 @@ static void refreshContactsList() {
       // keyed on the advertised name, else the first emoji in the shown name (#640).
       char eb[20];
       ContactInfo ci;
-      const bool picked = the_mesh.getContactByIdx(static_cast<uint32_t>(e.mesh_idx), ci) &&
-                          touchPrefsGetChannelEmoji(ci.name, eb, sizeof eb);
-      if (picked || nameFirstEmoji(e.name, eb, sizeof eb)) glyphAvatarSetEmoji(av, e.name, eb);
+      const bool found = the_mesh.getContactByIdx(static_cast<uint32_t>(e.mesh_idx), ci);
+      if (found && avatarSetContactPhoto(av, ci.name)) {
+        // its photo, which takes the icon's place
+      } else {
+        const bool picked = found && touchPrefsGetChannelEmoji(ci.name, eb, sizeof eb);
+        if (picked || nameFirstEmoji(e.name, eb, sizeof eb)) glyphAvatarSetEmoji(av, e.name, eb);
+      }
     }
 
     // Name, one line; a star after it for a favourite.
@@ -56271,8 +56302,10 @@ static void lockCardCreate(lv_obj_t* parent, int idx) {
   lv_obj_align(avo, LV_ALIGN_LEFT_MID, 3, 0);
   {
     char eb[20];
-    if (touchPrefsGetChannelEmoji(nm, eb, sizeof eb) || (!ch && nameFirstEmoji(vis, eb, sizeof eb)))
+    if (!ch && avatarSetContactPhoto(avo, nm)) {
+    } else if (touchPrefsGetChannelEmoji(nm, eb, sizeof eb) || (!ch && nameFirstEmoji(vis, eb, sizeof eb))) {
       glyphAvatarSetEmoji(avo, vis, eb);
+    }
   }
 
   char cnt[8];
@@ -64464,6 +64497,7 @@ __attribute__((unused)) static bool bgListenerResetOnce(const char* key) {
 #include "DroneUI.inc"
 #if VOX_AV1_AVAILABLE
 // Photos (app drawer -> APPACT_PHOTOS): downloaded mesh photos as a thumbnail grid.
+#include "ContactPhotoUI.inc"   // a contact's photo in place of its glyph (ContactPhoto.h)
 #include "PhotosUI.inc"
 #include "ReactionsUI.inc"   // a message's React button: the picker, and sending (Reactions.h)
 
@@ -66904,6 +66938,7 @@ static void chatHeaderApply(bool chat_open) {
   static char s_emoji[20] = "";
   static uint8_t s_gen = 0;
   static uint8_t s_ngen = 0;
+  static uint8_t s_pgen = 0;
   const int thread = g_lv.task ? g_lv.task->activeThreadIdx() : -1;
   const int count = g_lv.task ? g_lv.task->getMsgCount() : 0;   // any new message: recount
   bool ch = true; uint16_t unread = 0; uint32_t ts = 0;
@@ -66913,16 +66948,18 @@ static void chatHeaderApply(bool chat_open) {
   touchPrefsGetChannelEmoji(name, emoji, sizeof emoji);   // its sheet can change it while it is open
   if (!emoji[0] && !ch && thread >= 0) nameFirstEmoji(threadShownName(thread, name), emoji, sizeof emoji);
   if (thread != s_thread || count != s_count || strcmp(emoji, s_emoji) != 0 || s_gen != s_avatar_gen ||
-      s_ngen != s_nick_gen) {
+      s_ngen != s_nick_gen || s_pgen != contactPhotoGen()) {
     s_gen = s_avatar_gen;
     s_ngen = s_nick_gen;
+    s_pgen = contactPhotoGen();
     s_thread = thread;
     s_count = count;
     snprintf(s_emoji, sizeof s_emoji, "%s", emoji);
     // A channel's square, a person's circle (a ball in Initials either way).
     if (ch) lv_obj_add_flag(g_statusbar.chat_avatar, AVATAR_SQUARE_FLAG);
     else    lv_obj_clear_flag(g_statusbar.chat_avatar, AVATAR_SQUARE_FLAG);
-    glyphAvatarSetEmoji(g_statusbar.chat_avatar, threadShownName(thread, name), emoji);
+    if (ch || thread < 0 || !avatarSetContactPhoto(g_statusbar.chat_avatar, name))
+      glyphAvatarSetEmoji(g_statusbar.chat_avatar, threadShownName(thread, name), emoji);
 #if !defined(HAS_TDECK_PRO)
     char sub[48];
     chatHeaderSubtitle(sub, sizeof sub);
@@ -88519,8 +88556,10 @@ static void atGlanceShow(const GlanceMsg& m, bool fade_in) {
   lv_obj_t* av = makeGlyphAvatar(head, vis, m.channel ? GLYPH_SQUARE : GLYPH_CIRCLE, SC(32));
   {
     char eb[20];
-    if (touchPrefsGetChannelEmoji(thread, eb, sizeof eb) || (!m.channel && nameFirstEmoji(vis, eb, sizeof eb)))
+    if (!m.channel && avatarSetContactPhoto(av, thread)) {
+    } else if (touchPrefsGetChannelEmoji(thread, eb, sizeof eb) || (!m.channel && nameFirstEmoji(vis, eb, sizeof eb))) {
       glyphAvatarSetEmoji(av, vis, eb);
+    }
   }
   lv_obj_t* who = lv_obj_create(head);
   lv_obj_remove_style_all(who);

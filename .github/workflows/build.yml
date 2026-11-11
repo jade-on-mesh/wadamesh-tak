@@ -62,6 +62,11 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_reactions test/test_reactions.cpp
           /tmp/test_reactions
+      - name: Contact photos cut in a circle (ContactPhoto.h)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_contact_photo test/test_contact_photo.cpp
+          /tmp/test_contact_photo
       - name: New map points flash (MapHighlight.h)
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
