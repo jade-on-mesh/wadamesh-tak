@@ -36,11 +36,11 @@ int main() {
   // No ranges: the frequency stays.
   assert(offGrid(910.525f, nullptr, 0).freq == 910.525f);
 
-  // radio2 beside it: 918.250, 250 kHz, SF7, CR 4/5; below near the band's top;
+  // radio2 beside it: 918.800, 250 kHz, SF7, CR 4/5; below near the band's top;
   // none outside the US band.
   Radio r2;
-  assert(radio2For(R(918.0f, 62.5f, 7, 5), r2) && same(r2, R(918.25f, 250.0f, 7, 5)));
-  assert(radio2For(R(927.8f, 62.5f, 7, 5), r2) && same(r2, R(927.55f, 250.0f, 7, 5)));
+  assert(radio2For(R(918.0f, 62.5f, 7, 5), r2) && same(r2, R(918.8f, 250.0f, 7, 5)));
+  assert(radio2For(R(927.8f, 62.5f, 7, 5), r2) && same(r2, R(927.0f, 250.0f, 7, 5)));
   assert(!radio2For(R(869.495f, 62.5f, 7, 5), r2));
   assert(!radio2For(R(433.0f, 62.5f, 7, 5), r2));
   // Clear of the main channel by Keymind's rule.

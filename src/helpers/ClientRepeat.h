@@ -6,7 +6,7 @@
 // (918.000 MHz in the US, 869.495 in EU868, 433.000 at 433) in the standard
 // shape, 62.5 kHz, SF7, CR 4/5, as MeshCore Open TAK's Off-Grid Repeat sets it.
 // Turning it on remembers the radio settings it replaced; turning it off puts
-// them back. In the US band radio2 runs MediaMesh beside it, 250 kHz above at
+// them back. In the US band radio2 runs MediaMesh beside it, 800 kHz above at
 // 250 kHz, SF7, CR 4/5 (radio2For); elsewhere radio2 is held off
 // (MediaMeshCore.h, holdForClientRepeat). Pure, so the host test runs it
 // (test/test_client_repeat.cpp); MyMesh keeps the remembered settings.
@@ -36,7 +36,7 @@ constexpr uint8_t kCr = 5;
 constexpr float kRadio2Bw = 250.0f;
 constexpr uint8_t kRadio2Sf = 7;
 constexpr uint8_t kRadio2Cr = 5;
-constexpr float kRadio2OffsetMhz = 0.250f;
+constexpr float kRadio2OffsetMhz = 0.800f;
 
 struct Range { uint32_t lo_khz, hi_khz; };
 
@@ -58,7 +58,7 @@ inline Radio offGrid(float freq_mhz, const Range* ranges, int n) {
 }
 
 /** The radio2 Client Repeat runs beside an off-grid main radio on `main`: in
- *  the US band (902-928 MHz), 250 kHz above it (below, if above leaves the
+ *  the US band (902-928 MHz), 800 kHz above it (below, if above leaves the
  *  band). False elsewhere, where radio2 stays off: EU868's off-grid channel
  *  has no room beside it in its sub-band. */
 inline bool radio2For(const Radio& main, Radio& out) {

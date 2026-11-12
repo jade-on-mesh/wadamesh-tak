@@ -301,7 +301,7 @@ Crossing never sends on an `rx`-only radio2.
   869.495 in EU868, 433.000 at 433) at 62.5 kHz, SF7, CR 4/5, as MeshCore Open
   TAK's Off-Grid Repeat does, and remembers the settings it replaced; turning it
   off puts them back.
-  - **US band:** radio2 runs MediaMesh beside it, 250 kHz above (918.250 MHz)
+  - **US band:** radio2 runs MediaMesh beside it, 800 kHz above (918.800 MHz)
     at 250 kHz, SF7, CR 4/5, listening and sending, with `radio2.cross off`.
     The two channels don't overlap (keymindCascade's spacing rule wants more
     than (62.5 + 250) / 2 + 6 = 162.25 kHz between centres), so the radio scans
@@ -556,7 +556,7 @@ standalones with it on make a 2.4 GHz MediaMesh with no repeaters on 900 MHz
 involved.
 
 **Client repeat** sets radio2 itself: beside the off-grid channel in the US
-band (918.250 MHz, 250 kHz), off elsewhere, a 2.4 GHz radio2 included. It
+band (918.800 MHz, 250 kHz), off elsewhere, a 2.4 GHz radio2 included. It
 relays radio2 traffic on radio2 as it is, so Repeat MediaMesh adds nothing
 while it is on.
 
