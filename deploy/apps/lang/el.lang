@@ -1,7 +1,7 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: el
-# ver: 32
+# ver: 33
 # name: Ελληνικά
 # base: el
  (device behind)	 (συσκευή πίσω)
@@ -1419,8 +1419,8 @@ Never	Ποτέ
 New PIN	New PIN
 No backups available to restore.	Δεν υπάρχουν αντίγραφα για επαναφορά.
 No backups yet. Use Export Backup above to create one.	No backups yet. Use Export Backup above to create one.
-No channels yet	No channels yet
-No direct chats yet	No direct chats yet
+No channels yet	Δεν υπάρχουν ακόμη κανάλια
+No direct chats yet	Δεν υπάρχουν ακόμη άμεσες συνομιλίες
 Normal\nLarge text\nHuge text	Normal\nLarge text\nHuge text
 Not delivered, tap to resend	Not delivered, tap to resend
 Nov	Nov
@@ -2413,3 +2413,28 @@ Asleep: tap screen or 🤍 to wake	Σε αναστολή: πατήστε την 
 Receiving %s\n%lu / %lu bytes	Λήψη %s\n%lu / %lu byte
 Sending %s\n%lu / %lu bytes	Αποστολή %s\n%lu / %lu byte
 File Transfer	Μεταφορά αρχείων
+U	Α
+Unread only	Μόνο αδιάβαστα
+No unread chats	Δεν υπάρχουν αδιάβαστες συνομιλίες
+No unread channels	Δεν υπάρχουν αδιάβαστα κανάλια
+No unread direct chats	Δεν υπάρχουν αδιάβαστες άμεσες συνομιλίες
+Recent	Πρόσφατα
+Smileys	Φατσούλες
+People	Άνθρωποι
+Nature	Φύση
+Food	Φαγητό
+Activity	Δραστηριότητες
+Travel	Ταξίδια
+Objects	Αντικείμενα
+Symbols	Σύμβολα
+Flags	Σημαίες
+Chars	Χαρακτήρες
+Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.	Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.
+Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.	Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.
+Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.	Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.
+\n%d%%, about %lu s left	\n%d%%, απομένουν περίπου %lu s
+\n%d%%, about %lu min left	\n%d%%, απομένουν περίπου %lu λεπτά
+Keep this orientation?\nIf the screen does not answer your taps, leave it: it goes back to portrait in %d s.	Διατήρηση αυτού του προσανατολισμού;\nΑν η οθόνη δεν αποκρίνεται στα αγγίγματα, αφήστε την: σε %d s επιστρέφει σε κατακόρυφο.
+Back to portrait… restarting	Επιστροφή σε κατακόρυφο… επανεκκίνηση
+Keep	Διατήρηση
+Orientation kept	Ο προσανατολισμός διατηρήθηκε

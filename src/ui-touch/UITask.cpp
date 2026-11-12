@@ -215,7 +215,7 @@ static_assert(ChannelSenderSplit::kMaxWireName >= (size_t)UITask::MAX_SENDER_NAM
   #if defined(HAS_PAGER_KEYBOARD)
     #include "../helpers/input/PagerKeyboard.h"
   #endif
-  #if defined(TLORA_PAGER) && !defined(WADA_WEB)
+  #if (defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9)) && !defined(WADA_WEB)
     #include <esp_wifi.h>              // esp_wifi_set_ps: deeper modem sleep while the screen is off
   #endif
   #if defined(TLORA_PAGER)
@@ -235,6 +235,15 @@ static_assert(ChannelSenderSplit::kMaxWireName >= (size_t)UITask::MAX_SENDER_NAM
   #include "i18n.h"
   #include "emoji_data.h"     // baked Noto colour-emoji glyphs (emojiGlyphLookup)
   #include "AvatarText.h"     // initials and the name's emoji for avatars (pure, host-tested)
+  #if CAP_EMOJI_PACK
+    #include "EmojiPack.h"    // optional SD-card pack that extends the baked set
+  #else
+    enum : uint8_t {
+      EMOJI_CAT_FACES = 0, EMOJI_CAT_GESTURES = 1, EMOJI_CAT_HEARTS = 2,
+      EMOJI_CAT_SYMBOLS = 3, EMOJI_CAT_OBJECTS = 4, EMOJI_CAT_ANIMALS = 5,
+      EMOJI_CAT_ACTIVITY = 6, EMOJI_CAT_SPECIAL = 7, EMOJI_CAT_FLAGS = 10,
+    };
+  #endif
   #include "qr_icon.h"        // baked recolour-able QR glyph (qr_icon_dsc) for the Chats Share button
   #if defined(WADA_WEB)
     #include <WebDisplay.h>                  // web/platform: the canvas behind the SDL window
@@ -1290,7 +1299,6 @@ static void uiFitLabelWidth(lv_obj_t* lbl, lv_coord_t max_w) {
   }
   lv_obj_set_style_text_font(lbl, &g_font_12, LV_PART_MAIN);   // still wide: 12 px beats clipping a bigger font
 }
-
 // ---- Button captions that fit any language (#418) ---------------------------------
 // A translation that fits most panels can still overflow a button on the narrowest
 // (the Heltec V4 with its kit) or at a large UI size, and asking translators to
@@ -1471,13 +1479,92 @@ static void uiFitButtonChangeCb(lv_event_t* e) {
   }
   uiFitButtonQueue(btn);
 }
+
+// Baked set first, SD pack second — a card can extend the emoji we ship but never
+// shadow them, so pack art can't silently change a glyph the UI already relies on.
+static inline const lv_img_dsc_t* emojiLookupAny(uint32_t cp) {
+  if (const lv_img_dsc_t* d = emojiGlyphLookup(cp)) return d;
+#if CAP_EMOJI_PACK
+  return emojiPackLookup(cp);
+#else
+  return nullptr;
+#endif
+}
+static bool emojiIsZeroAdvanceCodepoint(uint32_t cp) {
+  if (cp == 0x200Du || cp == 0x20E3u ||
+      (cp >= 0xFE00u && cp <= 0xFE0Fu) ||
+      (cp >= 0x1F3FBu && cp <= 0x1F3FFu) ||
+      (cp >= 0xE0020u && cp <= 0xE007Fu)) return true;
+  const lv_img_dsc_t* d = emojiLookupAny(cp);
+  return d && d->header.w <= 2 && d->header.h <= 2;
+}
+static bool emojiIsRegionalIndicator(uint32_t cp) {
+  return cp >= 0x1F1E6 && cp <= 0x1F1FF;
+}
+static const lv_img_dsc_t* emojiPickerCompositeGlyph(const char* item) {
+  if (!item) return nullptr;
+  if (const lv_img_dsc_t* sequence = emojiGlyphSequenceLookup(item)) return sequence;
+#if CAP_EMOJI_PACK
+  if (const lv_img_dsc_t* sequence = emojiPackSequenceItemLookup(item)) return sequence;
+#endif
+  uint32_t off = 0;
+  const uint32_t lead = _lv_txt_encoded_next(item, &off);
+  if (emojiIsRegionalIndicator(lead)) {
+    const uint32_t trail = _lv_txt_encoded_next(item, &off);
+    if (!emojiIsRegionalIndicator(trail)) return nullptr;
+  #if CAP_EMOJI_PACK
+    if (const lv_img_dsc_t* d = emojiPackFlagLookup(lead, trail)) return d;
+  #endif
+    if (lead == 0x1F1F1 && trail == 0x1F1F8) return emojiGlyphLookup(lead);
+    return nullptr;
+  }
+#if CAP_EMOJI_PACK
+  if (lead == 0x1F3F4) {
+    char tag[8] = {};
+    size_t n = 0;
+    for (;;) {
+      const uint32_t cp = _lv_txt_encoded_next(item, &off);
+      if (cp == 0xE007F) break;
+      if (cp < 0xE0061 || cp > 0xE007A || n + 1 >= sizeof(tag)) return nullptr;
+      tag[n++] = static_cast<char>(cp - 0xE0000);
+    }
+    const uint32_t token = emojiPackTagFlagToken(tag);
+    if (const lv_img_dsc_t* d = emojiPackSequenceLookup(token)) return d;
+    return emojiPackFlagLookup(0x1F1EC, 0x1F1E7);
+  }
+#endif
+  return nullptr;
+}
 #if LV_USE_IMGFONT
+static bool emojiZeroAdvanceFontGetDsc(const lv_font_t* font, lv_font_glyph_dsc_t* dsc,
+                                       uint32_t unicode, uint32_t /*unicode_next*/) {
+  if (!emojiIsZeroAdvanceCodepoint(unicode)) return false;
+  memset(dsc, 0, sizeof(*dsc));
+  dsc->resolved_font = font;
+  return true;
+}
+
+static const uint8_t* emojiZeroAdvanceFontGetBitmap(const lv_font_t* /*font*/, uint32_t /*unicode*/) {
+  static const uint8_t blank = 0;
+  return &blank;
+}
+
+static lv_font_t s_emoji_zero_advance_font[3] = {};
+
 // lv_imgfont path callback: hand back the baked colour image for an emoji
 // codepoint (copied into the imgfont's scratch buffer as an lv_img_dsc_t), or
 // false so LVGL keeps walking the fallback chain for everything else.
 static bool emojiImgfontPathCb(const lv_font_t* /*font*/, void* img_src, uint16_t /*len*/,
                                uint32_t unicode, uint32_t /*unicode_next*/) {
-  const lv_img_dsc_t* d = emojiGlyphLookup(unicode);
+  if (emojiIsZeroAdvanceCodepoint(unicode)) return false;
+#if CAP_EMOJI_PACK
+  const lv_img_dsc_t* d = emojiPackSequenceLookup(unicode);
+  if (!d && unicode == emojiPackFlagToken(0x1F1F1u, 0x1F1F8u))
+    d = emojiGlyphLookup(0x1F1F1u);
+  if (!d) d = emojiLookupAny(unicode);
+#else
+  const lv_img_dsc_t* d = emojiLookupAny(unicode);
+#endif
   // Skin-tone modifiers (U+1F3FB-1F3FF) have no baked image: draw them as the
   // invisible zero glyph (the same one U+FE0F maps to), so 👍🏽 shows as 👍 (#673).
   if (!d && unicode >= 0x1F3FB && unicode <= 0x1F3FF) d = emojiGlyphLookup(0xFE0F);
@@ -1761,8 +1848,13 @@ static void initTouchFontFallbacks() {
   }
 #endif
   for (int i = 0; i < 3; ++i) {
+    s_emoji_zero_advance_font[i].get_glyph_dsc = emojiZeroAdvanceFontGetDsc;
+    s_emoji_zero_advance_font[i].get_glyph_bitmap = emojiZeroAdvanceFontGetBitmap;
+    s_emoji_zero_advance_font[i].line_height = extras[i]->line_height;
+    s_emoji_zero_advance_font[i].base_line = extras[i]->base_line;
+    s_emoji_zero_advance_font[i].fallback = extras[i];
     s_emoji_font[i] = lv_imgfont_create(16, emojiImgfontPathCb);   // 16 px baked glyphs (~15% larger; sit on the text baseline)
-    if (s_emoji_font[i]) { s_emoji_font[i]->fallback = extras[i]; prim[i]->fallback = s_emoji_font[i]; }
+    if (s_emoji_font[i]) { s_emoji_font[i]->fallback = &s_emoji_zero_advance_font[i]; prim[i]->fallback = s_emoji_font[i]; }
     else                 { prim[i]->fallback = extras[i]; }        // OOM: plain chain
   }
 #else
@@ -2645,10 +2737,12 @@ static void v4BeepTaskFn(void* arg) {
 #if defined(THINKNODE_M9_BUZZER_PIN)
   ledcWrite(kM9BuzzCh, 0);
   ledcDetachPin(UI_BUZZER_PIN);
+  pinMode(UI_BUZZER_PIN, OUTPUT);
+  digitalWrite(UI_BUZZER_PIN, LOW);  // hold transistor base / piezo LOW -> zero idle current
 #else
   noTone(UI_BUZZER_PIN);
-#endif
   pinMode(UI_BUZZER_PIN, INPUT);   // high-Z → no idle current / no buzz
+#endif
   s_v4_beep_playing = false;
   vTaskDelete(nullptr);
 }
@@ -4417,11 +4511,206 @@ static bool uiFontDrawsGlyph(uint32_t cp, void* font) {
   return lv_font_get_glyph_dsc((const lv_font_t*)font, &dsc, cp, 0) && !dsc.is_placeholder;
 }
 
+static bool uiReadUtf8Codepoint(const char*& p, const char* end, uint32_t& cp) {
+  if (p >= end) return false;
+  const unsigned char c0 = static_cast<unsigned char>(*p);
+  if (c0 < 0x80u) { cp = c0; ++p; return true; }
+  if ((c0 & 0xE0u) == 0xC0u && end - p >= 2) {
+    const unsigned char c1 = static_cast<unsigned char>(p[1]);
+    if ((c1 & 0xC0u) == 0x80u) {
+      cp = (static_cast<uint32_t>(c0 & 0x1Fu) << 6) | (c1 & 0x3Fu);
+      if (cp >= 0x80u) { p += 2; return true; }
+    }
+  } else if ((c0 & 0xF0u) == 0xE0u && end - p >= 3) {
+    const unsigned char c1 = static_cast<unsigned char>(p[1]);
+    const unsigned char c2 = static_cast<unsigned char>(p[2]);
+    if ((c1 & 0xC0u) == 0x80u && (c2 & 0xC0u) == 0x80u) {
+      cp = (static_cast<uint32_t>(c0 & 0x0Fu) << 12) |
+           (static_cast<uint32_t>(c1 & 0x3Fu) << 6) | (c2 & 0x3Fu);
+      if (cp >= 0x800u && !(cp >= 0xD800u && cp <= 0xDFFFu)) { p += 3; return true; }
+    }
+  } else if ((c0 & 0xF8u) == 0xF0u && end - p >= 4) {
+    const unsigned char c1 = static_cast<unsigned char>(p[1]);
+    const unsigned char c2 = static_cast<unsigned char>(p[2]);
+    const unsigned char c3 = static_cast<unsigned char>(p[3]);
+    if ((c1 & 0xC0u) == 0x80u && (c2 & 0xC0u) == 0x80u && (c3 & 0xC0u) == 0x80u) {
+      cp = (static_cast<uint32_t>(c0 & 0x07u) << 18) |
+           (static_cast<uint32_t>(c1 & 0x3Fu) << 12) |
+           (static_cast<uint32_t>(c2 & 0x3Fu) << 6) | (c3 & 0x3Fu);
+      if (cp >= 0x10000u && cp <= 0x10FFFFu) { p += 4; return true; }
+    }
+  }
+  return false;
+}
+
+static bool uiIsGraphemeExtend(uint32_t cp) {
+  return (cp >= 0x0300u && cp <= 0x036Fu) ||
+         (cp >= 0x1AB0u && cp <= 0x1AFFu) ||
+         (cp >= 0x1DC0u && cp <= 0x1DFFu) ||
+         (cp >= 0x20D0u && cp <= 0x20FFu) ||
+         (cp >= 0xFE00u && cp <= 0xFE0Fu) ||
+         (cp >= 0xFE20u && cp <= 0xFE2Fu) ||
+         (cp >= 0x1F3FBu && cp <= 0x1F3FFu) ||
+         (cp >= 0xE0020u && cp <= 0xE007Fu) ||
+         (cp >= 0xE0100u && cp <= 0xE01EFu);
+}
+
+static size_t uiPreviousGraphemeStartByte(const char* text, size_t end_byte) {
+  if (!text || end_byte == 0) return end_byte;
+  const char* p = text;
+  const char* end = text + end_byte;
+  size_t cluster_start = 0;
+  uint32_t previous = 0;
+  uint32_t regional_run = 0;
+  bool have_previous = false;
+  while (p < end) {
+    const char* current_start = p;
+    uint32_t cp = 0;
+    if (!uiReadUtf8Codepoint(p, end, cp)) {
+      p = current_start + 1;
+      cp = static_cast<unsigned char>(*current_start);
+    }
+    const bool is_regional = emojiIsRegionalIndicator(cp);
+    const bool joined = have_previous &&
+        (uiIsGraphemeExtend(cp) || cp == 0x200Du || previous == 0x200Du ||
+         (is_regional && emojiIsRegionalIndicator(previous) && (regional_run & 1u)));
+    if (!joined) cluster_start = static_cast<size_t>(current_start - text);
+    if (is_regional)
+      regional_run = joined && emojiIsRegionalIndicator(previous) ? regional_run + 1 : 1;
+    else if (!uiIsGraphemeExtend(cp) && cp != 0x200Du) regional_run = 0;
+    previous = cp;
+    have_previous = true;
+  }
+  return cluster_start;
+}
+
+#if CAP_EMOJI_PACK
+static uint32_t uiPackedFlagTokenAt(uint32_t cp, const char* after_cp,
+                                    const char* end, const char*& sequence_end) {
+  if (emojiIsRegionalIndicator(cp)) {
+    const char* look = after_cp;
+    uint32_t trail = 0;
+    if (uiReadUtf8Codepoint(look, end, trail) && emojiIsRegionalIndicator(trail)) {
+      const uint32_t token = emojiPackFlagToken(cp, trail);
+      if (token && emojiPackSequenceLookup(token)) {
+        sequence_end = look;
+        return token;
+      }
+    }
+    return 0;
+  }
+  if (cp != 0x1F3F4u) return 0;
+
+  char tag[8] = {};
+  size_t tag_len = 0;
+  const char* look = after_cp;
+  for (;;) {
+    uint32_t next = 0;
+    if (!uiReadUtf8Codepoint(look, end, next)) return 0;
+    if (next == 0xE007Fu && tag_len > 0) break;
+    if (next < 0xE0061u || next > 0xE007Au || tag_len + 1 >= sizeof(tag)) return 0;
+    tag[tag_len++] = static_cast<char>(next - 0xE0000u);
+  }
+  const uint32_t tag_token = emojiPackTagFlagToken(tag);
+  if (!tag_token) return 0;
+  if (emojiPackSequenceLookup(tag_token)) {
+    sequence_end = look;
+    return tag_token;
+  }
+  const uint32_t gb_token = emojiPackFlagToken(0x1F1ECu, 0x1F1E7u);
+  if (emojiPackSequenceLookup(gb_token)) {
+    sequence_end = look;
+    return gb_token;
+  }
+  return 0;
+}
+
+#else
+static inline uint32_t uiPackedFlagTokenAt(uint32_t, const char*, const char*, const char*&) {
+  return 0;
+}
+#endif
+
+static size_t uiEncodeUtf8(uint32_t cp, char out[4]) {
+  if (cp < 0x80u) { out[0] = static_cast<char>(cp); return 1; }
+  if (cp < 0x800u) {
+    out[0] = static_cast<char>(0xC0u | (cp >> 6));
+    out[1] = static_cast<char>(0x80u | (cp & 0x3Fu));
+    return 2;
+  }
+  if (cp < 0x10000u) {
+    out[0] = static_cast<char>(0xE0u | (cp >> 12));
+    out[1] = static_cast<char>(0x80u | ((cp >> 6) & 0x3Fu));
+    out[2] = static_cast<char>(0x80u | (cp & 0x3Fu));
+    return 3;
+  }
+  out[0] = static_cast<char>(0xF0u | (cp >> 18));
+  out[1] = static_cast<char>(0x80u | ((cp >> 12) & 0x3Fu));
+  out[2] = static_cast<char>(0x80u | ((cp >> 6) & 0x3Fu));
+  out[3] = static_cast<char>(0x80u | (cp & 0x3Fu));
+  return 4;
+}
+
+static size_t uiExpandPackedFlagToken(uint32_t token, char out[32]) {
+  if (token >= 0xF0000u && token < 0xF0000u + 26u * 26u) {
+    const uint32_t pair = token - 0xF0000u;
+    char encoded[4];
+    size_t n = uiEncodeUtf8(0x1F1E6u + pair / 26u, encoded);
+    memcpy(out, encoded, n);
+    n += uiEncodeUtf8(0x1F1E6u + pair % 26u, out + n);
+    return n;
+  }
+  if (token >= 0xF0000u + 26u * 26u && token < 0xF0000u + 26u * 26u + 3u) {
+    static const char* const tags[] = { "gbeng", "gbsct", "gbwls" };
+    const char* tag = tags[token - (0xF0000u + 26u * 26u)];
+    size_t n = uiEncodeUtf8(0x1F3F4u, out);
+    while (*tag) n += uiEncodeUtf8(0xE0061u + (uint32_t)(*tag++ - 'a'), out + n);
+    n += uiEncodeUtf8(0xE007Fu, out + n);
+    return n;
+  }
+  return 0;
+}
+
+static void composerAppendCodepoint(UITask* task, uint32_t cp) {
+  char encoded[4];
+  const size_t n = uiEncodeUtf8(cp, encoded);
+  for (size_t i = 0; i < n; ++i) task->composerAppendChar(encoded[i]);
+}
+
+static void composerAppendDisplayText(UITask* task, const char* text) {
+  if (!task || !text) return;
+  const char* p = text;
+  const char* end = text + strlen(text);
+  while (p < end) {
+    uint32_t cp = 0;
+    if (!uiReadUtf8Codepoint(p, end, cp)) {
+      task->composerAppendChar(*p++);
+      continue;
+    }
+    if (cp >= 0xF0000u && cp < 0xF0000u + 26u * 26u) {
+      const uint32_t pair = cp - 0xF0000u;
+      composerAppendCodepoint(task, 0x1F1E6u + pair / 26u);
+      composerAppendCodepoint(task, 0x1F1E6u + pair % 26u);
+      continue;
+    }
+    if (cp >= 0xF0000u + 26u * 26u && cp < 0xF0000u + 26u * 26u + 3u) {
+      static const char* const tags[] = { "gbeng", "gbsct", "gbwls" };
+      const char* tag = tags[cp - (0xF0000u + 26u * 26u)];
+      composerAppendCodepoint(task, 0x1F3F4u);
+      while (*tag) composerAppendCodepoint(task, 0xE0061u + (uint32_t)(*tag++ - 'a'));
+      composerAppendCodepoint(task, 0xE007Fu);
+      continue;
+    }
+    composerAppendCodepoint(task, cp);
+  }
+}
+
 /**
  * Copy UTF-8 `in` → `out` (NUL-terminated, capped). Codepoints not in `font` become ASCII '*'.
  * Invalid UTF-8 bytes become '*'.
  */
-static void copyUtf8ReplacingMissingGlyphs(const lv_font_t* font, char* out, size_t out_cap, const char* in) {
+static void copyUtf8ReplacingMissingGlyphs(const lv_font_t* font, char* out, size_t out_cap,
+                                           const char* in, bool pack_flag_tokens = true) {
   if (!out || out_cap == 0) return;
   out[0] = '\0';
   if (!in) return;
@@ -4478,6 +4767,39 @@ static void copyUtf8ReplacingMissingGlyphs(const lv_font_t* font, char* out, siz
       out[w++] = '*';
       p = seq_beg + 1;
       continue;
+    }
+
+    if (!pack_flag_tokens) {
+      char expanded[32];
+      const size_t n = uiExpandPackedFlagToken(cp, expanded);
+      if (n) {
+        if (w + n + 1 > out_cap) break;
+        memcpy(out + w, expanded, n);
+        w += n;
+        continue;
+      }
+    }
+
+    if (font) {
+      const char* sequence_end = p;
+      const uint32_t token = uiPackedFlagTokenAt(cp, p, end, sequence_end);
+      if (token) {
+        if (!pack_flag_tokens) {
+          const size_t n = static_cast<size_t>(sequence_end - seq_beg);
+          if (w + n + 1 > out_cap) break;
+          memcpy(out + w, seq_beg, n);
+          w += n;
+          p = sequence_end;
+          continue;
+        }
+        char encoded[4];
+        const size_t n = uiEncodeUtf8(token, encoded);
+        if (w + n + 1 > out_cap) break;
+        memcpy(out + w, encoded, n);
+        w += n;
+        p = sequence_end;
+        continue;
+      }
     }
 
     if (uiFontHasGlyph(font, cp)) {
@@ -5413,7 +5735,7 @@ static lv_obj_t* makeGlyphAvatar(lv_obj_t* parent, const char* name, GlyphShape 
 // The emoji table maps the invisible joiners (U+200D, U+FE0E/FE0F) to an empty
 // 2 x 2 image so text never shows them; as an icon that image is a blank tile (#674).
 static bool emojiIconVisible(uint32_t cp, void*) {
-  const lv_img_dsc_t* d = emojiGlyphLookup(cp);
+  const lv_img_dsc_t* d = emojiLookupAny(cp);
   return d && d->header.w > 2;
 }
 static void glyphAvatarSetEmoji(lv_obj_t* av, const char* name, const char* utf8) {
@@ -5423,7 +5745,7 @@ static void glyphAvatarSetEmoji(lv_obj_t* av, const char* name, const char* utf8
   if (utf8 && utf8[0]) {
     uint32_t off = 0;
     lead = _lv_txt_encoded_next(utf8, &off);
-    if (emojiIconVisible(lead, nullptr)) eg = emojiGlyphLookup(lead);   // ZWJ glyphs are keyed on their lead codepoint
+    if (emojiIconVisible(lead, nullptr)) eg = emojiLookupAny(lead);   // ZWJ glyphs are keyed on their lead codepoint
   }
   avatarApply(av, name);
   if (!eg) {
@@ -6180,6 +6502,7 @@ static void applyHardwarePanelRotation(uint8_t lvgl_rot) {
 // used by the Tanmatsu F-keys, so it stays gated.)
 static void openQuickReplyPicker(LvChatPanel* p);       // △ quick replies
 static void openActiveChatSettings();                   // ○ channel settings
+static bool emojiSheetIsOpen();                         // swipe guard, defined with the sheet
 #if defined(HAS_TANMATSU)
 static void openEmojiPickerForComposer(lv_obj_t* ta);   // □ emoji picker (Tanmatsu F-key only)
 #endif
@@ -7507,6 +7830,8 @@ static void navArrowAction(uint32_t key) {
   }
 }
 
+static void taDeletePreviousGrapheme(lv_obj_t* ta);
+
 static void navPump() {
   if (!s_nav_queue && (bsp_input_get_queue(&s_nav_queue) != ESP_OK || !s_nav_queue)) return;
   // Fire-on-hold: trigger the F1/F4 long-press action the MOMENT the threshold passes while the
@@ -7795,7 +8120,7 @@ static void navPump() {
           // Backspace in an EMPTY field = leave edit mode (matches Enter-on-empty below;
           // consistent with backspace-as-back everywhere else on this board).
           if (!lv_textarea_get_text(ta)[0]) s_nav_ta_editing = false;
-          else                              lv_textarea_del_char(ta);
+          else                              taDeletePreviousGrapheme(ta);
         }
         else if (c == '\r' || c == '\n') {
           // Enter on an EMPTY composer drops back to navigate mode (cursor off) so the letter-nav
@@ -10082,6 +10407,11 @@ static void applySwipeGesture(int8_t swipe_x, int8_t swipe_y) {
   // inside a category and have their own rightward swipe-back further down, so exclude them.
   // (Vertical swipes are a no-op at the end of this function, so this only kills tab swipes.)
   if (s_apppage_title && s_settings_open_cat < 0) return;
+  // The emoji sheet is modal and its category tabs scroll horizontally. This
+  // detector reads the touch hardware directly and ignores LVGL hit-testing, so
+  // without this a tab drag also reached the tab switcher / swipe-back behind the
+  // sheet and backed out of the page underneath.
+  if (emojiSheetIsOpen()) return;
   // A slider was just being dragged — its horizontal drag must NOT be read as a
   // tab/back swipe (e.g. raising the volume slider rightward kept triggering the
   // settings "swipe right = back"). Ignore swipes briefly after any slider touch.
@@ -12407,7 +12737,7 @@ static void composerSendFromPanel(LvChatPanel* p) {
   if (!text || !text[0]) return;
   g_lv.task->setComposerMode(true);
   g_lv.task->composerReset();
-  for (const char* cp = text; *cp; ++cp) g_lv.task->composerAppendChar(*cp);
+  composerAppendDisplayText(g_lv.task, text);
   // After the copy: hideKb() unfocuses the text box, whose restyle sets its label's
   // text again (a realloc), which can leave `text` pointing at freed memory.
   hideKb();
@@ -12431,7 +12761,7 @@ static void sendFromPanelCb(lv_event_t* e) {
   if (!text || !text[0]) return;
   g_lv.task->setComposerMode(true);
   g_lv.task->composerReset();
-  for (const char* cp = text; *cp; ++cp) g_lv.task->composerAppendChar(*cp);
+  composerAppendDisplayText(g_lv.task, text);
   // After the copy: hideKb() unfocuses the text box, whose restyle sets its label's
   // text again (a realloc), which can leave `text` pointing at freed memory.
   hideKb();
@@ -12460,7 +12790,10 @@ static lv_obj_t*    s_emoji_sheet = nullptr;
 static lv_obj_t*    s_emoji_target_ta = nullptr;   // textarea to insert into
 static lv_obj_t*    s_emoji_grid  = nullptr;       // the scrollable button grid
 static int          s_emoji_sel   = -1;            // hardware-highlighted index (-1 = none)
+static int          s_emoji_painted_sel = -1;
 static int          s_emoji_cols  = 1;             // grid columns (computed at open)
+
+static bool emojiSheetIsOpen() { return s_emoji_sheet != nullptr; }
 
 // Curated insert set, grouped. Kept in sync with what the extras fonts bake
 // (see scripts/build/regen-extras-fonts.sh) — a glyph here that isn't in the
@@ -12497,8 +12830,9 @@ static const char* const k_emoji_items[] = {
   // animals
   "\xF0\x9F\x90\xB6","\xF0\x9F\x90\xB1","\xF0\x9F\x90\xB8","\xF0\x9F\x90\xBB",
   "\xF0\x9F\x90\xA7","\xF0\x9F\x90\x9D",
-  // activity / flags  (soccer, football, moai, transgender flag, Lesotho flag)
+  // activity
   "\xE2\x9A\xBD","\xF0\x9F\x8F\x88","\xF0\x9F\x97\xBF",
+  // flags
   "\xF0\x9F\x8F\xB3\xEF\xB8\x8F\xE2\x80\x8D\xE2\x9A\xA7\xEF\xB8\x8F",
   "\xF0\x9F\x87\xB1\xF0\x9F\x87\xB8",
   // special characters / punctuation / currency / math
@@ -12509,6 +12843,41 @@ static const char* const k_emoji_items[] = {
   "\xC2\xBD","\xC2\xBC","\xC2\xBE",
 };
 static constexpr int k_emoji_count = (int)(sizeof(k_emoji_items) / sizeof(k_emoji_items[0]));
+
+#if CAP_EMOJI_PACK
+// k_emoji_items is already grouped contiguously by the comments above; these are
+// those groups made machine-readable so an SD pack's items can be interleaved
+// into them instead of all landing at the end. The static_assert fires if a glyph
+// is added to the list without extending the matching group.
+enum : int {
+  EMO_N_FACES    = 26, EMO_N_GESTURES = 11, EMO_N_HEARTS   = 7,  EMO_N_SYMBOLS = 27,
+  EMO_N_OBJECTS  = 16, EMO_N_ANIMALS  = 6,  EMO_N_ACTIVITY = 3,  EMO_N_FLAGS = 2,
+  EMO_N_SPECIAL = 24,
+};
+static_assert(EMO_N_FACES + EMO_N_GESTURES + EMO_N_HEARTS + EMO_N_SYMBOLS +
+              EMO_N_OBJECTS + EMO_N_ANIMALS + EMO_N_ACTIVITY + EMO_N_FLAGS + EMO_N_SPECIAL == k_emoji_count,
+              "k_emoji_items category groups drifted — update the EMO_N_* counts");
+struct EmojiSpan { uint8_t cat; uint16_t first; uint16_t count; };
+static const EmojiSpan k_emoji_spans[] = {
+  { EMOJI_CAT_FACES,    0,                                                      EMO_N_FACES    },
+  { EMOJI_CAT_GESTURES, EMO_N_FACES,                                            EMO_N_GESTURES },
+  { EMOJI_CAT_HEARTS,   EMO_N_FACES + EMO_N_GESTURES,                           EMO_N_HEARTS   },
+  { EMOJI_CAT_SYMBOLS,  EMO_N_FACES + EMO_N_GESTURES + EMO_N_HEARTS,            EMO_N_SYMBOLS  },
+  { EMOJI_CAT_OBJECTS,  EMO_N_FACES + EMO_N_GESTURES + EMO_N_HEARTS +
+                        EMO_N_SYMBOLS,                                          EMO_N_OBJECTS  },
+  { EMOJI_CAT_ANIMALS,  EMO_N_FACES + EMO_N_GESTURES + EMO_N_HEARTS +
+                        EMO_N_SYMBOLS + EMO_N_OBJECTS,                          EMO_N_ANIMALS  },
+  { EMOJI_CAT_ACTIVITY, EMO_N_FACES + EMO_N_GESTURES + EMO_N_HEARTS +
+                        EMO_N_SYMBOLS + EMO_N_OBJECTS + EMO_N_ANIMALS,          EMO_N_ACTIVITY },
+  { EMOJI_CAT_FLAGS,    EMO_N_FACES + EMO_N_GESTURES + EMO_N_HEARTS +
+                        EMO_N_SYMBOLS + EMO_N_OBJECTS + EMO_N_ANIMALS +
+                        EMO_N_ACTIVITY,                                         EMO_N_FLAGS },
+  { EMOJI_CAT_SPECIAL,  EMO_N_FACES + EMO_N_GESTURES + EMO_N_HEARTS +
+                        EMO_N_SYMBOLS + EMO_N_OBJECTS + EMO_N_ANIMALS +
+                        EMO_N_ACTIVITY + EMO_N_FLAGS,                           EMO_N_SPECIAL  },
+};
+static constexpr int k_emoji_span_count = (int)(sizeof(k_emoji_spans) / sizeof(k_emoji_spans[0]));
+#endif
 
 // Special characters / symbols not easy to reach on a compact keyboard — their OWN picker,
 // separate from emoji. All render via the g_font_16 chain (montserrat ASCII base + extras_font
@@ -12533,6 +12902,287 @@ static constexpr int k_special_count = (int)(sizeof(k_special_items) / sizeof(k_
 // or the special-character set when opened from the text-edit menu's "Sym" button.
 static const char* const* s_glyph_items = k_emoji_items;
 static int                 s_glyph_count = k_emoji_count;
+static bool                s_glyph_is_emoji = true;   // false for the special-character set
+static lv_coord_t          s_emoji_cell_px = 38;
+
+#if CAP_EMOJI_PACK
+// Built-ins merged with the SD pack's items, each pack item slotted into its own
+// category group. Built once on first picker open; with no pack the picker keeps
+// pointing straight at k_emoji_items and nothing is allocated.
+static const char** s_emoji_merged       = nullptr;
+static int          s_emoji_merged_count = 0;
+static bool         s_emoji_merge_done   = false;
+
+// Category slices of whatever list the picker is showing. A full pack runs to
+// well over a thousand entries, so the sheet shows one slice at a time behind
+// tabs rather than building every cell at once.
+struct EmojiGroupView { uint8_t cat; uint16_t first; uint16_t count; };
+static EmojiGroupView s_emoji_groups[16];
+static int            s_emoji_group_n = 0;
+static int            s_emoji_tab     = 0;       // active category slice
+static bool           s_emoji_tabbed  = false;
+static bool           s_emoji_tab_nav = false;
+static lv_obj_t*      s_emoji_tabrow  = nullptr;
+static constexpr int  k_emoji_tab_threshold = 200;
+static void emojiSelectTab(int tab);
+static void emojiLoadRecent();
+static constexpr uint8_t EMOJI_CAT_RECENT = 254;
+static constexpr int k_emoji_recent_limit = 18;
+static constexpr int k_emoji_recent_slot_bytes = 33;
+static char (*s_emoji_recent)[k_emoji_recent_slot_bytes] = nullptr;
+static int s_emoji_recent_count = 0;
+static bool s_emoji_recent_loaded = false;
+static bool s_emoji_recent_visible = false;
+static bool s_emoji_recent_dirty = false;
+static bool s_emoji_pack_usable = false;   // the SD pack added at least one drawable cell
+static uint32_t s_emoji_recent_changed_ms = 0;
+
+// Tab order: Unicode's own emoji groups, in their order. Hearts have no tab of
+// their own — they are part of Smileys & Emotion. "Chars" is ours, holding the
+// built-in punctuation/accent set that is not emoji at all.
+static const uint8_t k_emoji_cat_order[] = {
+  EMOJI_CAT_FACES,    EMOJI_CAT_GESTURES, EMOJI_CAT_ANIMALS,
+  EMOJI_CAT_FOOD,     EMOJI_CAT_ACTIVITY, EMOJI_CAT_PLACES,
+  EMOJI_CAT_OBJECTS,  EMOJI_CAT_SYMBOLS,  EMOJI_CAT_FLAGS,
+  EMOJI_CAT_SPECIAL,
+};
+
+// Which tab a category is shown under. Only hearts move.
+static inline uint8_t emojiCatTab(uint8_t cat) {
+  return cat == EMOJI_CAT_HEARTS ? EMOJI_CAT_FACES : cat;
+}
+
+static const char* emojiCatName(uint8_t cat) {
+  switch (emojiCatTab(cat)) {   // hearts are listed under Smileys
+    case EMOJI_CAT_RECENT:   return "Recent";
+    case EMOJI_CAT_FACES:    return "Smileys";
+    case EMOJI_CAT_GESTURES: return "People";
+    case EMOJI_CAT_ANIMALS:  return "Nature";
+    case EMOJI_CAT_FOOD:     return "Food";
+    case EMOJI_CAT_ACTIVITY: return "Activity";
+    case EMOJI_CAT_PLACES:   return "Travel";
+    case EMOJI_CAT_OBJECTS:  return "Objects";
+    case EMOJI_CAT_SYMBOLS:  return "Symbols";
+    case EMOJI_CAT_FLAGS:    return "Flags";
+    case EMOJI_CAT_SPECIAL:  return "Chars";
+    default:                 return "More";
+  }
+}
+
+static void emojiAddGroup(uint8_t cat, int first, int count) {
+  if (count <= 0 || s_emoji_group_n >= (int)(sizeof s_emoji_groups / sizeof s_emoji_groups[0])) return;
+  s_emoji_groups[s_emoji_group_n++] = { cat, (uint16_t)first, (uint16_t)count };
+}
+
+// A pack item whose lead codepoint resolves to no glyph would render as the
+// notdef box, so it never earns a cell.
+static bool emojiPackItemDrawable(const char* s) {
+  if (!s || !s[0]) return false;
+  uint32_t flag_off = 0;
+  const uint32_t lead = _lv_txt_encoded_next(s, &flag_off);
+  const uint32_t trail = _lv_txt_encoded_next(s, &flag_off);
+  if (emojiIsRegionalIndicator(lead) && emojiIsRegionalIndicator(trail))
+    return emojiPickerCompositeGlyph(s) != nullptr;
+  uint32_t off = 0;
+  return emojiLookupAny(_lv_txt_encoded_next(s, &off)) != nullptr;
+}
+
+static bool emojiRecentItemAvailable(const char* item) {
+  for (int s = 0; s < k_emoji_span_count; ++s) {
+    if (k_emoji_spans[s].cat == EMOJI_CAT_SPECIAL) continue;
+    for (int i = 0; i < (int)k_emoji_spans[s].count; ++i)
+      if (strcmp(item, k_emoji_items[k_emoji_spans[s].first + i]) == 0) return true;
+  }
+  for (int i = 0, n = emojiPackItemCount(); i < n; ++i) {
+    const char* pack_item = emojiPackItem(i);
+    if (emojiPackItemCat(i) != EMOJI_CAT_SPECIAL && pack_item &&
+      strcmp(item, pack_item) == 0 && emojiPackItemDrawable(pack_item)) return true;
+  }
+  return false;
+}
+
+static void emojiBuildMergedList() {
+  if (s_emoji_merge_done) return;
+  s_emoji_merge_done = true;
+  s_emoji_group_n = 0;
+  s_emoji_recent_visible = false;
+  emojiLoadRecent();
+
+  const int pn = emojiPackItemCount();
+  int usable = 0;
+  for (int i = 0; i < pn; ++i) if (emojiPackItemDrawable(emojiPackItem(i))) ++usable;
+
+  s_emoji_pack_usable = usable > 0;
+  if (!usable) { // no pack: map straight onto k_emoji_items, as before the pack existed
+    for (int s = 0; s < k_emoji_span_count; ++s)
+      emojiAddGroup(k_emoji_spans[s].cat, k_emoji_spans[s].first, k_emoji_spans[s].count);
+    return;
+  }
+
+  const size_t bytes = (size_t)(k_emoji_count + usable + s_emoji_recent_count) * sizeof(const char*);
+  const char** out = (const char**)heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!out) out = (const char**)heap_caps_malloc(bytes, MALLOC_CAP_8BIT);
+  if (!out) {
+    for (int s = 0; s < k_emoji_span_count; ++s)
+      emojiAddGroup(k_emoji_spans[s].cat, k_emoji_spans[s].first, k_emoji_spans[s].count);
+    return;
+  }
+
+  int w = 0;
+  {
+    const int start = w;
+    for (int i = 0; i < s_emoji_recent_count; ++i) {
+      if (emojiRecentItemAvailable(s_emoji_recent[i])) out[w++] = s_emoji_recent[i];
+    }
+    if (w > start) {
+      emojiAddGroup(EMOJI_CAT_RECENT, start, w - start);
+      s_emoji_recent_visible = true;
+    }
+  }
+  for (uint8_t tab : k_emoji_cat_order) {
+    const int start = w;
+    // A tab can draw on more than one built-in span (Smileys takes both faces
+    // and hearts), so walk them all rather than looking up a single match.
+    for (int s = 0; s < k_emoji_span_count; ++s) {
+      const EmojiSpan& sp = k_emoji_spans[s];
+      if (emojiCatTab(sp.cat) != tab) continue;
+      for (int j = 0; j < (int)sp.count; ++j) out[w++] = k_emoji_items[sp.first + j];
+    }
+    for (int i = 0; i < pn; ++i) {
+      const char* it = emojiPackItem(i);
+      if (emojiCatTab(emojiPackItemCat(i)) == tab && emojiPackItemDrawable(it)) out[w++] = it;
+    }
+    emojiAddGroup(tab, start, w - start);
+  }
+  // Anything the pack tagged with a category not in the tab order (EMOJI_CAT_EXTRA
+  // and any future value) lands after the known groups rather than being dropped.
+  {
+    const int start = w;
+    for (int i = 0; i < pn; ++i) {
+      const uint8_t tab = emojiCatTab(emojiPackItemCat(i));
+      bool known = false;
+      for (uint8_t k : k_emoji_cat_order) if (k == tab) { known = true; break; }
+      const char* it = emojiPackItem(i);
+      if (!known && emojiPackItemDrawable(it)) out[w++] = it;
+    }
+    emojiAddGroup(EMOJI_CAT_EXTRA, start, w - start);
+  }
+  s_emoji_merged       = out;
+  s_emoji_merged_count = w;
+}
+
+static const char* const* emojiPickerItems() {
+  emojiBuildMergedList();
+  return s_emoji_merged ? s_emoji_merged : k_emoji_items;
+}
+static int emojiPickerCount() {
+  emojiBuildMergedList();
+  return s_emoji_merged ? s_emoji_merged_count : k_emoji_count;
+}
+// The pack lands a few seconds into the session, after the list may already have
+// been built without it.
+static bool s_emoji_invalidate_pending = false;
+static void emojiInvalidateMergedList() {
+  if (emojiSheetIsOpen()) {
+    s_emoji_invalidate_pending = true;
+    return;
+  }
+  s_emoji_invalidate_pending = false;
+  if (s_emoji_merged) { free(s_emoji_merged); s_emoji_merged = nullptr; }
+  s_emoji_merged_count = 0;
+  s_emoji_merge_done   = false;
+  s_emoji_recent_visible = false;
+}
+
+static bool emojiRecentStringValid(const char* item) {
+  if (!item || !item[0]) return false;
+  for (const char* special : k_special_items)
+    if (strcmp(item, special) == 0) return false;
+  for (const EmojiSpan& span : k_emoji_spans) {
+    if (span.cat != EMOJI_CAT_SPECIAL) continue;
+    for (int index = 0; index < span.count; ++index)
+      if (strcmp(item, k_emoji_items[span.first + index]) == 0) return false;
+  }
+  const char* p = item;
+  const char* end = item + strlen(item);
+  uint32_t cp = 0;
+  while (p < end) if (!uiReadUtf8Codepoint(p, end, cp)) return false;
+  return p == end;
+}
+
+static void emojiLoadRecent() {
+  if (s_emoji_recent_loaded) return;
+  if (!s_emoji_recent) {
+    s_emoji_recent = static_cast<char (*)[k_emoji_recent_slot_bytes]>(
+        heap_caps_calloc(k_emoji_recent_limit, k_emoji_recent_slot_bytes,
+                         MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!s_emoji_recent) return;
+  }
+  s_emoji_recent_loaded = true;
+  uint8_t blob[1 + k_emoji_recent_limit * k_emoji_recent_slot_bytes] = {};
+  const size_t n = touchPrefsGetBlob("emoji_recent", blob, sizeof(blob));
+  if (n < 1 || blob[0] > k_emoji_recent_limit ||
+      n != 1 + (size_t)blob[0] * k_emoji_recent_slot_bytes) return;
+
+  for (int i = 0; i < blob[0]; ++i) {
+    char item[k_emoji_recent_slot_bytes];
+    memcpy(item, blob + 1 + i * k_emoji_recent_slot_bytes, sizeof(item));
+    if (!memchr(item, '\0', sizeof(item)) || !emojiRecentStringValid(item)) continue;
+    memcpy(s_emoji_recent[s_emoji_recent_count++], item, sizeof(item));
+  }
+}
+
+static void emojiRememberRecent(const char* picked) {
+  if (!picked) return;
+  // A Recent cell's text lives in s_emoji_recent itself, and the shift below
+  // overwrites that slot before the copy into slot 0: work from a copy.
+  const size_t len = strlen(picked);
+  if (len >= k_emoji_recent_slot_bytes) return;
+  char item[k_emoji_recent_slot_bytes];
+  memcpy(item, picked, len + 1);
+  if (!s_glyph_is_emoji || !emojiRecentStringValid(item) || !emojiRecentItemAvailable(item)) return;
+  emojiLoadRecent();
+  if (!s_emoji_recent) return;
+  if (s_emoji_recent_count > 0 && strcmp(s_emoji_recent[0], item) == 0) return;
+
+  int found = -1;
+  for (int i = 1; i < s_emoji_recent_count; ++i) {
+    if (strcmp(s_emoji_recent[i], item) == 0) { found = i; break; }
+  }
+  if (found >= 0) {
+    for (int i = found; i > 0; --i)
+      memcpy(s_emoji_recent[i], s_emoji_recent[i - 1], k_emoji_recent_slot_bytes);
+  } else {
+    const int last = s_emoji_recent_count < k_emoji_recent_limit ? s_emoji_recent_count++ : k_emoji_recent_limit - 1;
+    for (int i = last; i > 0; --i)
+      memcpy(s_emoji_recent[i], s_emoji_recent[i - 1], k_emoji_recent_slot_bytes);
+  }
+  memset(s_emoji_recent[0], 0, k_emoji_recent_slot_bytes);
+  memcpy(s_emoji_recent[0], item, len);
+
+  s_emoji_recent_dirty = true;
+  s_emoji_recent_changed_ms = millis();
+  emojiInvalidateMergedList();
+}
+
+static void emojiFlushRecent(uint32_t now, uint32_t last_input_ms) {
+  if (!s_emoji_recent_dirty || emojiSheetIsOpen() ||
+      now - s_emoji_recent_changed_ms < 2000u || now - last_input_ms < 2000u) return;
+  uint8_t blob[1 + k_emoji_recent_limit * k_emoji_recent_slot_bytes] = {};
+  blob[0] = (uint8_t)s_emoji_recent_count;
+  for (int i = 0; i < s_emoji_recent_count; ++i)
+    memcpy(blob + 1 + i * k_emoji_recent_slot_bytes, s_emoji_recent[i], k_emoji_recent_slot_bytes);
+  if (touchPrefsSetBlob("emoji_recent", blob, 1 + s_emoji_recent_count * k_emoji_recent_slot_bytes))
+    s_emoji_recent_dirty = false;
+  else
+    s_emoji_recent_changed_ms = now;
+}
+#else
+static inline const char* const* emojiPickerItems() { return k_emoji_items; }
+static inline int emojiPickerCount() { return k_emoji_count; }
+static inline void emojiRememberRecent(const char*) {}
+static inline void emojiFlushRecent(uint32_t, uint32_t) {}
+#endif
 
 // Pick-mode: when set, the next chosen glyph is handed to this callback instead
 // of being inserted into a textarea (used by the chat-icon chooser). Dismissing
@@ -12546,8 +13196,17 @@ static void closeEmojiSheet() {
   popupClose(&s_emoji_sheet);
   s_emoji_target_ta = nullptr;
   s_emoji_grid = nullptr;
+#if CAP_EMOJI_PACK
+  s_emoji_tabrow = nullptr;
+#endif
   s_emoji_sel = -1;
+  s_emoji_painted_sel = -1;
   s_emoji_pick_cb = nullptr;
+  s_glyph_items = k_emoji_items;
+  s_glyph_count = k_emoji_count;
+#if CAP_EMOJI_PACK
+  if (s_emoji_invalidate_pending) emojiInvalidateMergedList();
+#endif
 #if defined(HAS_M9_KEYBOARD)
   if (return_ta && lv_obj_is_valid(return_ta)) {
     s_m9_focus_pending = return_ta;
@@ -12583,6 +13242,7 @@ static void emojiInsertIndex(int idx) {
   // straight into the real field.
   lv_obj_t* dest = (kbMirrorActive() && s_kb_bind_ta == ta && s_kb_mirror_ta) ? s_kb_mirror_ta : ta;
   lv_textarea_add_text(dest, g);
+  emojiRememberRecent(g);
   closeEmojiSheet();
 }
 static void emojiPickCb(lv_event_t* e) {
@@ -12594,26 +13254,26 @@ static void emojiPickCb(lv_event_t* e) {
 // Defined after openEmojiPicker; forward-declared next to the thread-sheet code.
 static void openEmojiPicker(lv_obj_t* ta, const char* const* items, int count, const char* picker_title);
 static void openEmojiPickerPick(void (*cb)(const char* utf8), const char* title) {
-  openEmojiPicker(nullptr, k_emoji_items, k_emoji_count, title);   // resets pick state via closeEmojiSheet()
+  openEmojiPicker(nullptr, nullptr, 0, title);   // resets pick state via closeEmojiSheet()
   s_emoji_pick_cb = cb;                                            // arm AFTER the open (the closer clears it)
 }
 
-// Paint the hardware-selected cell highlighted and the rest normal, and keep
-// the selection scrolled into view. No-op when nothing is selected (touch-only).
+// Update only the previous and current hardware-selected cells.
 static void emojiPaintSelection() {
   if (!s_emoji_grid) return;
   const uint32_t n = lv_obj_get_child_cnt(s_emoji_grid);
-  for (uint32_t i = 0; i < n; ++i) {
-    lv_obj_t* b = lv_obj_get_child(s_emoji_grid, i);
-    if (!b) continue;
-    const bool sel = ((int)i == s_emoji_sel);
-    lv_obj_set_style_bg_color(b, lv_color_hex(COLOR_CONTROL), LV_PART_MAIN);
-    lv_obj_set_style_border_width(b, 0, LV_PART_MAIN);
-    setSelectionGlow(b, sel, LV_PART_MAIN);
+  if (s_emoji_painted_sel == s_emoji_sel) return;
+  if (s_emoji_painted_sel >= 0 && s_emoji_painted_sel < (int)n) {
+    setSelectionGlow(lv_obj_get_child(s_emoji_grid, (uint32_t)s_emoji_painted_sel),
+                     false, LV_PART_MAIN);
   }
+  s_emoji_painted_sel = s_emoji_sel;
   if (s_emoji_sel >= 0 && s_emoji_sel < (int)n) {
     lv_obj_t* b = lv_obj_get_child(s_emoji_grid, (uint32_t)s_emoji_sel);
-    if (b) lv_obj_scroll_to_view(b, uiAnimOn());
+    if (b) {
+      setSelectionGlow(b, true, LV_PART_MAIN);
+      lv_obj_scroll_to_view(b, uiAnimOn());
+    }
   }
 }
 
@@ -12642,6 +13302,26 @@ static void emojiSelectorMove(int rawdx, int rawdy) {
   else if (s_emoji_acc_y <= -kEmojiSelStep) { dr = -1; s_emoji_acc_y = 0; }
   if (dc == 0 && dr == 0) return;    // not enough travel yet
 
+#if CAP_EMOJI_PACK
+  if (s_emoji_tabbed && s_emoji_tab_nav) {
+    if (dc && s_emoji_group_n > 0) {
+      int tab = (s_emoji_tab + dc + s_emoji_group_n) % s_emoji_group_n;
+      emojiSelectTab(tab);
+    }
+    if (dr > 0) {
+      s_emoji_tab_nav = false;
+      s_emoji_sel = 0;
+      emojiPaintSelection();
+    }
+    return;
+  }
+
+  if (s_emoji_tabbed && dr < 0 && s_emoji_sel >= 0 && s_emoji_sel < s_emoji_cols) {
+    s_emoji_tab_nav = true;
+    return;
+  }
+#endif
+
   const int cols = s_emoji_cols > 0 ? s_emoji_cols : 1;
   int idx = s_emoji_sel;
   if (dc) idx += dc;                          // horizontal: free move across the flat list
@@ -12658,17 +13338,177 @@ static void emojiSelectorMove(int rawdx, int rawdy) {
 // Returns true if it consumed the click (so it isn't also injected as a tap).
 static bool emojiSelectorClick() {
   if (!s_emoji_sheet) return false;
+#if CAP_EMOJI_PACK
+  if (s_emoji_tab_nav) {
+    s_emoji_tab_nav = false;
+    s_emoji_sel = 0;
+    emojiPaintSelection();
+    return true;
+  }
+#endif
   if (s_emoji_sel >= 0) emojiInsertIndex(s_emoji_sel);
   return true;   // swallow the click even if nothing selected yet
 }
 
-// Opened from the composer's emoji button. `ta` is the composer textarea.
-static void openEmojiPicker(lv_obj_t* ta, const char* const* items = k_emoji_items,
-                            int count = k_emoji_count, const char* picker_title = "Insert emoji / symbol") {
+// Fill (or refill) the grid from the current s_glyph_items slice.
+static void emojiFillGrid() {
+  if (!s_emoji_grid) return;
+  static const lv_style_prop_t no_transition_props[] = { (lv_style_prop_t)0 };
+  static lv_style_transition_dsc_t no_transition;
+  lv_style_transition_dsc_init(&no_transition, no_transition_props, nullptr, 0, 0, nullptr);
+  lv_obj_clean(s_emoji_grid);
+  s_emoji_painted_sel = -1;
+  lv_obj_scroll_to_y(s_emoji_grid, 0, LV_ANIM_OFF);
+  for (int i = 0; i < s_glyph_count; ++i) {
+    lv_obj_t* b = lv_btn_create(s_emoji_grid);
+    lv_obj_set_size(b, s_emoji_cell_px, s_emoji_cell_px);
+    styleButton(b);
+    lv_obj_set_style_bg_color(b, lv_color_hex(COLOR_CONTROL), LV_PART_MAIN);
+    lv_obj_set_style_pad_all(b, 0, LV_PART_MAIN);
+    lv_obj_set_style_transform_width(b, 0, LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_transform_height(b, 0, LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_transition(b, &no_transition, LV_PART_MAIN);
+    lv_obj_add_event_cb(b, emojiPickCb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+    if (s_glyph_is_emoji) {
+      const lv_img_dsc_t* ed = emojiPickerCompositeGlyph(s_glyph_items[i]);
+      if (!ed) {
+        uint32_t goff = 0;
+        ed = emojiLookupAny(_lv_txt_encoded_next(s_glyph_items[i], &goff));
+      }
+      if (ed) {
+        lv_obj_t* im = lv_img_create(b);
+        lv_img_set_src(im, ed);
+        lv_img_set_antialias(im, false);
+        lv_obj_center(im);
+        continue;
+      }
+    }
+    lv_obj_t* l = lv_label_create(b);
+    lv_label_set_text(l, s_glyph_items[i]);
+    lv_obj_set_style_text_font(l, &g_font_16, LV_PART_MAIN);
+    lv_obj_set_style_text_color(l, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+    lv_obj_center(l);
+  }
+}
+
+#if CAP_EMOJI_PACK
+static void emojiPaintTabs() {
+  if (!s_emoji_tabrow) return;
+  const uint32_t n = lv_obj_get_child_cnt(s_emoji_tabrow);
+  for (uint32_t i = 0; i < n; ++i) {
+    lv_obj_t* t = lv_obj_get_child(s_emoji_tabrow, i);
+    if (!t) continue;
+    const bool on = ((int)i == s_emoji_tab);
+    lv_obj_set_style_bg_color(t, lv_color_hex(on ? COLOR_ACCENT : COLOR_CONTROL), LV_PART_MAIN);
+  }
+}
+
+static void emojiSelectTab(int tab) {
+  if (tab < 0 || tab >= s_emoji_group_n || tab == s_emoji_tab) return;
+  s_emoji_tab = tab;
+  s_glyph_items = emojiPickerItems() + s_emoji_groups[tab].first;
+  s_glyph_count = s_emoji_groups[tab].count;
+  s_emoji_sel = -1;
+  s_emoji_acc_x = s_emoji_acc_y = 0;
+  emojiPaintTabs();
+  emojiFillGrid();
+}
+
+static void emojiTabCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  const int g = (int)(intptr_t)lv_event_get_user_data(e);
+  if (g < 0 || g >= s_emoji_group_n || g == s_emoji_tab) return;
+  s_emoji_tab_nav = false;
+  emojiSelectTab(g);
+}
+
+static void emojiTabScrollCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED || !s_emoji_tabrow) return;
+  const bool left = (intptr_t)lv_event_get_user_data(e) < 0;
+  lv_coord_t step = lv_obj_get_width(s_emoji_tabrow) * 3 / 4;
+  if (step < 24) step = 24;
+  lv_obj_scroll_by_bounded(s_emoji_tabrow, left ? step : -step, 0, LV_ANIM_ON);
+}
+
+static void emojiBuildTabRow(lv_obj_t* card, lv_coord_t w, lv_coord_t y) {
+  lv_obj_t* row = lv_obj_create(card);
+  lv_obj_remove_style_all(row);
+  lv_obj_set_size(row, w - 48, 24);
+  lv_obj_set_pos(row, 24, y);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_style_pad_column(row, 4, LV_PART_MAIN);
+  lv_obj_set_scroll_dir(row, LV_DIR_HOR);
+  lv_obj_set_scrollbar_mode(row, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_add_flag(row, LV_OBJ_FLAG_SCROLL_ELASTIC);
+  // A vertical drag on the tab strip, or a horizontal one past either end, would
+  // otherwise chain into the card and the page behind the modal.
+  lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLL_CHAIN);
+  lv_obj_clear_flag(row, LV_OBJ_FLAG_GESTURE_BUBBLE);
+  s_emoji_tabrow = row;
+
+  lv_obj_t* left = lv_btn_create(card);
+  lv_obj_set_size(left, 22, 24);
+  lv_obj_set_pos(left, 0, y);
+  styleButton(left);
+  lv_obj_add_event_cb(left, emojiTabScrollCb, LV_EVENT_CLICKED, (void*)(intptr_t)-1);
+  lv_obj_t* left_icon = lv_label_create(left);
+  lv_label_set_text(left_icon, LV_SYMBOL_LEFT);
+  lv_obj_set_style_text_font(left_icon, &g_font_12, LV_PART_MAIN);
+  lv_obj_center(left_icon);
+
+  lv_obj_t* right = lv_btn_create(card);
+  lv_obj_set_size(right, 22, 24);
+  lv_obj_set_pos(right, w - 22, y);
+  styleButton(right);
+  lv_obj_add_event_cb(right, emojiTabScrollCb, LV_EVENT_CLICKED, (void*)(intptr_t)1);
+  lv_obj_t* right_icon = lv_label_create(right);
+  lv_label_set_text(right_icon, LV_SYMBOL_RIGHT);
+  lv_obj_set_style_text_font(right_icon, &g_font_12, LV_PART_MAIN);
+  lv_obj_center(right_icon);
+
+  for (int i = 0; i < s_emoji_group_n; ++i) {
+    lv_obj_t* t = lv_btn_create(row);
+    lv_obj_set_height(t, 22);
+    lv_obj_set_style_pad_hor(t, 6, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(t, 0, LV_PART_MAIN);
+    styleButton(t);
+    lv_obj_add_event_cb(t, emojiTabCb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+    lv_obj_t* l = lv_label_create(t);
+    lv_label_set_text(l, TR(emojiCatName(s_emoji_groups[i].cat)));
+    lv_obj_set_style_text_font(l, &g_font_12, LV_PART_MAIN);
+    lv_obj_set_style_text_color(l, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+    lv_obj_center(l);
+  }
+  emojiPaintTabs();
+}
+#endif
+
+// Opened from the composer's emoji button. `ta` is the composer textarea. A null
+// `items` means the emoji set, resolved here so it can pick up the SD pack.
+static void openEmojiPicker(lv_obj_t* ta, const char* const* items = nullptr,
+                            int count = 0, const char* picker_title = "Insert emoji / symbol") {
   closeEmojiSheet();
   s_emoji_target_ta = ta;
-  s_glyph_items = items;
-  s_glyph_count = count;
+  s_glyph_is_emoji = (items == nullptr);
+  s_glyph_items = items ? items : emojiPickerItems();
+  s_glyph_count = items ? count : emojiPickerCount();
+#if CAP_EMOJI_PACK
+  // Past this many cells, building them all at once costs visible seconds and
+  // hundreds of KB of widget tree, so switch to one category at a time.
+  bool has_flags_group = false;
+  for (int i = 0; i < s_emoji_group_n; ++i) {
+    if (s_emoji_groups[i].cat == EMOJI_CAT_FLAGS) { has_flags_group = true; break; }
+  }
+  s_emoji_tabbed = s_glyph_is_emoji && s_emoji_pack_usable && s_emoji_group_n > 1 &&
+                   (s_emoji_recent_visible || s_glyph_count > k_emoji_tab_threshold || has_flags_group);
+  if (s_emoji_tabbed) {
+    if (s_emoji_tab < 0 || s_emoji_tab >= s_emoji_group_n) s_emoji_tab = 0;
+    const EmojiGroupView& g = s_emoji_groups[s_emoji_tab];
+    s_glyph_items += g.first;
+    s_glyph_count  = g.count;
+  }
+  s_emoji_tab_nav = false;
+#endif
   const lv_coord_t sw = lv_disp_get_hor_res(nullptr);
   const lv_coord_t sh = lv_disp_get_ver_res(nullptr);
   s_emoji_sheet = lv_obj_create(lv_layer_top());
@@ -12699,10 +13539,13 @@ static void openEmojiPicker(lv_obj_t* ta, const char* const* items = k_emoji_ite
 
   lv_obj_t* title = lv_label_create(card);
   lv_label_set_text(title, TR(picker_title));
+  lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(title, cardw - 56);
   lv_obj_set_style_text_color(title, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
   lv_obj_set_style_text_font(title, &g_font_14, LV_PART_MAIN);
   lv_obj_set_pos(title, 2, 0);
-  addCloseXBadge(card, emojiSheetCloseCb);
+  lv_obj_t* close = addCloseXBadge(card, emojiSheetCloseCb);
+  lv_obj_align(close, LV_ALIGN_TOP_RIGHT, -2, -4);
 
   // Hint line: how to use the board's primary picker controls. The T-Deck Pro has no
   // trackball or arrow keys to drive the selector (picks are by touch), so none there.
@@ -12742,64 +13585,43 @@ static void openEmojiPicker(lv_obj_t* ta, const char* const* items = k_emoji_ite
   }
 #endif
 
-  // Scrollable grid of glyph buttons.
-  const lv_coord_t grid_w = cardw - 16;
+  // Scrollable grid of glyph buttons, with a category tab row above it when the
+  // set is too big to build in one go.
+  const lv_coord_t grid_w  = cardw - 16;
+#if CAP_EMOJI_PACK
+  if (s_emoji_tabbed) {
+    emojiBuildTabRow(card, grid_w, grid_y);
+    grid_y += 26;
+  }
+#endif
   lv_obj_t* grid = lv_obj_create(card);
   lv_obj_remove_style_all(grid);
   lv_obj_set_size(grid, grid_w, cardh - 16 - grid_y);
   lv_obj_set_pos(grid, 0, grid_y);
   lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
+  lv_obj_set_flex_align(grid, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
   lv_obj_set_style_pad_row(grid, 4, LV_PART_MAIN);
   lv_obj_set_style_pad_column(grid, 4, LV_PART_MAIN);
   lv_obj_set_scroll_dir(grid, LV_DIR_VER);
   lv_obj_set_scrollbar_mode(grid, LV_SCROLLBAR_MODE_AUTO);
+  lv_obj_clear_flag(grid, LV_OBJ_FLAG_SCROLL_CHAIN);
+  lv_obj_clear_flag(grid, LV_OBJ_FLAG_GESTURE_BUBBLE);
   s_emoji_grid = grid;
-  // Emoji cells render the baked colour glyph as a ZOOMED image (70% bigger than the 16 px
-  // font glyph) and get a bigger cell; special-character cells stay text labels.
+  // Keep touch targets roomy while drawing emoji at their native image size.
 #if CAP_LARGE_SCREEN
-  const bool      big_emoji = (s_glyph_items == k_emoji_items);
-  const lv_coord_t cell_px  = big_emoji ? 48 : 38;
+  s_emoji_cell_px = s_glyph_is_emoji ? 48 : 38;
 #else
-  const lv_coord_t cell_px  = 38;
+  s_emoji_cell_px = 38;
 #endif
   // Column count for the trackball selector's row jumps: floor((w + gap) /
   // (cell + gap)), gap=4. Matches the flex-wrap that LVGL computes.
-  s_emoji_cols = (int)((grid_w + 4) / (cell_px + 4));
+  s_emoji_cols = (int)((grid_w + 4) / (s_emoji_cell_px + 4));
   if (s_emoji_cols < 1) s_emoji_cols = 1;
   s_emoji_sel = -1;   // start un-highlighted; first roll selects index 0
   s_emoji_acc_x = s_emoji_acc_y = 0;
 
-  for (int i = 0; i < s_glyph_count; ++i) {
-    lv_obj_t* b = lv_btn_create(grid);
-    lv_obj_set_size(b, cell_px, cell_px);
-    styleButton(b);
-    lv_obj_set_style_bg_color(b, lv_color_hex(COLOR_CONTROL), LV_PART_MAIN);
-    lv_obj_set_style_pad_all(b, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(b, emojiPickCb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
-#if CAP_LARGE_SCREEN && LV_USE_IMGFONT
-    // Baked colour-emoji → draw it as a zoomed image (1.7× ≈ 70% bigger than the 16 px
-    // font glyph). Special chars (no emoji dsc) fall through to the text label below.
-    if (big_emoji) {
-      uint32_t goff = 0;
-      const lv_img_dsc_t* ed = emojiGlyphLookup(_lv_txt_encoded_next(s_glyph_items[i], &goff));
-      if (ed) {
-        lv_obj_t* im = lv_img_create(b);
-        lv_img_set_src(im, ed);
-        lv_img_set_antialias(im, true);
-        if (ed->header.w && ed->header.h)
-          lv_img_set_pivot(im, ed->header.w / 2, ed->header.h / 2);
-        lv_img_set_zoom(im, 435);              // 256 = 1×, 435 ≈ 1.7×
-        lv_obj_center(im);
-        continue;
-      }
-    }
-#endif
-    lv_obj_t* l = lv_label_create(b);
-    lv_label_set_text(l, s_glyph_items[i]);
-    lv_obj_set_style_text_font(l, &g_font_16, LV_PART_MAIN);
-    lv_obj_set_style_text_color(l, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
-    lv_obj_center(l);
-  }
+  emojiFillGrid();
+
 #if defined(HAS_M9_KEYBOARD)
   if (s_glyph_count > 0) {
     s_emoji_sel = 0;
@@ -13471,12 +14293,17 @@ static void toggleGpsCb(lv_event_t* e) {   // GPS on/off switch (VALUE_CHANGED)
 // (hold Shift: on until held again, not kept over a restart) and lying face down
 // (Settings > Sound, off by default). Either one counts as Do Not Disturb.
 static bool s_quiet_manual = false;
-static bool s_face_down    = false;
 static uint32_t s_pager_input_seq = 0;   // moves on with every key, chord, turn and click
+#endif
+#if defined(TLORA_PAGER) || defined(HAS_M9_IMU)
+static bool s_face_down    = false;
 #endif
 static bool dndActive() {
 #if defined(TLORA_PAGER)
-  if (s_quiet_manual || s_face_down) return true;
+  if (s_quiet_manual) return true;
+#endif
+#if defined(TLORA_PAGER) || defined(HAS_M9_IMU)
+  if (s_face_down) return true;
 #endif
   if (!touchPrefsGetDndEnabled()) return false;
   if (!wallClockIsCurrent()) return false;
@@ -13491,13 +14318,15 @@ static bool dndActive() {
 }
 
 #if defined(TLORA_PAGER)
-static void pagerFaceDownSettingChanged(bool on);
-static void pagerPickupSettingChanged(bool on);
 static void quietNowToggleCb(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
   s_quiet_manual = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
   updateGlobalStatusBar();
 }
+#endif
+#if defined(TLORA_PAGER) || defined(HAS_M9_IMU)
+static void pagerFaceDownSettingChanged(bool on);
+static void pagerPickupSettingChanged(bool on);
 static void pickupToggleCb(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
   pagerPickupSettingChanged(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
@@ -13877,10 +14706,7 @@ static char s_clipboard[CLIPBOARD_MAX] = {0};
 
 static void clipboardSet(const char* text, const char* tag) {
   if (!text) return;
-  size_t n = strlen(text);
-  if (n >= CLIPBOARD_MAX) n = CLIPBOARD_MAX - 1;
-  memcpy(s_clipboard, text, n);
-  s_clipboard[n] = '\0';
+  copyUtf8ReplacingMissingGlyphs(nullptr, s_clipboard, sizeof(s_clipboard), text, false);
   if (g_lv.task) {
     char toast[60];
     snprintf(toast, sizeof(toast), TR("Copied %s"),
@@ -14082,6 +14908,17 @@ static void taDeleteRange(lv_obj_t* ta, uint32_t s_cp, uint32_t e_cp) {
   for (uint32_t k = s_cp; k < e_cp; ++k) lv_textarea_del_char(ta);
 }
 
+static void taDeletePreviousGrapheme(lv_obj_t* ta) {
+  if (!ta) return;
+  const char* text = lv_textarea_get_text(ta);
+  const uint32_t cursor_cp = lv_textarea_get_cursor_pos(ta);
+  if (!text || cursor_cp == 0) return;
+  const uint32_t cursor_byte = taCpToByte(text, cursor_cp);
+  const size_t start_byte = uiPreviousGraphemeStartByte(text, cursor_byte);
+  const uint32_t start_cp = taByteToCp(text, (uint32_t)start_byte);
+  taDeleteRange(ta, start_cp, cursor_cp);
+}
+
 // ----- The floating Cut / Copy / Paste / Select-All menu -----
 static lv_obj_t* s_txtmenu    = nullptr;
 static lv_obj_t* s_txtmenu_ta = nullptr;
@@ -14132,7 +14969,7 @@ static void txtMenuCellCb(lv_event_t* e) {
   // Emoji into any field, not just the chat composer. Asked for by Jade, who
   // writes Lua apps: wada.ui.input() uses this same menu, so an app's text entry
   // gets the picker for free, and so does every settings field.
-  if (act == TXT_EMOJI) { txtMenuHide(); openEmojiPicker(ta, k_emoji_items, k_emoji_count, TR("Emoji")); return; }
+  if (act == TXT_EMOJI) { txtMenuHide(); openEmojiPicker(ta, nullptr, 0, TR("Emoji")); return; }
   const char* txt = lv_textarea_get_text(ta);
   uint32_t s_cp = 0, e_cp = 0;
   bool sel = taHasSelection(ta, &s_cp, &e_cp);
@@ -14287,9 +15124,12 @@ static void kbBackspaceSelCb(lv_event_t* e) {
   lv_obj_t* ta = lv_keyboard_get_textarea(kb);
   if (!ta) return;
   uint32_t s_cp, e_cp;
-  if (!taHasSelection(ta, &s_cp, &e_cp)) return;   // nothing selected -> default deletes one char
-  taDeleteRange(ta, s_cp, e_cp);
-  taClearSelection(ta);
+  if (taHasSelection(ta, &s_cp, &e_cp)) {
+    taDeleteRange(ta, s_cp, e_cp);
+    taClearSelection(ta);
+  } else {
+    taDeletePreviousGrapheme(ta);
+  }
   accentBoxHide();
   txtMenuHide();
   lv_event_stop_processing(e);
@@ -14544,7 +15384,7 @@ static void saveProfileNameCb(lv_event_t* e) {
   if (_c == LV_EVENT_DEFOCUSED) {
     char cur_vis[40];
     const char* raw = g_lv.task->getNodeNameCstr();
-    copyUtf8ReplacingMissingGlyphs(&g_font_14, cur_vis, sizeof(cur_vis), raw ? raw : "");
+    copyUtf8ReplacingMissingGlyphs(&g_font_14, cur_vis, sizeof(cur_vis), raw ? raw : "", false);
     if (strcmp(name, cur_vis) == 0) return;
   }
   if (g_lv.task->setNodeName(name)) {
@@ -16156,7 +16996,7 @@ static void buildProfileSettings() {
     if (g_lv.task) {
       char nm_vis[40];
       const char* raw = g_lv.task->getNodeNameCstr();
-      copyUtf8ReplacingMissingGlyphs(&g_font_14, nm_vis, sizeof(nm_vis), raw ? raw : "");
+      copyUtf8ReplacingMissingGlyphs(&g_font_14, nm_vis, sizeof(nm_vis), raw ? raw : "", false);
       lv_textarea_set_text(g_set_modal.name_ta, nm_vis);
     }
   }
@@ -18889,6 +19729,10 @@ static void buildDisplayPage() {
     setSwitchRow(c, "Wake when picked up", "Lifting the Pager off the table turns the screen on (a locked Pager shows "
                  "its lock screen). Only after it lay still, so it stays dark in a bag or pocket.",
                  touchPrefsGetPickupWake(), pickupToggleCb);
+#elif defined(HAS_M9_IMU)
+    setSwitchRow(c, "Wake when picked up", "Lifting the device off the table turns the screen on (a locked device shows "
+                 "its lock screen). Only after it lay still, so it stays dark in a bag or pocket.",
+                 touchPrefsGetPickupWake(), pickupToggleCb);
 #endif
   }
 
@@ -19382,6 +20226,10 @@ static void buildSoundPage() {
     setSwitchRow(c, "Quiet when face down", "Lying face down, the screen goes off and the Pager stays silent "
                  "(no sound, no vibration). Picking it up ends it. Keeps the motion sensor on, a little more power.",
                  touchPrefsGetFaceDownQuiet(), faceDownToggleCb);
+#elif defined(HAS_M9_IMU)
+    setSwitchRow(c, "Quiet when face down", "Lying face down, the screen goes off and the device stays silent. "
+                 "Picking it up ends it. Keeps the motion sensor on, a little more power.",
+                 touchPrefsGetFaceDownQuiet(), faceDownToggleCb);
 #endif
   }
 #else
@@ -19713,6 +20561,13 @@ static void buildBatteryPage() {
     lv_obj_add_event_cb(b, calibrateBatteryCb, LV_EVENT_SHORT_CLICKED, nullptr);
     lv_obj_add_event_cb(b, calibrateBatteryCb, LV_EVENT_LONG_PRESSED, nullptr);
     setNote(c, "Tap with a full battery to call its voltage 100%. Hold to go back to the default.");
+#if defined(HAS_THINKNODE_M9)
+    setSwitchRow(c, "Low battery warning", "Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.",
+                 touchPrefsGetLowBattWarn(), +[](lv_event_t* e) {
+                   if (lv_event_get_code(e) == LV_EVENT_VALUE_CHANGED)
+                     touchPrefsSetLowBattWarn(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
+                 });
+#endif
 #endif
   }
 }
@@ -25265,8 +26120,8 @@ static uint16_t batteryFullMv() {
   return s_batt_full_mv ? s_batt_full_mv : 4200;
 }
 
-#if defined(HAS_TDECK_GT911) || defined(HELTEC_LORA_V4_R8)
-// (R8: the divider is permanently connected — PIN_ADC_CTRL=-1 — so the same
+#if defined(HAS_TDECK_GT911) || defined(HELTEC_LORA_V4_R8) || defined(HAS_THINKNODE_M9)
+// (R8 & M9: the divider is permanently connected, so EMA smoothing filters ADC2/Wi-Fi jitter.)
 // EMA + above-full voltage heuristic applies; threshold accuracy vs the
 // uncalibrated ADC_MULTIPLIER=5.07 conversion needs on-device confirmation.)
 // Per-board battery sampler: EMA over the noisy ADC so the value doesn't jitter
@@ -25315,7 +26170,14 @@ static uint16_t batteryMvSampled() { return g_lv.task ? g_lv.task->getBattMilliV
 // The threshold against an uncalibrated ADC still wants on-device confirmation,
 // exactly as the V4-R8 note above already says.
 static bool batteryIsCharging(uint16_t mv) {
-#if defined(TLORA_PAGER)
+#if defined(HAS_THINKNODE_M9)
+  // ThinkNode M9: GPIO1 (5V_TEST) senses USB VBUS and GPIO8 (U6 LGS4056HDA-4.35,
+  // active-LOW open-drain) reports 0=discharging, 1=actively charging, 2=charge complete.
+  if (mv != 0) {
+    const int chg = board.isCharging();
+    if (chg >= 0) return chg == 1;
+  }
+#elif defined(TLORA_PAGER)
   // The Pager's BQ25896 charger knows whether USB power is in, and its gauge reads
   // the CELL voltage, which never rises past the charger's target: the voltage test
   // below could not report charging on this board at all. Fall back to it only
@@ -25344,11 +26206,15 @@ static uint16_t batteryMvSmoothed() {
   // Normally hold for 20 s to kill jitter — BUT publish at once when the charge
   // state flips, so plugging/unplugging the charger is recognized immediately
   // instead of waiting out the hold window.
-#if defined(TLORA_PAGER)
+#if defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9)
   // The verdict above is the charger's, not a function of the reading, so comparing
   // two readings never sees it change: watch the charger's own state instead.
   static int s_ext_prev = -2;
+#if defined(HAS_THINKNODE_M9)
+  const int ext_now = ((board.externalPowerPresent() & 1) << 2) | (board.isCharging() & 3);
+#else
   const int ext_now = board.externalPowerPresent();
+#endif
   const bool charge_flip = (s_pub != 0) && s_ext_prev != -2 && ext_now != s_ext_prev;
   s_ext_prev = ext_now;
 #else
@@ -28230,7 +29096,7 @@ static void fmSdDoFormat() {
   s_sd_format_pending = 2;
 }
 // Tap on an unmounted SD row: try to mount, and if the card is unreadable
-// (e.g. exFAT, which this build can't read — only FAT16/FAT32) offer to format.
+// (no FAT16/FAT32/exFAT volume, or a corrupt one) offer to format.
 static void fmSdMountOrFormatCb(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   s_sd_retry_after_ms = 0;   // explicit user retry — bypass the mount backoff
@@ -31809,7 +32675,15 @@ static bool spectrumSweepChunk() {
     // attribute the old frequency's RSSI to this bin.
     if (radio.setFrequency(f) != RADIOLIB_ERR_NONE) continue;   // retune (chip -> standby on the new freq)
 #endif
+#if defined(HAS_THINKNODE_M9)
+    // Pass irqMask = 0 so RX_DONE / PREAMBLE_DETECTED are not routed to DIO1
+    // (GPIO42) while sweeping: the wrapper's setFlag ISR stays attached on DIO1
+    // and a stray LoRa preamble mid-sweep would otherwise latch irq_read during
+    // spectrum mode.
+    radio.LR11x0::startReceive(RADIOLIB_LR11X0_RX_TIMEOUT_INF, 0, 0, 0);
+#else
     radio.startReceive();                 // ARM RX — GET_RSSI_INST is only valid in RX
+#endif
     // The modem's instantaneous-RSSI readout needs SEVERAL ms in RX to settle after
     // arming (measured on the SX1262; the LR1110 behaves the same): at ~1.5 ms it
     // still reads the reset default, only by ~3-4 ms does it report the true channel
@@ -32211,6 +33085,9 @@ static void spectrumRestoreRadio() {
   // skips startReceive(), and the node goes DEAF. Re-arm RX here on the mesh channel so
   // the chip's reality matches the wrapper state and packets flow again immediately.
   radio.startReceive();
+#if defined(HAS_THINKNODE_M9)
+  (void)radio_driver.isInRecvMode();  // drain any stale DIO1 flag latched during sweep
+#endif
 #endif
   s_spectrum_active = false;          // hand the radio back; the mesh keeps RX armed
 }
@@ -32379,6 +33256,7 @@ enum class BackupImport : uint8_t { Rebooting, BadFile, StoreFailed };
 // ============================================================================
 static lv_obj_t* s_file_transfer_root = nullptr;
 static lv_obj_t* s_file_transfer_status = nullptr;
+static lv_obj_t* s_file_transfer_bar = nullptr;   // shown while a file moves
 static lv_timer_t* s_file_transfer_timer = nullptr;
 static bool s_file_transfer_started_tcp = false;
 static File s_file_transfer_file;
@@ -33164,18 +34042,48 @@ static void webFileTransferTick() {
   }
 }
 
+// One transfer's progress line: the bytes, then the share done and, once the rate has
+// had two seconds to settle, the time left at the rate seen since it started.
+static void fileTransferProgress(const char* fmt, uint32_t done, uint32_t total, int8_t dir) {
+  static int8_t   s_dir = 0;
+  static uint32_t s_last = 0, s_t0 = 0, s_b0 = 0;
+  const uint32_t now = millis();
+  if (dir != s_dir || done < s_last) { s_dir = dir; s_t0 = now; s_b0 = done; }
+  s_last = done;
+  char text[192];
+  int n = snprintf(text, sizeof text, fmt, s_file_transfer_name,
+                   static_cast<unsigned long>(done), static_cast<unsigned long>(total));
+  const int pct = total ? (int)((uint64_t)done * 100 / total) : 0;
+  const uint32_t elapsed = now - s_t0, moved = done - s_b0;
+  if (n > 0 && n < (int)sizeof text && total > done) {
+    if (elapsed >= 2000 && moved > 0) {
+      const uint32_t left_s = (uint32_t)((uint64_t)(total - done) * elapsed / moved / 1000) + 1;
+      if (left_s < 90)
+        snprintf(text + n, sizeof text - n, TR("\n%d%%, about %lu s left"), pct, (unsigned long)left_s);
+      else
+        snprintf(text + n, sizeof text - n, TR("\n%d%%, about %lu min left"), pct,
+                 (unsigned long)((left_s + 30) / 60));
+    } else {
+      snprintf(text + n, sizeof text - n, "\n%d%%", pct);
+    }
+  }
+  lv_label_set_text(s_file_transfer_status, text);
+  if (s_file_transfer_bar) {
+    lv_bar_set_value(s_file_transfer_bar, total ? (int32_t)((uint64_t)done * 1000 / total) : 0, LV_ANIM_OFF);
+    lv_obj_clear_flag(s_file_transfer_bar, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
 static void fileTransferRefresh() {
   if (!s_file_transfer_status) return;
+  if (s_file_transfer_bar && !s_file_transfer_uploading && !s_file_transfer_downloading)
+    lv_obj_add_flag(s_file_transfer_bar, LV_OBJ_FLAG_HIDDEN);
   if (s_file_transfer_uploading) {
-    lv_label_set_text_fmt(s_file_transfer_status, TR("Receiving %s\n%lu / %lu bytes"),
-                          s_file_transfer_name,
-                          static_cast<unsigned long>(s_file_transfer_received),
-                          static_cast<unsigned long>(s_file_transfer_expected));
+    fileTransferProgress(TR("Receiving %s\n%lu / %lu bytes"), s_file_transfer_received,
+                         s_file_transfer_expected, 1);
   } else if (s_file_transfer_downloading) {
-    lv_label_set_text_fmt(s_file_transfer_status, TR("Sending %s\n%lu / %lu bytes"),
-                          s_file_transfer_name,
-                          static_cast<unsigned long>(s_file_transfer_download_offset),
-                          static_cast<unsigned long>(s_file_transfer_download_size));
+    fileTransferProgress(TR("Sending %s\n%lu / %lu bytes"), s_file_transfer_download_offset,
+                         s_file_transfer_download_size, 2);
   } else if (s_file_transfer_listing) {
     lv_label_set_text(s_file_transfer_status, TR("Reading file list"));
   } else if (s_file_transfer_result[0]) {
@@ -33196,6 +34104,7 @@ static void closeFileTransferPage() {
   s_file_transfer_started_tcp = false;
   if (s_file_transfer_root) { popupClose(&s_file_transfer_root); }
   s_file_transfer_status = nullptr;
+  s_file_transfer_bar = nullptr;
   appPageEnd(&closeFileTransferPage);
   if (s_file_transfer_map_dirty) {
     s_file_transfer_map_dirty = false;
@@ -33321,6 +34230,14 @@ static void openFileTransferPage() {
   lv_obj_set_style_text_color(s_file_transfer_status, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
   lv_label_set_long_mode(s_file_transfer_status, LV_LABEL_LONG_WRAP);
   lv_obj_set_width(s_file_transfer_status, width);
+
+  s_file_transfer_bar = lv_bar_create(s_file_transfer_root);
+  lv_obj_set_size(s_file_transfer_bar, width, SC(8));
+  lv_bar_set_range(s_file_transfer_bar, 0, 1000);
+  lv_obj_set_style_bg_color(s_file_transfer_bar, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(s_file_transfer_bar, LV_OPA_30, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(s_file_transfer_bar, lv_color_hex(COLOR_ACCENT), LV_PART_INDICATOR);
+  lv_obj_add_flag(s_file_transfer_bar, LV_OBJ_FLAG_HIDDEN);
 
   lv_obj_t* stop = lv_btn_create(s_file_transfer_root);
   lv_obj_set_size(stop, width, SC(40));
@@ -34354,24 +35271,45 @@ static void closeAppDrawer();
 // These replace the second status-bar row of buttons the inbox used to carry.
 static constexpr lv_coord_t kChatListInset = 6;  // the inbox and contacts rows sit this far in
 static uint8_t   s_chats_filter = 0;               // 0 all, 1 channels, 2 direct
-static lv_obj_t* s_chats_chip[3] = { nullptr, nullptr, nullptr };
+// The "U" (unread only) chip left of the filter (#824): an on/off toggle that narrows whichever of All /
+// Channels / Direct is active to the threads with unread messages. Reading a thread
+// clears its count, so it leaves the list on the way back out of the chat (the
+// unread counts are in the list signature). Persisted (touch prefs v73).
+static bool      s_chats_unread_only = false;
+static lv_obj_t* s_chats_unread_chip = nullptr;
+// All / Channels / Direct is a dropdown chip ("▼ All"), as Contacts' filter is: it
+// opens an option sheet (openChatsFilterSheet, next to the Contacts sheets).
+static lv_obj_t* s_chats_filter_lbl = nullptr;
+static const char* chatsFilterName(uint8_t f) {
+  return f == 1 ? "Channels" : f == 2 ? "Direct" : "All";   // translated where shown
+}
 static void chatsChipsSync() {
-  for (int i = 0; i < 3; ++i) {
-    if (!s_chats_chip[i]) continue;
-    if (i == s_chats_filter) lv_obj_add_state(s_chats_chip[i], LV_STATE_CHECKED);
-    else                     lv_obj_clear_state(s_chats_chip[i], LV_STATE_CHECKED);
+  if (s_chats_filter_lbl)
+    lv_label_set_text_fmt(s_chats_filter_lbl, "%s %s", LV_SYMBOL_DOWN, TR(chatsFilterName(s_chats_filter)));
+  if (s_chats_unread_chip) {
+    if (s_chats_unread_only) lv_obj_add_state(s_chats_unread_chip, LV_STATE_CHECKED);
+    else                     lv_obj_clear_state(s_chats_unread_chip, LV_STATE_CHECKED);
   }
 }
-static void chatsChipCb(lv_event_t* e) {
-  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
-  s_chats_filter = (uint8_t)(intptr_t)lv_event_get_user_data(e);
+static void chatsFilterApply(uint8_t f) {
+  s_chats_filter = f;
   chatsChipsSync();
   g_lv.dm.list_sig = 0;          // the filter is part of what the list shows: rebuild
   refreshChatList(g_lv.dm);
   if (g_lv.dm.list_cont) lv_obj_scroll_to_y(g_lv.dm.list_cont, 0, LV_ANIM_OFF);
 }
+static void openChatsFilterSheetCb(lv_event_t* e);   // defined with the Contacts option sheets
 static void chatsMarkAllAsk() {
   showConfirm(TR("Mark all chats and channels as read?"), TR("Mark read"), markAllReadApply, false, true);
+}
+static void chatsUnreadChipCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  s_chats_unread_only = !s_chats_unread_only;
+  touchPrefsSetChatsUnreadOnly(s_chats_unread_only);
+  chatsChipsSync();
+  g_lv.dm.list_sig = 0;          // the filter is part of what the list shows: rebuild
+  refreshChatList(g_lv.dm);
+  if (g_lv.dm.list_cont) lv_obj_scroll_to_y(g_lv.dm.list_cont, 0, LV_ANIM_OFF);
 }
 static void chatsAddCb(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
@@ -34441,15 +35379,23 @@ static lv_coord_t chatsBuildHeader(lv_obj_t* tab) {
   const lv_coord_t row_h = SC(28);
   const lv_coord_t inner = (lv_coord_t)(w - 2 * 12);
   const lv_coord_t gap = 4;
-  const char* names[3] = { TR("All"), TR("Channels"), TR("Direct") };
-  lv_coord_t text_w = 0;
-  for (const char* n : names) text_w += lv_txt_get_width(n, (uint32_t)strlen(n), &g_font_semi_12, 0, LV_TEXT_FLAG_NONE);
+  // Two chips: the "U" (unread only) toggle, then the "▼ All" filter dropdown. The
+  // dropdown is measured at its widest choice so picking one never reflows the row.
+  auto semi12W = [](const char* t) { return lv_txt_get_width(t, (uint32_t)strlen(t), &g_font_semi_12, 0, LV_TEXT_FLAG_NONE); };
+  lv_coord_t drop_w = 0;
+  for (uint8_t f = 0; f < 3; ++f) {
+    char b[48];
+    snprintf(b, sizeof b, "%s %s", LV_SYMBOL_DOWN, TR(chatsFilterName(f)));
+    drop_w = LV_MAX(drop_w, semi12W(b));
+  }
+  const lv_coord_t text_w = (lv_coord_t)(semi12W(TR("U")) + drop_w);
+  s_chats_unread_only = touchPrefsGetChatsUnreadOnly();
   const char* title = TR("Chats");
   const lv_coord_t title_w = lv_txt_get_width(title, (uint32_t)strlen(title), &g_font_semi_16, 0, LV_TEXT_FLAG_NONE);
   const lv_coord_t icons_w = (lv_coord_t)(2 * SC(24));
-  // Items on one row: [title] spacer, three chips, +, ⋯ (the spacer takes no width
+  // Items on one row: [title] spacer, two chips, +, ⋯ (the spacer takes no width
   // but a gap on each side).
-  auto chipsW = [&](lv_coord_t pad) { return (lv_coord_t)(text_w + 6 * pad + 2 * gap); };
+  auto chipsW = [&](lv_coord_t pad) { return (lv_coord_t)(text_w + 4 * pad + gap); };
   lv_coord_t chip_pad = SC(8);
   const bool one_row = chipsW(SC(5)) + 3 * gap + icons_w + gap <= inner;
   if (one_row) {
@@ -34457,8 +35403,10 @@ static lv_coord_t chatsBuildHeader(lv_obj_t* tab) {
   } else {
     while (chip_pad > SC(4) && chipsW(chip_pad) > inner) --chip_pad;
   }
-  const bool show_title = !one_row ||
-                          title_w + gap + chipsW(chip_pad) + 4 * gap + icons_w + SC(8) <= inner;
+  auto titleFits = [&] { return title_w + gap + chipsW(chip_pad) + 4 * gap + icons_w + SC(8) <= inner; };
+  // Keep the title where tighter chips make room for it, before giving it up.
+  if (one_row) while (chip_pad > SC(4) && !titleFits()) --chip_pad;
+  const bool show_title = !one_row || titleFits();
   const lv_coord_t h = one_row ? row_h : (lv_coord_t)(2 * row_h);
 
   lv_obj_t* hd = lv_obj_create(tab);
@@ -34470,27 +35418,34 @@ static lv_coord_t chatsBuildHeader(lv_obj_t* tab) {
   lv_obj_t* chips = one_row ? top : chatsHeaderRow(hd, w, row_h, row_h);
   if (show_title) {
     lv_obj_t* t = lv_label_create(top);
-    lv_label_set_text(t, title);
     lv_label_set_long_mode(t, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_font(t, &g_font_semi_16, LV_PART_MAIN);
     lv_obj_set_style_text_color(t, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+    lv_label_set_text(t, title);
   }
   if (one_row) chatsHeaderSpacer(top);
-  for (int i = 0; i < 3; ++i) {
-    lv_obj_t* c = lv_btn_create(chips);   // the theme's button: the checked state is the selected chip
+  for (int i = 0; i < 2; ++i) {
+    lv_obj_t* c = lv_btn_create(chips);   // the theme's button: the checked state is the lit "U"
     lv_obj_set_height(c, SC(22));
     lv_obj_set_width(c, LV_SIZE_CONTENT);
     lv_obj_set_style_radius(c, LV_RADIUS_CIRCLE, LV_PART_MAIN);
     lv_obj_set_style_pad_hor(c, chip_pad, LV_PART_MAIN);
     lv_obj_set_style_pad_ver(c, 0, LV_PART_MAIN);
     lv_obj_set_style_bg_color(c, lv_color_hex(COLOR_RAISED), LV_PART_MAIN);
-    lv_obj_set_style_text_color(c, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
-    lv_obj_add_event_cb(c, chatsChipCb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+    lv_obj_set_style_text_color(c, lv_color_hex(i == 0 ? COLOR_SUB : COLOR_TEXT), LV_PART_MAIN);
     lv_obj_t* l = lv_label_create(c);
-    lv_label_set_text(l, names[i]);
     lv_obj_set_style_text_font(l, &g_font_semi_12, LV_PART_MAIN);
+    if (i == 0) {
+      lv_obj_add_event_cb(c, chatsUnreadChipCb, LV_EVENT_CLICKED, nullptr);
+      lv_label_set_text(l, TR("U"));
+      s_chats_unread_chip = c;
+      navSetTip(c, TR("Unread only"));
+    } else {
+      lv_obj_add_event_cb(c, openChatsFilterSheetCb, LV_EVENT_CLICKED, nullptr);
+      s_chats_filter_lbl = l;   // text set by chatsChipsSync()
+      navSetTip(c, TR("Filter"));
+    }
     lv_obj_center(l);
-    s_chats_chip[i] = c;
   }
   if (!one_row) chatsHeaderSpacer(top);
   navSetTip(chatsIconBtn(top, LV_SYMBOL_PLUS, chatsAddCb), TR("Add a channel"));
@@ -35270,6 +36225,20 @@ static void openContactsFilterSheet(){
   s_ct_filter_btns[5] = ctSheetOption(card, TR("Direct (0-hop)"), ctFilterOptCb, 5, g_lv.contacts_filter==5);
 }
 static void openContactsFilterSheetCb(lv_event_t* e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) openContactsFilterSheet(); }
+// The Chats filter dropdown (All / Channels / Direct) in the same option sheet.
+static void chatsFilterOptCb(lv_event_t* e){
+  if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
+  const uint8_t f = (uint8_t)(uintptr_t)lv_event_get_user_data(e);
+  chatsFilterApply(f);
+  ctSortSheetClose();   // apply and dismiss, as the Contacts filter does
+}
+static void openChatsFilterSheetCb(lv_event_t* e){
+  if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
+  for(int i=0;i<CONTACTS_SORT_COUNT;++i) s_ct_sort_btns[i]=nullptr;   // neither Contacts sheet is open now
+  for(int i=0;i<7;++i) s_ct_filter_btns[i]=nullptr;
+  lv_obj_t* card = ctOpenOptionSheet("Filter");
+  for(uint8_t f=0; f<3; ++f) ctSheetOption(card, chatsFilterName(f), chatsFilterOptCb, f, s_chats_filter==f);
+}
 
 // A click event for running a button's callback from an action-list row.
 static lv_event_t* ctClickEvent() {
@@ -36407,6 +37376,163 @@ int luaStoreHttpPostOpaque(void* client, void* http, const char* url, char* buf,
   return luaStoreHttpReq(*static_cast<WiFiClient*>(client), *static_cast<HTTPClient*>(http),
                          url, buf, cap, (const uint8_t*)body, body_len, ctype);
 }
+
+// wada.net.request's side of the bridge: any method, the app's headers, the
+// server's status for whatever it answered, and the body for every status (an
+// API explains a 401 or a 429 in it). Read through writeToStream rather than the
+// raw stream luaStoreHttpReq uses, because API hosts (Vercel among them) answer
+// chunked and the raw stream would hand the app the chunk-size lines too.
+// Returns bytes read, -1 no answer, -2 larger than the buffer.
+class LuaReqSink final : public Stream {
+ public:
+  LuaReqSink(char* buf, size_t cap) : buf_(buf), cap_(cap) {}
+  using Print::write;
+  size_t write(uint8_t b) override { return write(&b, 1); }
+  size_t write(const uint8_t* d, size_t n) override {
+    if (n > cap_ - len_) { full_ = true; return 0; }   // short write: writeToStream stops
+    memcpy(buf_ + len_, d, n);
+    len_ += n;
+    return n;
+  }
+  int available() override { return 0; }
+  int read() override { return -1; }
+  int peek() override { return -1; }
+  void flush() override {}
+  size_t len() const { return len_; }
+  bool full() const { return full_; }
+ private:
+  char* buf_;
+  size_t cap_, len_ = 0;
+  bool full_ = false;
+};
+
+int luaStoreHttpRequest(WiFiClient& client, HTTPClient& http, const char* method, const char* url,
+                        const char* hdrs, const uint8_t* body, size_t body_len,
+                        char* buf, size_t cap, int* status) {
+  http.setReuse(false);
+  http.setConnectTimeout(8000);
+  http.setTimeout(12000);
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);   // an app sees a 3xx and decides
+  http.setUserAgent("wadamesh-touch");
+  if (!http.begin(client, url)) return -1;
+  http.addHeader("Accept-Encoding", "identity");
+  // hdrs: "Name: value\n" lines, validated by netRequest (no CR/LF inside).
+  for (const char* p = hdrs; p && *p;) {
+    const char* nl = strchr(p, '\n');
+    const char* colon = strchr(p, ':');
+    if (!nl || !colon || colon > nl) break;
+    String name(p, colon - p), value(colon + 2, nl - colon - 2);
+    http.addHeader(name, value);
+    p = nl + 1;
+  }
+  const int code = http.sendRequest(method, (uint8_t*)body, body_len);
+  if (code <= 0) { http.end(); return -1; }
+  *status = code;
+  const int want = http.getSize();
+  if (want > 0 && (size_t)want >= cap) { http.end(); return -2; }
+  LuaReqSink sink(buf, cap - 1);
+  if (want != 0) {
+    const int r = http.writeToStream(&sink);
+    if (sink.full()) { http.end(); return -2; }
+    if (r < 0 && sink.len() == 0) { http.end(); return -1; }
+  }
+  http.end();
+  buf[sink.len()] = 0;
+  return (int)sink.len();
+}
+
+int luaStoreHttpRequestOpaque(void* client, void* http, const char* method, const char* url,
+                              const char* hdrs, const void* body, size_t body_len,
+                              char* buf, size_t cap, int* status) {
+  return luaStoreHttpRequest(*static_cast<WiFiClient*>(client), *static_cast<HTTPClient*>(http),
+                             method, url, hdrs, (const uint8_t*)body, body_len, buf, cap, status);
+}
+
+// wada.net.request answers -1 at once without a station link. A boot with only
+// Bluetooth on never started lwIP, and a TLS connect there asserts in the TCP/IP
+// task instead of failing.
+bool luaHostWifiUp() {
+  return WiFi.status() == WL_CONNECTED && (uint32_t)WiFi.localIP() != 0;
+}
+
+// Lua's http_get / http_post / request run on the tile worker, which only exists
+// once something has started it (the map, the Store, the update check). An app
+// opened straight from its launcher after a reboot queued its fetch and waited
+// forever, so every request starts the worker itself.
+bool luaHostNetWorkerStart() { return ensureTileFetchTaskRunning(); }
+
+#if CAP_LUA_HTTPS
+// Trust anchors for wada.net.request over https: ISRG Root X1 (RSA) and X2
+// (ECDSA), Let's Encrypt's roots, exported from the macOS system root store
+// (X1 sha256 96:BC:EC:06:...:08:C6, X2 69:72:9B:8E:...:14:70). The Arduino core
+// has the IDF certificate bundle switched on but not embedded, so a pinned set
+// is what verifying costs here. A host on another CA fails with status -1; add
+// its root here rather than falling back to setInsecure(). On the T-Display P4
+// TLS runs on the C6 and setCACert is a no-op there (C6Socket.h).
+static const char kLuaTlsRoots[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw\n"
+    "TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh\n"
+    "cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4\n"
+    "WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu\n"
+    "ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY\n"
+    "MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc\n"
+    "h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+\n"
+    "0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U\n"
+    "A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW\n"
+    "T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH\n"
+    "B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC\n"
+    "B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv\n"
+    "KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn\n"
+    "OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn\n"
+    "jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw\n"
+    "qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI\n"
+    "rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV\n"
+    "HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq\n"
+    "hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL\n"
+    "ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ\n"
+    "3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK\n"
+    "NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5\n"
+    "ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur\n"
+    "TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC\n"
+    "jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc\n"
+    "oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq\n"
+    "4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA\n"
+    "mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d\n"
+    "emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=\n"
+    "-----END CERTIFICATE-----\n"
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIICGzCCAaGgAwIBAgIQQdKd0XLq7qeAwSxs6S+HUjAKBggqhkjOPQQDAzBPMQsw\n"
+    "CQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJuZXQgU2VjdXJpdHkgUmVzZWFyY2gg\n"
+    "R3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBYMjAeFw0yMDA5MDQwMDAwMDBaFw00\n"
+    "MDA5MTcxNjAwMDBaME8xCzAJBgNVBAYTAlVTMSkwJwYDVQQKEyBJbnRlcm5ldCBT\n"
+    "ZWN1cml0eSBSZXNlYXJjaCBHcm91cDEVMBMGA1UEAxMMSVNSRyBSb290IFgyMHYw\n"
+    "EAYHKoZIzj0CAQYFK4EEACIDYgAEzZvVn4CDCuwJSvMWSj5cz3es3mcFDR0HttwW\n"
+    "+1qLFNvicWDEukWVEYmO6gbf9yoWHKS5xcUy4APgHoIYOIvXRdgKam7mAHf7AlF9\n"
+    "ItgKbppbd9/w+kHsOdx1ymgHDB/qo0IwQDAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0T\n"
+    "AQH/BAUwAwEB/zAdBgNVHQ4EFgQUfEKWrt5LSDv6kviejM9ti6lyN5UwCgYIKoZI\n"
+    "zj0EAwMDaAAwZQIwe3lORlCEwkSHRhtFcP9Ymd70/aTSVaYgLXTWNLxBo1BfASdW\n"
+    "tL4ndQavEi51mI38AjEAi/V3bNTIZargCyzuFJ0nN6T5U6VR5CmD1/iQMVtCnwr1\n"
+    "/q4AaOeMSQ+2b1tbFfLn\n"
+    "-----END CERTIFICATE-----\n";
+
+// The handshake needs a deeper stack than the tile worker's 8 KB (sized for plain
+// HTTP), so each https request gets this one-shot task, as the Reader does.
+static void luaNetTlsTaskFn(void*) {
+  extern void luaNetWorkerService(void* client, void* http);
+  {
+    WiFiClientSecure scli;
+    scli.setCACert(kLuaTlsRoots);
+    HTTPClient http;
+    luaNetWorkerService(static_cast<WiFiClient*>(&scli), &http);
+  }
+  vTaskDelete(nullptr);
+}
+
+bool luaNetSpawnTls() {
+  return xTaskCreatePinnedToCore(luaNetTlsTaskFn, "lua-tls", 16384, nullptr, 1, nullptr, 0) == pdPASS;
+}
+#endif
 
 static void luaStoreFetchCatalogWorker(WiFiClient& client, HTTPClient& http) {
   if (!s_luacat_buf)
@@ -43147,7 +44273,7 @@ static void makeChatDetail(LvChatPanel& p) {
   // The colour emoji is a fixed ~16-px baked image (it doesn't scale with the font), so it
   // looks tiny in the big □. Hide the label glyph and draw the same emoji as a 2x-zoomed
   // image so it fills the shape.
-  if (const lv_img_dsc_t* sm = emojiGlyphLookup(0x1F60A)) {   // 😊
+  if (const lv_img_dsc_t* sm = emojiLookupAny(0x1F60A)) {   // 😊
     lv_obj_add_flag(el, LV_OBJ_FLAG_HIDDEN);
     lv_obj_t* eimg = lv_img_create(p.emoji_btn);
     lv_img_set_src(eimg, sm);
@@ -48506,7 +49632,7 @@ static void refreshChatList(LvChatPanel& p) {
   mix(s_avatar_gen);   // Settings > Theme > Chat icons redraws the rows
   mix(s_nick_gen);     // so does a contact's new nickname
   mix(s_deliv_gen);    // and a sent DM turning delivered (#670)
-  mix(p.inbox_combined ? 0xF1u + s_chats_filter : 0u);
+  mix(p.inbox_combined ? 0xF1u + s_chats_filter + (s_chats_unread_only ? 0x100u : 0u) : 0u);
   for (int i = 0; i < count; ++i) {
     bool ch = false; uint16_t unread = 0; uint32_t ts = 0;
     char nm[UITask::MAX_THREAD_NAME + 1];
@@ -48582,6 +49708,7 @@ static void refreshChatList(LvChatPanel& p) {
     char name[UITask::MAX_THREAD_NAME + 1];
     if (!g_lv.task->getThreadInfo(idxs[i], ch, unread, ts, name, sizeof(name))) continue;
     if (p.inbox_combined && ((s_chats_filter == 1 && !ch) || (s_chats_filter == 2 && ch))) continue;
+    if (p.inbox_combined && s_chats_unread_only && unread == 0) continue;
     ++shown;
 
     // What the row shows: a direct chat's nickname. `name` stays the thread's key.
@@ -48800,7 +49927,10 @@ static void refreshChatList(LvChatPanel& p) {
 #endif
   }
   if (shown == 0) {
-    lv_obj_t* l = lv_list_add_text(p.list_cont, s_chats_filter == 1 ? TR("No channels yet") : TR("No direct chats yet"));
+    const char* none = s_chats_unread_only
+        ? (s_chats_filter == 1 ? TR("No unread channels") : s_chats_filter == 2 ? TR("No unread direct chats") : TR("No unread chats"))
+        : (s_chats_filter == 1 ? TR("No channels yet") : TR("No direct chats yet"));
+    lv_obj_t* l = lv_list_add_text(p.list_cont, none);
     lv_obj_set_style_text_color(l, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(l, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_pad_all(l, 20, LV_PART_MAIN);
@@ -50566,17 +51696,14 @@ static bool pagerSliderEditClick() {
   pagerSliderEditBegin(foc);
   return true;
 }
+#endif
 
-#if defined(TLORA_PAGER)
-// ---- Low battery (Pager) --------------------------------------------------------
+#if defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9)
+// ---- Low battery (Pager & ThinkNode M9) -----------------------------------------
 // On battery only, with Settings > Battery > Low battery warning on (the default):
-// a warning with a vibration at 20 % and again at 10 %, and at 3 % the Pager
-// switches itself off (ship mode, see powerOffNow) before the cell is run flat; a
-// LiPo left empty for long can be damaged for good. The percentage is the fuel
-// gauge's. Each warning comes once per discharge: plugging in (or the pack coming
-// back 5 % above it) arms it again. A warning given while the screen is off is
-// shown when it next comes on.
-#if defined(PIN_USER_BTN) && !defined(HAS_WIO_TRACKER_L2) && !defined(HAS_TDISPLAY_P4) && !defined(HAS_SENSECAP_INDICATOR)
+// a warning at 20 % and again at 10 %, and at 3 % the device switches itself off
+// before the cell is run flat; a LiPo left empty for long can be damaged for good.
+#if defined(TLORA_PAGER) && defined(PIN_USER_BTN) && !defined(HAS_WIO_TRACKER_L2) && !defined(HAS_TDISPLAY_P4) && !defined(HAS_SENSECAP_INDICATOR)
 static void powerOffNow();
 #define PAGER_HAS_POWER_OFF 1
 #endif
@@ -50590,7 +51717,12 @@ static void pagerLowBatteryTick(uint32_t now) {
   if (now < 20000 || now - s_ms < 2000) return;   // let the boot and the gauge settle first
   s_ms = now;
   if (!g_lv.task) return;
+#if defined(TLORA_PAGER)
   const int soc = board.getBattStateOfCharge();
+#else
+  const uint16_t mv = batteryMvSmoothed();
+  const int soc = mv ? batteryPercentFromMv(mv) : -1;
+#endif
   const bool on_usb = board.externalPowerPresent() != 0;   // 1 = USB, -1 = charger silent: do nothing
   if (on_usb || soc < 0 || soc > 100 || !touchPrefsGetLowBattWarn()) {
     if (s_off_at) { s_off_at = 0; if (on_usb) g_lv.task->showAlert(TR("Charging: switch-off cancelled"), 2500); }
@@ -50599,12 +51731,18 @@ static void pagerLowBatteryTick(uint32_t now) {
     return;
   }
   if (soc >= s_warned + 5) s_warned = 101;          // charged back up a fair way
+#if defined(TLORA_PAGER)
   const bool vib_ok = touchPrefsGetVibrate() && !dndActive();
+#endif
   if (soc <= 3) {
     if (++s_low_reads < 3) return;                  // 3 readings in a row (6 s): not a glitch
     if (!s_off_at) {
       s_off_at = now + 10000;
+#if defined(TLORA_PAGER)
       pagerHapticsPattern(PAGER_VIB_LONG, 2);
+#elif defined(THINKNODE_M9_BUZZER_PIN)
+      if (!dndActive()) uiPlayMention();
+#endif
       if (g_lv.task->isManualLock()) g_lv.task->lockscreenReveal();
       else                           g_lv.task->wakeScreen();
       g_lv.task->showAlert(TR("Battery empty: switching off in 10 s to protect it. Plug in to cancel."), 9500);
@@ -50612,6 +51750,8 @@ static void pagerLowBatteryTick(uint32_t now) {
       s_off_at = 0;
 #if defined(PAGER_HAS_POWER_OFF)
       powerOffNow();
+#elif defined(HAS_THINKNODE_M9)
+      board.powerOff();
 #endif
     }
     return;
@@ -50624,37 +51764,33 @@ static void pagerLowBatteryTick(uint32_t now) {
     s_warned = 10;
     snprintf(s_msg, sizeof s_msg, TR("Battery at %d%%: charge soon"), soc);
     msg = s_msg;
+#if defined(TLORA_PAGER)
     if (vib_ok) pagerHapticsPattern(PAGER_VIB_THRICE, 2);
+#elif defined(THINKNODE_M9_BUZZER_PIN)
+    if (!dndActive() && touchPrefsGetSoundMessages()) uiPlayNotify();
+#endif
   } else if (soc <= 20 && s_warned > 20) {
     s_warned = 20;
     snprintf(s_msg, sizeof s_msg, TR("Battery low: %d%%"), soc);
     msg = s_msg;
+#if defined(TLORA_PAGER)
     if (vib_ok) pagerHapticsPattern(PAGER_VIB_TWICE, touchPrefsGetVibrateStrength());
+#elif defined(THINKNODE_M9_BUZZER_PIN)
+    if (!dndActive() && touchPrefsGetSoundMessages()) uiPlayNotify();
+#endif
   }
   if (!msg) return;
   if (g_lv.task->isScreenOff()) s_pending = msg;
   else                          g_lv.task->showAlert(msg, 5000);
 }
+#endif
 
-// ---- Motion: face down = quiet, pick up = wake (Pager) ---------------------------
-// Both off by default (Settings > Sound > Do Not Disturb; Settings > Display > Screen).
-// Face down: lying face down for 3 s turns the screen off and keeps the Pager
-// quiet (no sound, no vibration, no glance), as Do Not Disturb; picking it up
-// ends it. Pick up: lifting it off a table lights the screen (a locked Pager
-// only shows its lock screen). The accelerometer is read only while one of
-// them is on: once a second with the screen on, five times a second with it off
-// and pick-up on (a lift is over in half a second).
-//
-// Pick-up is meant not to go off in a bag or pocket. It only arms after the
-// Pager has lain still and flat (screen up or down, as on a table) for 3 s;
-// then it needs a real movement, and the Pager must come to rest within 2 s
-// in a reading position (screen facing up or towards you) tilted at least 20
-// degrees from how it lay. A bag that is carried never lies still enough to arm
-// it, and one that is picked up keeps swinging instead of settling. Waking it
-// that way disarms it until it has lain still again.
+#if defined(TLORA_PAGER) || defined(HAS_M9_IMU)
+// ---- Motion: face down = quiet, pick up = wake (Pager & M9 QMI8658A) ------------
 static int8_t s_face_pref = -1;          // the face-down setting, cached; -1 = not read yet
 static int8_t s_pickup_pref = -1;        // the pick-up setting, likewise
 static void pagerMotionWarmup() {
+#if defined(TLORA_PAGER)
   // The first read of a boot uploads the sensor hub's firmware (1-2 s, the loop
   // stands still meanwhile): say so before it happens, so it does not look hung.
   if (pagerImuStarted()) return;
@@ -50662,6 +51798,20 @@ static void pagerMotionWarmup() {
   lv_refr_now(nullptr);
   float x, y, z;
   pagerImuRead(&x, &y, &z);
+#elif defined(HAS_M9_IMU)
+  float x, y, z;
+  (void)m9ImuRead(&x, &y, &z);
+#endif
+}
+static bool deviceImuRead(float* x, float* y, float* z) {
+#if defined(TLORA_PAGER)
+  return pagerImuRead(x, y, z);
+#elif defined(HAS_M9_IMU)
+  return m9ImuRead(x, y, z);
+#else
+  (void)x; (void)y; (void)z;
+  return false;
+#endif
 }
 static void pagerMotionTick(uint32_t now) {
   static uint32_t s_ms = 0, s_since = 0;
@@ -50687,7 +51837,7 @@ static void pagerMotionTick(uint32_t now) {
   s_ms = now;
   pagerMotionWarmup();
   float x, y, z;
-  if (!pagerImuRead(&x, &y, &z)) return;
+  if (!deviceImuRead(&x, &y, &z)) return;
 
   // ---- face down
   if (want_face) {
@@ -50698,7 +51848,9 @@ static void pagerMotionTick(uint32_t now) {
           s_face_down = true;
           s_since = 0;
           Serial.printf("[MOTION] face down: quiet\n");
+#if defined(TLORA_PAGER)
           pagerHapticsClick(1);         // a light tick: noticed
+#endif
           if (g_lv.task && !g_lv.task->isScreenOff()) g_lv.task->sleepScreen();
           updateGlobalStatusBar();
         }
@@ -50757,6 +51909,7 @@ static void pagerPickupSettingChanged(bool on) {
 }
 #endif
 
+#if defined(HAS_PAGER_ENCODER)
 #if defined(TLORA_PAGER)
 // ---- Shift + knob, hold Shift, hold Fn (Pager) --------------------------------
 // Shift + turn: screen brightness, without opening a menu; Shift + click switches
@@ -55414,7 +56567,7 @@ if (g_lv.task && g_lv.task->isManualLock()) {
       taDeleteRange(ta, bs_s, bs_e);
       taClearSelection(ta);
     } else {
-#if CAP_TRACKBALL || defined(HAS_TDECK_PRO)
+#if CAP_TRACKBALL || defined(HAS_TDECK_PRO) || defined(HAS_M9_KEYBOARD)
       // Keyboard nav: backspace in an EMPTY field drops back to navigate mode — the
       // discoverable keyboard way OUT of the auto-focused chat composer (Enter on an
       // empty composer already did this, silently). Reveal the focus highlight so the
@@ -55427,7 +56580,7 @@ if (g_lv.task && g_lv.task->isManualLock()) {
         return;
       }
 #endif
-      lv_textarea_del_char(ta);
+      taDeletePreviousGrapheme(ta);
     }
     accentBoxHide();
   } else if (key == ' ') {
@@ -55500,7 +56653,7 @@ if (g_lv.task && g_lv.task->isManualLock()) {
         if (text && text[0]) {
           g_lv.task->setComposerMode(true);
           g_lv.task->composerReset();
-          for (const char* cp = text; *cp; ++cp) g_lv.task->composerAppendChar(*cp);
+          composerAppendDisplayText(g_lv.task, text);
           if (g_lv.task->composerSend()) {
             lv_textarea_set_text(p->composer_ta, "");
             refreshChatDetailAsync(*p);
@@ -55508,7 +56661,7 @@ if (g_lv.task && g_lv.task->isManualLock()) {
           }
           lv_keyboard_set_textarea(g_lv.keyboard, p->composer_ta);  // re-bind
         }
-#if CAP_TRACKBALL || defined(HAS_TDECK_PRO)
+#if CAP_TRACKBALL || defined(HAS_TDECK_PRO) || defined(HAS_M9_KEYBOARD)
         else if (s_kbd_nav) { s_nav_ta_editing = false; s_nav_show = true; }   // Enter on an EMPTY composer: drop to navigate mode, highlight visible
 #endif
       }
@@ -55741,7 +56894,7 @@ static void bleKbdTouchDelete(lv_obj_t* ta, bool forward) {
   } else if (forward) {
     lv_textarea_del_char_forward(ta);
   } else {
-    lv_textarea_del_char(ta);
+    taDeletePreviousGrapheme(ta);
   }
   accentBoxHide();
 }
@@ -57713,7 +58866,7 @@ static bool ccClockStrings(char* clock_s, size_t clock_cap, char* date_s, size_t
   return current;
 }
 static void openControlCenter() {
-#if defined(TLORA_PAGER)
+#if defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9)
   const bool cc_fresh = (s_cc_root == nullptr);   // not a rebuild after a chip was toggled
 #endif
   closeControlCenter();
@@ -58004,8 +59157,8 @@ static void openControlCenter() {
 #else
   navSetTip(bl, TR("Brightness"));
 #endif
-#if defined(TLORA_PAGER)
-  // Opened afresh (hold S, the bar), focus starts here, not on the power button built
+#if defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9)
+  // Opened afresh, focus starts on Brightness rather than the red Power button built
   // before it: clicking straight through the panel must not land on Power off. A
   // rebuild after a chip keeps focus on that chip.
   if (cc_fresh) s_nav_focus_hint = bl;
@@ -58556,6 +59709,7 @@ static bool luaStoreBoardMeets(const char* req) {
   if (!strcmp(req, "sdk_ext")) return CAP_LUA_SDK_EXT != 0;
   if (!strcmp(req, "sd"))      return CAP_SD != 0;
   if (!strcmp(req, "audio"))   return CAP_LUA_AUDIO != 0;   // a speaker that plays files (Music)
+  if (!strcmp(req, "https"))   return CAP_LUA_HTTPS != 0;   // wada.net.request to an https:// API
   return true;
 }
 
@@ -58726,6 +59880,90 @@ static void langRebootWithNotice(const char* msg) {
   s_luastore_busy = true;                   // swallow further taps on the way out
   rebootWithNotice(msg);
 }
+
+#if defined(HELTEC_LORA_V4_R8)
+// ---- V4-R8 landscape: keep it, or back to portrait -----------------------------
+// The R8's landscape touch map (HeltecV4CapTouch.cpp) is not confirmed on every
+// unit, and a wrong map leaves a screen that cannot be used to undo the setting.
+// So the first boot in a landscape asks: one Keep button and a countdown. Keep
+// stores the choice; no tap, or a restart before it, goes back to portrait. The
+// button sits in a corner on its own: a map that turns taps half way round lands
+// them in the empty opposite corner, so a broken map can never press Keep.
+static bool        s_r8_rot_ask   = false;     // set at boot: this landscape is not kept yet
+static lv_obj_t*   s_r8_rot_root  = nullptr;
+static lv_obj_t*   s_r8_rot_lbl   = nullptr;
+static lv_timer_t* s_r8_rot_timer = nullptr;
+static uint8_t     s_r8_rot_left  = 15;        // seconds
+
+static void r8RotText() {
+  if (s_r8_rot_lbl)
+    lv_label_set_text_fmt(s_r8_rot_lbl,
+                          TR("Keep this orientation?\nIf the screen does not answer your taps, leave it: it goes back to portrait in %d s."),
+                          (int)s_r8_rot_left);
+}
+
+static void r8RotClose() {
+  if (s_r8_rot_timer) { lv_timer_del(s_r8_rot_timer); s_r8_rot_timer = nullptr; }
+  if (s_r8_rot_root)  { lv_obj_del_async(s_r8_rot_root); s_r8_rot_root = nullptr; }
+  s_r8_rot_lbl = nullptr;
+}
+
+static void r8RotTimerCb(lv_timer_t*) {
+  if (s_r8_rot_left > 0) --s_r8_rot_left;
+  if (s_r8_rot_left > 0) { r8RotText(); return; }
+  r8RotClose();
+  touchPrefsSetRotTrying(false);
+  touchPrefsSetUiRotation(LV_DISP_ROT_NONE);
+  rebootWithNotice(TR("Back to portrait\xE2\x80\xA6 restarting"));
+}
+
+static void r8RotKeepCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  touchPrefsSetRotKept(s_ui_rotation);
+  touchPrefsSetRotTrying(false);
+  r8RotClose();
+  if (g_lv.task) g_lv.task->showAlert(TR("Orientation kept"), 1500);
+}
+
+static void r8RotationAskTick(uint32_t now) {
+  static uint32_t s_seen = 0;
+  if (!s_r8_rot_ask) return;
+  if (!s_seen) { s_seen = now ? now : 1; return; }
+  if (now - s_seen < 1000) return;              // let the first screen settle first
+  s_r8_rot_ask = false;
+  if (g_lv.task && g_lv.task->isScreenOff()) g_lv.task->wakeScreen();
+  const lv_coord_t w = lv_disp_get_hor_res(nullptr), h = lv_disp_get_ver_res(nullptr);
+  // On the system layer, over the lock screen and every popup; the full-screen
+  // backdrop takes every tap that misses Keep and does nothing with it.
+  s_r8_rot_root = lv_obj_create(lv_layer_sys());
+  lv_obj_remove_style_all(s_r8_rot_root);
+  lv_obj_set_size(s_r8_rot_root, w, h);
+  lv_obj_set_style_bg_color(s_r8_rot_root, lv_color_hex(COLOR_BG), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(s_r8_rot_root, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_add_flag(s_r8_rot_root, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_clear_flag(s_r8_rot_root, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t* keep = lv_btn_create(s_r8_rot_root);
+  lv_obj_set_size(keep, 110, 48);
+  lv_obj_align(keep, LV_ALIGN_TOP_RIGHT, -12, 12);
+  styleButton(keep);
+  lv_obj_add_event_cb(keep, r8RotKeepCb, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t* kl = lv_label_create(keep);
+  lv_label_set_text(kl, TR("Keep"));
+  lv_obj_set_style_text_font(kl, &g_font_14, LV_PART_MAIN);
+  lv_obj_center(kl);
+
+  s_r8_rot_lbl = lv_label_create(s_r8_rot_root);
+  lv_obj_set_width(s_r8_rot_lbl, w - 32);
+  lv_label_set_long_mode(s_r8_rot_lbl, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_text_font(s_r8_rot_lbl, &g_font_14, LV_PART_MAIN);
+  lv_obj_set_style_text_color(s_r8_rot_lbl, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+  lv_obj_align(s_r8_rot_lbl, LV_ALIGN_TOP_LEFT, 16, 76);
+  s_r8_rot_left = 15;
+  r8RotText();
+  s_r8_rot_timer = lv_timer_create(r8RotTimerCb, 1000, nullptr);
+}
+#endif
 // Switching language reboots (same as the Settings picker) so the whole UI —
 // fonts, keyboard layout, every built label — re-renders consistently.
 static void luaStoreLangBuiltinCb(lv_event_t* e) {
@@ -66846,12 +68084,17 @@ static int hwCompassHeading() {
     }
   }
 #endif
-  if (!tilted) deg = atan2f(bx, by) * 57.29578f;
+  if (!tilted) deg = atan2f(-by, bx) * 57.29578f;
   deg += s_hw_cal.align + s_hw_cal.decl;
   // Smooth as a vector, so 359 and 1 average to 0, not 180.
   const float r = deg / 57.29578f;
-  s_hw_head_x = s_hw_head_x * 0.7f + sinf(r) * 0.3f;
-  s_hw_head_y = s_hw_head_y * 0.7f + cosf(r) * 0.3f;
+  if (s_hw_head_x == 0.0f && s_hw_head_y == 0.0f) {
+    s_hw_head_x = sinf(r);
+    s_hw_head_y = cosf(r);
+  } else {
+    s_hw_head_x = s_hw_head_x * 0.7f + sinf(r) * 0.3f;
+    s_hw_head_y = s_hw_head_y * 0.7f + cosf(r) * 0.3f;
+  }
   int h = (int)lroundf(atan2f(s_hw_head_x, s_hw_head_y) * 57.29578f);
   return (h % 360 + 360) % 360;
 }
@@ -68586,7 +69829,11 @@ static void setupShowStep(int step) {
     lv_textarea_set_max_length(s_setup_name_ta, 30);
     if (g_lv.task) {
       const char* cur = g_lv.task->getNodeNameCstr();
-      if (cur && cur[0]) lv_textarea_set_text(s_setup_name_ta, cur);
+      if (cur && cur[0]) {
+        char cur_vis[40];
+        copyUtf8ReplacingMissingGlyphs(&g_font_14, cur_vis, sizeof(cur_vis), cur, false);
+        lv_textarea_set_text(s_setup_name_ta, cur_vis);
+      }
     }
     attachSettingsTaEvents(s_setup_name_ta);
     setupBtn(TR("Back"), setupBackCb, false, 12, btn_y, 72);
@@ -78041,7 +79288,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
     tzset();
   }
 
-#if defined(TLORA_PAGER) || defined(HELTEC_LORA_V4_R8)
+#if defined(TLORA_PAGER) || defined(HELTEC_LORA_V4_R8) || defined(HAS_THINKNODE_M9)
   // Boot storage setup may have mounted SD before UITask starts. Synchronize
   // the UI's lifecycle state before tile-backend selection and before the
   // first loop tick can run health/remount logic. (R8: without this the
@@ -78434,6 +79681,44 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
     // largest block, so the worker could never start and tiles, the update
     // check and the app catalog were all silently dead.
     reserveTileFetchStack();
+    // Optional emoji pack. Searched on the SD card and on whatever filesystem the
+    // profile's data lives on (the USB Files page exposes both as separate roots,
+    // so "the right place" is ambiguous), under /emoji/ or the root. Deliberately
+    // NOT /meshcomod: that folder is read-only over USB Files and is wiped by
+    // "erase all data". Only opened here — the read is pumped from the loop so a
+    // full ~850 KB pack doesn't stall boot on a 4 MHz card. Reported through the
+    // Set-tab diag log, since WIRE_DBG is compiled out of release builds and
+    // Serial belongs to the companion protocol.
+    {
+      uiDataFsReady();
+      fs::FS* cands[2] = { nullptr, nullptr };
+      int nc = 0;
+#if CAP_SD || defined(TLORA_PAGER)
+      // Adopt-only: re-running the mount ladder here would SD.end() a volume
+      // DataStore may already hold.
+      if (sdAdoptLiveMount()) cands[nc++] = &SD;
+#endif
+      if (s_ui_data_fs && (nc == 0 || cands[0] != s_ui_data_fs)) cands[nc++] = s_ui_data_fs;
+
+    #if CAP_EMOJI_PACK
+      static const char* const kPackPaths[2] = { "/emoji/emoji.pack", "/emoji.pack" };
+      File ep;
+      for (int i = 0; i < nc && !ep; ++i)
+        for (int p = 0; p < 2 && !ep; ++p) ep = cands[i]->open(kPackPaths[p], FILE_READ);
+
+      char msg[DIAG_COLS];
+      if (!nc) {
+        pushDiagLine("emoji: no storage, baked set only");
+      } else if (!ep) {
+        snprintf(msg, sizeof msg, "emoji: no emoji.pack (%d root/s)", nc);
+        pushDiagLine(msg);
+      } else {
+        snprintf(msg, sizeof msg, "emoji: reading pack, %u KB", (unsigned)(ep.size() / 1024));
+        pushDiagLine(msg);
+        if (!emojiPackBegin(ep)) pushDiagLine("emoji: pack size/PSRAM rejected");
+      }
+#endif
+    }
     lv_init();
     initTouchFontFallbacks();
     // NB: re-pointing the LVGL theme's font here does NOT work (tried, verified
@@ -78446,9 +79731,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
     STATUSBAR_H = SB_TOP_PAD + SB_ROW;   // top safe-area + one row (round phone panel)
 #else
     STATUSBAR_H = SC(22);   // grow the status bar to fit bigger text at Large/Huge (no-op at 100%)
-#if defined(HELTEC_LORA_V4_R8) || defined(HAS_TDECK_GT911) || (defined(DOC_CAPTURE) && defined(DOC_VIRT_FONTSET))
+#if defined(HELTEC_LORA_V4_R8) || defined(HAS_THINKNODE_M9) || defined(HAS_TDECK_GT911) || (defined(DOC_CAPTURE) && defined(DOC_VIRT_FONTSET))
     // (Not the T-Deck Pro: its bar keeps the Normal faces at every size, see sbFixed.)
-    // Geometry stays fixed for R8 text presets, but Huge's 20 px title role
+    // Geometry stays fixed for R8/M9 text presets, but Huge's 20 px title role
     // needs two extra pixels to avoid clipping regular one-row status text.
     const lv_coord_t text_bar_h = lv_font_get_line_height(&g_font_14) + 4;
     if (STATUSBAR_H < text_bar_h) STATUSBAR_H = text_bar_h;
@@ -78582,24 +79867,27 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #if defined(ESP32)
     s_ui_rotation = touchPrefsGetUiRotation();
 #if defined(HELTEC_LORA_V4_R8)
-    // V4-R8: force PORTRAIT at every boot. A tester who switched to landscape got stuck: the
-    // shared cap-touch landscape transform was tuned on the V4's ST7789 driver, whose portrait
-    // baseline is panel rotation 2 (+180) -- the R8's LovyanGFX panel runs baseline 0, so the
-    // same map landed every touch point-mirrored and the setting could not be reached to undo
-    // it. The R8-specific map in HeltecV4CapTouch.cpp is the candidate fix (tester-verify);
-    // until a tester confirms it, booting always returns to the known-good portrait, so the
-    // worst case of trying landscape is a reboot. Portrait 180 is allowed (#701): it is a
-    // plain half turn, and its touch map flips both axes, so it cannot land mirrored.
+    // V4-R8 landscape: the R8's own touch map (HeltecV4CapTouch.cpp) is not confirmed on
+    // every unit, and a wrong one leaves a screen that cannot be used to undo the setting.
+    // So a landscape the user has not kept yet asks for Keep once this boot is up
+    // (r8RotationAskTick); a boot that never got that answer comes back in portrait.
+    // Portrait 180 is a plain half turn whose map flips both axes, so it never asks.
     if (s_ui_rotation == LV_DISP_ROT_90 || s_ui_rotation == LV_DISP_ROT_270) {
-      s_ui_rotation = LV_DISP_ROT_NONE;
-      touchPrefsSetUiRotation(LV_DISP_ROT_NONE);
-      // Heal the PANEL too: main.cpp's boot wordmark already applied the saved
-      // landscape rotation before this guard ran, so reverting only the pref
-      // left LVGL rendering portrait frames into a landscape-rotated panel —
-      // one fully garbled session per landscape attempt. (::display — the
-      // begin() parameter shadows the global, and the DisplayDriver base has
-      // no setDisplayRotation.)
-      ::display.setDisplayRotation(0);
+      if (touchPrefsGetRotKept() == s_ui_rotation) {
+        // kept on an earlier boot
+      } else if (touchPrefsGetRotTrying()) {
+        touchPrefsSetRotTrying(false);
+        s_ui_rotation = LV_DISP_ROT_NONE;
+        touchPrefsSetUiRotation(LV_DISP_ROT_NONE);
+        // Heal the PANEL too: main.cpp's boot wordmark already applied the saved
+        // landscape rotation, so reverting only the pref would leave LVGL drawing
+        // portrait frames into a landscape panel. (::display: the begin() parameter
+        // shadows the global, and the DisplayDriver base has no setDisplayRotation.)
+        ::display.setDisplayRotation(0);
+      } else {
+        touchPrefsSetRotTrying(true);
+        s_r8_rot_ask = true;
+      }
     }
 #endif
 #if defined(HAS_TDECK_GT911)
@@ -79779,8 +81067,28 @@ void UITask::setGpsPower(bool on) {
 bool UITask::setNodeName(const char* s) {
   if (!_node_prefs) return false;
   if (!s) s = "";
-  // Adverts carry the name: standard Arabic letters, not presentation forms (#582).
-  arabicUnshape(s, _node_prefs->node_name, sizeof(_node_prefs->node_name));
+  char sanitized[sizeof(_node_prefs->node_name)] = {};
+  size_t written = 0;
+  const char* p = s;
+  const char* end = s + strlen(s);
+  while (p < end && written + 1 < sizeof(sanitized)) {
+    const char* codepoint_start = p;
+    uint32_t cp = 0;
+    if (!uiReadUtf8Codepoint(p, end, cp)) {
+      p = codepoint_start + 1;
+      sanitized[written++] = *codepoint_start;
+      continue;
+    }
+    char expanded[32];
+    const size_t expanded_len = uiExpandPackedFlagToken(cp, expanded);
+    const char* source = expanded_len ? expanded : codepoint_start;
+    const size_t n = expanded_len ? expanded_len : static_cast<size_t>(p - codepoint_start);
+    if (written + n + 1 > sizeof(sanitized)) break;
+    memcpy(sanitized + written, source, n);
+    written += n;
+  }
+  // Expand packed flag tokens before normalizing Arabic advert text.
+  arabicUnshape(sanitized, _node_prefs->node_name, sizeof(_node_prefs->node_name));
   // Report the real write result — the "Name saved" toast used to show even
   // when the storage write silently failed.
   return the_mesh.savePrefs();
@@ -79949,6 +81257,9 @@ bool UITask::setRadioParams(float freq_mhz, float bw_khz, uint8_t sf, uint8_t cr
   // Clamp TX to the radio's range here — the same bound the boot-time load applies — so a too-high
   // value is corrected the moment it's set + saved, not silently dropped on the next reboot.
   tx_dbm = constrain(tx_dbm, (int8_t)-9, (int8_t)MAX_LORA_TX_POWER);
+#if defined(USE_LR1110)
+  freq_mhz = constrain(freq_mhz, 150.0f, 960.0f);
+#endif
   _node_prefs->freq = freq_mhz;
   _node_prefs->bw = bw_khz;
   _node_prefs->sf = sf;
@@ -80012,7 +81323,7 @@ void UITask::setExperimentalFlags(uint8_t multi_acks, uint8_t client_repeat, uin
   the_mesh.savePrefs();
   // Boosted gain is a radio register: set it now, the way the phone app's radio command
   // does (CMD_SET_RADIO_PARAMS in MyMesh), instead of leaving it for the next boot.
-#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_LR1121) || defined(USE_LR2021) || defined(SX126X_RX_BOOSTED_GAIN)
+#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_LR1110) || defined(USE_LR1121) || defined(USE_LR2021) || defined(SX126X_RX_BOOSTED_GAIN) || defined(RX_BOOSTED_GAIN)
   radio_driver.radioAcquire();
   radio_driver.setRxBoostedGainMode(_node_prefs->rx_boosted_gain != 0);
   radio_driver.radioRelease();
@@ -80245,6 +81556,7 @@ static inline void touchScreenBacklight(bool on) {
     touchPanelSleep(false);
     applyBrightness(s_brightness_pct);
   } else {
+    if (!s_bl_pwm_ready) applyBrightness(s_brightness_pct);
     ledcWrite(kM9BlPwmChannel, 255);   // inverted: 255 = 0% conduction = off
     touchPanelSleep(true);
   }
@@ -80272,13 +81584,13 @@ static inline void touchScreenBacklight(bool on) {
 // stops listening to the mesh — we just stop burning 240 MHz to render nothing.
 // Restored to 240 MHz on wake so tile decode / rendering stays fast. Only
 // switches when the target changes (the call is a hard DFS switch).
-#if defined(TLORA_PAGER) && !defined(WADA_WEB)
-// A joined Wi-Fi is the Pager's largest draw after the backlight: with the screen
+#if (defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9)) && !defined(WADA_WEB)
+// A joined Wi-Fi is the largest draw after the backlight: with the screen
 // dark and no app connected, let the modem sleep through more beacons (maximum
 // modem sleep: it wakes every listen interval instead of every DTIM). Still
 // associated, so the web client and the app reconnect as before, a beat slower.
 // Waking the screen, or a client connecting, returns it to the normal setting:
-// setCpuForScreen() passes screen changes in, the pager loop calls it with -1
+// setCpuForScreen() passes screen changes in, the loop calls it with -1
 // about once a second to catch clients coming and going.
 // (Never WIFI_PS_NONE: illegal while Bluetooth runs, see main.cpp.)
 static void pagerWifiPsUpdate(int screen_on) {
@@ -80304,7 +81616,7 @@ static void setCpuForScreen(bool screen_on) {
   setCpuFrequencyMhz(want);
   s_cur_mhz = want;
 #endif
-#if defined(TLORA_PAGER) && !defined(WADA_WEB)
+#if (defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9)) && !defined(WADA_WEB)
   pagerWifiPsUpdate(screen_on);
 #endif
 }
@@ -82884,9 +84196,11 @@ static void sdHealthTick() {
   static uint8_t  s_absent_samples   = 0;
 #endif
   const uint32_t now = (uint32_t)millis();
-#if defined(TLORA_PAGER)
+#if defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9)
   if (!s_sd_mounted && !sdRuntimeLifecycleBusy() && sdAdoptLiveMount()) {
+#if defined(TLORA_PAGER)
     s_sd_data_warn_next_ms = 0;
+#endif
     if (!s_ui_data_fs) uiDataFsReady();
     if (s_ui_data_fs == &SD) {
       SD.mkdir("/meshcomod");
@@ -84020,7 +85334,30 @@ void UITask::loop() {
 
 #if defined(HAS_TOUCH_UI)
   if (!g_lv.ready) return;
+#if defined(HELTEC_LORA_V4_R8)
+  r8RotationAskTick(now);
+#endif
   rx24Sample(now);   // packets heard per hour, for the lock screen's activity line
+  emojiFlushRecent(now, _last_input_ms);
+
+#if CAP_EMOJI_PACK
+  // Budgeted slices of the SD emoji pack. A full set is ~850 KB on a 4 MHz card,
+  // so it arrives a couple of seconds in; emoji render from the baked set until
+  // then. 8 KB is ~16 ms of SPI per tick, small enough not to show as a stutter.
+  if (emojiPackLoading() && emojiPackPump(8 * 1024)) {
+    emojiInvalidateMergedList();
+    char msg[DIAG_COLS];
+    if (emojiPackLoaded()) {
+      snprintf(msg, sizeof msg, "emoji: pack ready, %d added", emojiPackItemCount());
+      g_lv.dm.list_sig = 0;
+      g_lv.dirty_threads = true;
+      g_lv.dirty_timeline = true;
+    } else {
+      snprintf(msg, sizeof msg, "emoji: pack rejected (bad file)");
+    }
+    pushDiagLine(msg);
+  }
+#endif
 
 #if CAP_TOUCH
   // The Tanmatsu has NO CHSC6x cap-touch — input comes from the bsp keypad (LVGL KEYPAD indev).
@@ -84500,7 +85837,17 @@ void UITask::loop() {
   m9CompassIdleTick();   // park the magnetometer when no app is reading it
 #endif
 #if defined(HAS_M9_IMU)
+  pagerMotionTick(now);
   m9ImuIdleTick();       // and the accelerometer
+#endif
+#if defined(HAS_THINKNODE_M9)
+  pagerLowBatteryTick(now);
+#endif
+#if defined(ESP32) && defined(HAS_THINKNODE_M9) && !defined(WADA_WEB)
+  {
+    static uint32_t s_wifi_ps_ms = 0;
+    if (now - s_wifi_ps_ms >= 1000) { s_wifi_ps_ms = now; pagerWifiPsUpdate(-1); }
+  }
 #endif
   uiCp("ui:keys");
   for (int kbi = 0; kbi < 12; ++kbi) {
@@ -84529,8 +85876,8 @@ void UITask::loop() {
     uint8_t kb_bl = 0;
     if (s_kb_bl_mode == 1) kb_bl = tdeckKbBlLevel();   // Settings > Keyboard > Brightness (#664)
     else if (s_kb_bl_mode == 2 && kbBacklightAutoActive(now)) kb_bl = tdeckKbBlLevel();
-    if (_screen_off || _manual_lock) kb_bl = 0;   // dark/locked screen -> keyboard dark too
-    else if (s_msgflash_until && (int32_t)(now - s_msgflash_until) < 0) kb_bl = tdeckKbBlLevel();   // notify pulse
+    if (s_msgflash_until && (int32_t)(now - s_msgflash_until) < 0) kb_bl = tdeckKbBlLevel();   // notify pulse (lights PIN_KEY_LED & keys even when locked/screen-off)
+    else if (_screen_off || _manual_lock) kb_bl = 0;   // dark/locked screen -> keyboard dark too
     if (s_pin_root && !_screen_off) kb_bl = tdeckKbBlLevel();   // the PIN screen lights the keys to type it
     // Cache the last duty the controller ACTUALLY took, not the last one
     // computed: the write is dropped while the controller (its own MCU, on
@@ -84623,7 +85970,7 @@ void UITask::loop() {
         else if (cmdLineEnter()) break;   // terminal / admin CLI: run it, keep the field ready
         else                 lv_event_send(g_lv.keyboard, LV_EVENT_READY, nullptr);  // settings field: confirm
       }
-      else if (key == 0x08 || key == 0x7F) lv_textarea_del_char(akb_ta);
+      else if (key == 0x08 || key == 0x7F) taDeletePreviousGrapheme(akb_ta);
       // '#' summons the on-screen keys for this editing session (hideKb clears it),
       // opening straight on the symbol panel: the module already types letters and
       // digits, so the keys are only for symbols its 5x5 matrix cannot reach.
@@ -84674,7 +86021,7 @@ void UITask::loop() {
     for (int i = 0; i < 64 && g_web_mirror.popKey(&wk); ++i) {
       if (!fta) continue;   // no editable field focused -> drain + drop
       if (wk == 0x0D || wk == 0x0A)      lv_event_send(g_lv.keyboard, LV_EVENT_READY, nullptr);
-      else if (wk == 0x08 || wk == 0x7F) lv_textarea_del_char(fta);
+      else if (wk == 0x08 || wk == 0x7F) taDeletePreviousGrapheme(fta);
       else if (wk >= 0x20)               lv_textarea_add_char(fta, (uint32_t)wk);
     }
 #endif
@@ -84885,11 +86232,10 @@ void UITask::loop() {
     lv_obj_invalidate(lv_scr_act());
 #endif
   uiCp("ui:lvgl");
-#if defined(TLORA_PAGER)
+#if defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9)
   const uint32_t lv_next_ms = lv_timer_handler();
-  // The loop runs flat out, and the keyboard no longer parks it on an I2C read every
-  // pass (pagerKeyboardPoll reads only when the chip's INT line asks): when LVGL has
-  // nothing due for a couple of ms, give the core 1 ms back instead of spinning.
+  // When LVGL has nothing due for a couple of ms, yield 1 ms back to FreeRTOS
+  // instead of spinning Core 1 at 100%.
   if (lv_next_ms >= 2) vTaskDelay(1);
 #else
   lv_timer_handler();

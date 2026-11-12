@@ -1,7 +1,7 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: pt-br
-# ver: 32
+# ver: 33
 # name: Português (BR)
 # base: pt-br
  (device behind)	 (dispositivo atrasado)
@@ -1418,8 +1418,8 @@ Never	Nunca
 New PIN	New PIN
 No backups available to restore.	Nenhum backup para restaurar.
 No backups yet. Use Export Backup above to create one.	No backups yet. Use Export Backup above to create one.
-No channels yet	No channels yet
-No direct chats yet	No direct chats yet
+No channels yet	Nenhum canal ainda
+No direct chats yet	Nenhuma conversa direta ainda
 Normal\nLarge text\nHuge text	Normal\nLarge text\nHuge text
 Not delivered, tap to resend	Not delivered, tap to resend
 Nov	Nov
@@ -2413,3 +2413,28 @@ Asleep: tap screen or 🤍 to wake	Em repouso: toque na tela ou 🤍 para acorda
 Receiving %s\n%lu / %lu bytes	Recebendo %s\n%lu / %lu bytes
 Sending %s\n%lu / %lu bytes	Enviando %s\n%lu / %lu bytes
 File Transfer	Transferência de arquivos
+U	N
+Unread only	Só não lidas
+No unread chats	Nenhuma conversa não lida
+No unread channels	Nenhum canal não lido
+No unread direct chats	Nenhuma conversa direta não lida
+Recent	Recentes
+Smileys	Carinhas
+People	Pessoas
+Nature	Natureza
+Food	Comida
+Activity	Atividades
+Travel	Viagens
+Objects	Objetos
+Symbols	Símbolos
+Flags	Bandeiras
+Chars	Sinais
+Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.	Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.
+Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.	Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.
+Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.	Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.
+\n%d%%, about %lu s left	\n%d%%, faltam cerca de %lu s
+\n%d%%, about %lu min left	\n%d%%, faltam cerca de %lu min
+Keep this orientation?\nIf the screen does not answer your taps, leave it: it goes back to portrait in %d s.	Manter esta orientação?\nSe a tela não responder ao toque, deixe-a: ela volta para retrato em %d s.
+Back to portrait… restarting	Voltando para retrato… reiniciando
+Keep	Manter
+Orientation kept	Orientação mantida

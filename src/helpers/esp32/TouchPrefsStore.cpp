@@ -173,6 +173,7 @@ static void cfgSetDefaults(TouchCfg& c) {
   c.condense_nav      = 0;      // OFF: bottom nav bar + labelled Home launchers (v66, #592)
   c.ct_purge_on       = 0;      // OFF: contacts stay until deleted (v72, #719)
   c.ct_purge_days     = TOUCH_CT_PURGE_DEFAULT_DAYS;
+  c.chats_unread_only = 0;      // OFF: Chats lists every thread (v73, #824)
   c.report_done_n     = 0;      // no beta reported on yet
   c.boot_advert       = 0;      // OFF: no automatic advert on boot — opt-in (#76)
   c.console_mode      = 0;      // OFF: boot into the graphical UI (CONSOLE_MODE.md)
@@ -337,6 +338,7 @@ static void cfgLoadOrMigrate() {
           s_cfg.ct_purge_on = 0;
           s_cfg.ct_purge_days = TOUCH_CT_PURGE_DEFAULT_DAYS;
         }
+        if (stored_version < 73) s_cfg.chats_unread_only = 0;   // v73 new trailing field: never stored before
         if (stored_version < 29 && s_cfg.ui_scale == 0) s_cfg.ui_scale = 1;   // bump old 100% default -> Large (150%)
         if (stored_version < 30) s_cfg.boot_advert = 0;   // #76 new trailing field: advert-on-boot off by default
         // v51 new trailing field. Anything older than 51 never stored it, so it
@@ -1539,6 +1541,16 @@ bool touchPrefsSetContactPurgeDays(uint16_t days) {
   s_cfg.ct_purge_days = days;
   return cfgFlush();
 }
+// The Chats "U" (unread only) chip (v73, #824).
+bool touchPrefsGetChatsUnreadOnly() {
+  if (!s_begun) touchPrefsBegin();
+  return s_cfg.chats_unread_only != 0;
+}
+bool touchPrefsSetChatsUnreadOnly(bool on) {
+  if (!s_begun) touchPrefsBegin();
+  s_cfg.chats_unread_only = on ? 1 : 0;
+  return cfgFlush();
+}
 uint8_t touchPrefsGetNavPos() {
   if (!s_begun) touchPrefsBegin();
   return s_cfg.condense_nav <= TOUCH_NAV_LEFT ? s_cfg.condense_nav : TOUCH_NAV_BOTTOM;
@@ -1819,6 +1831,16 @@ bool touchPrefsSetUiRotation(uint8_t rot) {
   s_cfg.ui_rotation = previous;
   return false;
 }
+
+#if defined(HELTEC_LORA_V4_R8)
+// V4-R8 landscape is kept only once the user has tapped "Keep" on it (UITask's
+// rotation check): "rot_ok" holds the rotation they kept, "rot_try" is set while a
+// landscape boot waits for that tap, so a boot that never got it goes back to portrait.
+uint8_t touchPrefsGetRotKept()          { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("rot_ok", 0xFF); }
+void    touchPrefsSetRotKept(uint8_t r) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("rot_ok", r); }
+bool    touchPrefsGetRotTrying()        { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("rot_try", 0) != 0; }
+void    touchPrefsSetRotTrying(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("rot_try", on ? 1 : 0); }
+#endif
 
 uint16_t touchPrefsGetBattFullMv() {
   if (!s_begun) touchPrefsBegin();
@@ -2574,14 +2596,16 @@ uint8_t  touchPrefsGetChargeTmin()      { if (!s_begun) touchPrefsBegin(); retur
 void     touchPrefsSetChargeTmin(uint8_t v) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("chg_tmin", v); }
 bool touchPrefsGetChargeCare()          { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("chg_care", 0) != 0; }
 void touchPrefsSetChargeCare(bool on)   { if (!s_begun) touchPrefsBegin(); prefsPutUChar("chg_care", on ? 1 : 0); }
-bool touchPrefsGetLowBattWarn()         { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("low_batt", 1) != 0; }
-void touchPrefsSetLowBattWarn(bool on)  { if (!s_begun) touchPrefsBegin(); prefsPutUChar("low_batt", on ? 1 : 0); }
 uint32_t touchPrefsGetBattDayKey()        { if (!s_begun) touchPrefsBegin(); return s_prefs.getUInt("bat_day", 0); }
 void     touchPrefsSetBattDayKey(uint32_t k) { if (!s_begun) touchPrefsBegin(); prefsPutUInt("bat_day", k); }
 uint32_t touchPrefsGetBattDayMah()        { if (!s_begun) touchPrefsBegin(); return s_prefs.getUInt("bat_mah", 0xFFFF0000u); }
 void     touchPrefsSetBattDayMah(uint32_t v) { if (!s_begun) touchPrefsBegin(); prefsPutUInt("bat_mah", v); }
 uint32_t touchPrefsGetBattUse()          { if (!s_begun) touchPrefsBegin(); return s_prefs.getUInt("bat_use", 0); }
 void     touchPrefsSetBattUse(uint32_t v) { if (!s_begun) touchPrefsBegin(); prefsPutUInt("bat_use", v); }
+#endif
+#if defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9) || defined(HAS_M9_IMU)
+bool touchPrefsGetLowBattWarn()         { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("low_batt", 1) != 0; }
+void touchPrefsSetLowBattWarn(bool on)  { if (!s_begun) touchPrefsBegin(); prefsPutUChar("low_batt", on ? 1 : 0); }
 bool touchPrefsGetFaceDownQuiet()       { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("face_down", 0) != 0; }
 void touchPrefsSetFaceDownQuiet(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("face_down", on ? 1 : 0); }
 bool touchPrefsGetPickupWake()         { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("pick_wake", 0) != 0; }
@@ -3070,7 +3094,10 @@ static int backupKeys(BkKey* out, int cap) {
     "glance_en", "msg_led", "dnd_en", "dnd_ss", "dnd_es", "kbd_bl",
 #if defined(TLORA_PAGER)
     "vib_in", "vib_str", "vib_pm", "vib_pd", "vib_pn",   // the Pager's vibration settings ("vibrate" is above)
-    "chg_care", "low_batt", "face_down", "pick_wake",             // the Pager's battery care and quiet modes
+    "chg_care",
+#endif
+#if defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9) || defined(HAS_M9_IMU)
+    "low_batt", "face_down", "pick_wake",                // low-battery warning and IMU motion quiet/wake modes
 #endif
     "chat_icons", "col_more", "col_style", "col_rb", "bg_kind", "gps_save", "gps_every",
     "glass", "bg_dim", "lock_dim",   // NOT "ant_ext": a restore must never point a unit at an empty antenna socket
