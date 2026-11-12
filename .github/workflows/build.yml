@@ -331,6 +331,30 @@ jobs:
           DAV=$(~/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-nm -S --size-sort \
                 .pio/build/${{ matrix.env }}/firmware.elf | grep -ciE ' dav1d_' || true)
           echo "::notice title=${{ matrix.env }} size::firmware.bin ${BIN} bytes; dav1d symbols linked: ${DAV}"
+      - name: The update file fits the app slot
+        shell: bash
+        run: |
+          # PlatformIO's "program size" check undercounts: firmware.bin (what an
+          # over-the-air update writes) carries the image header, padding and hash
+          # too. tak-beta_102.5's T-Deck bin passed that check and was 176 bytes
+          # bigger than its 4.375 MB slot, so every T-Deck refused the update.
+          python3 - ".pio/build/${{ matrix.env }}" <<'PY'
+          import os, struct, sys
+          b = sys.argv[1]
+          pt = open(os.path.join(b, "partitions.bin"), "rb").read()
+          slots = []
+          for i in range(0, len(pt) - 31, 32):
+              magic, ptype, sub, off, size = struct.unpack_from("<HBBII", pt, i)
+              if magic != 0x50AA: break
+              if ptype == 0: slots.append(size)          # app partitions
+          binsz = os.path.getsize(os.path.join(b, "firmware.bin"))
+          slot = min(slots) if slots else 0
+          left = slot - binsz
+          print(f"::notice title=app slot::firmware.bin {binsz} B, smallest app slot {slot} B, {left} B left")
+          if not slots or left < 0:
+              print(f"::error::firmware.bin is {-left} bytes too big for the {slot}-byte app slot (an update can't install it)")
+              sys.exit(1)
+          PY
       # Internal RAM (ESP32-S3: IRAM and DRAM share the same 512 KB SRAM; what the
       # image takes statically is gone from the heap Wi-Fi, BLE, TLS and task
       # stacks need). Totals and the largest internal-RAM symbols as annotations.
