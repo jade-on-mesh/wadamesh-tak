@@ -122,6 +122,9 @@ def main():
         descs[m.group(1)] = (int(m.group(2)), int(m.group(3)), m.group(5))
     glyphs = [(int(m.group(1), 16), m.group(2))
               for m in re.finditer(r"\{ 0x([0-9A-Fa-f]+)u, &(\w+) \}", src)]
+    # Composite images for an exact UTF-8 sequence (add-emoji.py's SEQ): keyed on
+    # a baked glyph, looked up by emojiGlyphSequenceLookup().
+    sequences = re.findall(r'\{ "((?:\\x[0-9A-Fa-f]{2})+)", &(\w+) \}', src)
     if not arrays or not descs or not glyphs:
         sys.exit("pack-emoji: nothing parsed from " + RAW)
 
@@ -169,6 +172,15 @@ def main():
     out.append("static const EmojiGlyph kGlyphs[] = {")
     for cp, d in glyphs:
         out.append("  { 0x%Xu, %d }," % (cp, index[d]))
+    out.append("};")
+    out.append("typedef struct { const char* utf8; uint16_t img; } EmojiSequence;")
+    out.append("static const EmojiSequence kSequences[] = {")
+    for utf8, d in sequences:
+        if d not in index:
+            sys.exit("pack-emoji: sequence image %s isn't a baked glyph" % d)
+        out.append('  { "%s", %d },' % (utf8, index[d]))
+    if not sequences:
+        out.append("  { 0, 0 },")
     out.append("};")
     out.append("const uint16_t kEmojiGlyphCount = %d;" % sum(1 for _, d in glyphs if d != "d_zero"))
     out.append(r"""
@@ -244,10 +256,8 @@ static const lv_img_dsc_t* emojiImage(int i) {
   return d;
 }
 
-// The full emoji set as a file (EmojiPack.h, EMOJI.md), once it is loaded: the
-// emoji not baked here. Weak, so a build without it (the host tests) has only these.
-const lv_img_dsc_t* emojiPackLookup(uint32_t cp) __attribute__((weak));
-
+// The baked set only: the SD pack (EmojiPack.cpp) is asked separately, after
+// these, so a pack can add emoji but never change one the firmware ships.
 const lv_img_dsc_t* emojiGlyphLookup(uint32_t cp) {
   int lo = 0, hi = (int)(sizeof(kGlyphs)/sizeof(kGlyphs[0])) - 1;
   while (lo <= hi) {
@@ -256,7 +266,14 @@ const lv_img_dsc_t* emojiGlyphLookup(uint32_t cp) {
     if (cp == v) return emojiImage(kGlyphs[mid].img);
     if (cp < v) hi = mid - 1; else lo = mid + 1;
   }
-  return emojiPackLookup ? emojiPackLookup(cp) : 0;
+  return 0;
+}
+
+const lv_img_dsc_t* emojiGlyphSequenceLookup(const char* utf8) {
+  if (!utf8) return 0;
+  for (size_t i = 0; i < sizeof(kSequences) / sizeof(kSequences[0]); ++i)
+    if (kSequences[i].utf8 && strcmp(utf8, kSequences[i].utf8) == 0) return emojiImage(kSequences[i].img);
+  return 0;
 }
 """)
     open(OUTC, "w").write("\n".join(out))

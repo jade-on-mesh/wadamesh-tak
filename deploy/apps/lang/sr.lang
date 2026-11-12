@@ -1,7 +1,7 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: sr
-# ver: 32
+# ver: 33
 # name: Српски
 # base: sr
  (device behind)	 (уређај касни)
@@ -1419,8 +1419,8 @@ Never	Никад
 New PIN	New PIN
 No backups available to restore.	Нема резервних копија за враћање.
 No backups yet. Use Export Backup above to create one.	No backups yet. Use Export Backup above to create one.
-No channels yet	No channels yet
-No direct chats yet	No direct chats yet
+No channels yet	Још нема канала
+No direct chats yet	Још нема директних ћаскања
 Normal\nLarge text\nHuge text	Normal\nLarge text\nHuge text
 Not delivered, tap to resend	Not delivered, tap to resend
 Nov	Nov
@@ -2413,3 +2413,28 @@ Asleep: tap screen or 🤍 to wake	Спава: додирни екран или 
 Receiving %s\n%lu / %lu bytes	Пријем %s\n%lu / %lu бајтова
 Sending %s\n%lu / %lu bytes	Слање %s\n%lu / %lu бајтова
 File Transfer	Пренос фајлова
+U	Н
+Unread only	Само непрочитано
+No unread chats	Нема непрочитаних ћаскања
+No unread channels	Нема непрочитаних канала
+No unread direct chats	Нема непрочитаних директних ћаскања
+Recent	Недавно
+Smileys	Смајлији
+People	Људи
+Nature	Природа
+Food	Храна
+Activity	Активности
+Travel	Путовања
+Objects	Предмети
+Symbols	Симболи
+Flags	Заставе
+Chars	Знакови
+Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.	Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.
+Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.	Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.
+Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.	Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.
+\n%d%%, about %lu s left	\n%d%%, остало још око %lu s
+\n%d%%, about %lu min left	\n%d%%, остало још око %lu мин
+Keep this orientation?\nIf the screen does not answer your taps, leave it: it goes back to portrait in %d s.	Задржати ову оријентацију?\nАко екран не реагује на додир, оставите га: за %d s враћа се на усправно.
+Back to portrait… restarting	Назад на усправно… поновно покретање
+Keep	Задржи
+Orientation kept	Оријентација задржана

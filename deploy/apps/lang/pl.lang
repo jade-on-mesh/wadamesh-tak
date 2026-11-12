@@ -1,7 +1,7 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: pl
-# ver: 32
+# ver: 33
 # name: Polski
 # base: pl
 # translators: tom73god (Discord)
@@ -2426,3 +2426,28 @@ Peak -- dBm	Peak -- dBm
 Receiving %s\n%lu / %lu bytes	Receiving %s\n%lu / %lu bytes
 Sending %s\n%lu / %lu bytes	Sending %s\n%lu / %lu bytes
 peak %d @ %.1f	peak %d @ %.1f
+U	N
+Unread only	Tylko nieprzeczytane
+No unread chats	Brak nieprzeczytanych czatów
+No unread channels	Brak nieprzeczytanych kanałów
+No unread direct chats	Brak nieprzeczytanych czatów bezpośrednich
+Recent	Ostatnie
+Smileys	Buźki
+People	Ludzie
+Nature	Natura
+Food	Jedzenie
+Activity	Aktywność
+Travel	Podróże
+Objects	Obiekty
+Symbols	Symbole
+Flags	Flagi
+Chars	Znaki
+Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.	Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.
+Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.	Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.
+Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.	Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.
+\n%d%%, about %lu s left	\n%d%%, zostało ok. %lu s
+\n%d%%, about %lu min left	\n%d%%, zostało ok. %lu min
+Keep this orientation?\nIf the screen does not answer your taps, leave it: it goes back to portrait in %d s.	Zachować tę orientację?\nJeśli ekran nie reaguje na dotyk, zostaw go: za %d s wróci do pionu.
+Back to portrait… restarting	Powrót do pionu… ponowne uruchamianie
+Keep	Zachowaj
+Orientation kept	Orientacja zachowana

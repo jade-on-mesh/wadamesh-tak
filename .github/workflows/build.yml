@@ -106,11 +106,10 @@ jobs:
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -I test/stub_lvgl -I src/ui-touch -I test \
               -o /tmp/test_emoji_pack test/test_emoji_pack.c src/ui-touch/emoji_data.c
           /tmp/test_emoji_pack
-      - name: Full emoji set file reads back (EmojiPack.h, emoji/emoji-pack.wep)
+      - name: Full emoji set and its search names (emoji.pack, emoji/emoji-names.txt)
         run: |
-          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -I test \
-              -o /tmp/test_emoji_pack_file test/test_emoji_pack_file.cpp
-          /tmp/test_emoji_pack_file emoji/emoji-pack.wep
+          python3 scripts/build/check-emoji-pack.py deploy/site/emoji/emoji.pack
+          python3 scripts/build/check-emoji-names.py emoji/emoji-names.txt deploy/site/emoji/emoji.pack
       - name: Flags read as one letter (FlagText.h), and as avatar emoji
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \

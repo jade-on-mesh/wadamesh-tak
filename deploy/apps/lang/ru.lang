@@ -1,7 +1,7 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: ru
-# ver: 32
+# ver: 33
 # name: Русский
 # base: ru
  (device behind)	 (устройство отстаёт)
@@ -1419,8 +1419,8 @@ Never	Никогда
 New PIN	New PIN
 No backups available to restore.	Нет резервных копий для восстановления.
 No backups yet. Use Export Backup above to create one.	No backups yet. Use Export Backup above to create one.
-No channels yet	No channels yet
-No direct chats yet	No direct chats yet
+No channels yet	Каналов пока нет
+No direct chats yet	Личных чатов пока нет
 Normal\nLarge text\nHuge text	Normal\nLarge text\nHuge text
 Not delivered, tap to resend	Not delivered, tap to resend
 Nov	Nov
@@ -2413,3 +2413,28 @@ Asleep: tap screen or 🤍 to wake	Сон: коснитесь экрана ил�
 Receiving %s\n%lu / %lu bytes	Приём %s\n%lu / %lu байт
 Sending %s\n%lu / %lu bytes	Отправка %s\n%lu / %lu байт
 File Transfer	Передача файлов
+U	Н
+Unread only	Только непрочитанные
+No unread chats	Нет непрочитанных чатов
+No unread channels	Нет непрочитанных каналов
+No unread direct chats	Нет непрочитанных личных чатов
+Recent	Недавние
+Smileys	Смайлы
+People	Люди
+Nature	Природа
+Food	Еда
+Activity	Занятия
+Travel	Путешествия
+Objects	Предметы
+Symbols	Символы
+Flags	Флаги
+Chars	Знаки
+Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.	Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.
+Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.	Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.
+Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.	Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.
+\n%d%%, about %lu s left	\n%d%%, осталось около %lu с
+\n%d%%, about %lu min left	\n%d%%, осталось около %lu мин
+Keep this orientation?\nIf the screen does not answer your taps, leave it: it goes back to portrait in %d s.	Оставить эту ориентацию?\nЕсли экран не реагирует на касания, не трогайте его: через %d с он вернётся в портретный режим.
+Back to portrait… restarting	Возврат в портретный режим… перезапуск
+Keep	Оставить
+Orientation kept	Ориентация сохранена

@@ -862,6 +862,10 @@ static const EmojiGlyph kGlyphs[] = {
   { 0x1F9D0u, 279 },
   { 0x1F9E1u, 280 },
 };
+typedef struct { const char* utf8; uint16_t img; } EmojiSequence;
+static const EmojiSequence kSequences[] = {
+  { "\xF0\x9F\x8F\xB3\xEF\xB8\x8F\xE2\x80\x8D\xE2\x9A\xA7\xEF\xB8\x8F", 63 },
+};
 const uint16_t kEmojiGlyphCount = 280;
 
 // One plane: the token stream above. Returns 0 when it doesn't fill `n` exactly.
@@ -936,10 +940,8 @@ static const lv_img_dsc_t* emojiImage(int i) {
   return d;
 }
 
-// The full emoji set as a file (EmojiPack.h, EMOJI.md), once it is loaded: the
-// emoji not baked here. Weak, so a build without it (the host tests) has only these.
-const lv_img_dsc_t* emojiPackLookup(uint32_t cp) __attribute__((weak));
-
+// The baked set only: the SD pack (EmojiPack.cpp) is asked separately, after
+// these, so a pack can add emoji but never change one the firmware ships.
 const lv_img_dsc_t* emojiGlyphLookup(uint32_t cp) {
   int lo = 0, hi = (int)(sizeof(kGlyphs)/sizeof(kGlyphs[0])) - 1;
   while (lo <= hi) {
@@ -948,5 +950,12 @@ const lv_img_dsc_t* emojiGlyphLookup(uint32_t cp) {
     if (cp == v) return emojiImage(kGlyphs[mid].img);
     if (cp < v) hi = mid - 1; else lo = mid + 1;
   }
-  return emojiPackLookup ? emojiPackLookup(cp) : 0;
+  return 0;
+}
+
+const lv_img_dsc_t* emojiGlyphSequenceLookup(const char* utf8) {
+  if (!utf8) return 0;
+  for (size_t i = 0; i < sizeof(kSequences) / sizeof(kSequences[0]); ++i)
+    if (kSequences[i].utf8 && strcmp(utf8, kSequences[i].utf8) == 0) return emojiImage(kSequences[i].img);
+  return 0;
 }

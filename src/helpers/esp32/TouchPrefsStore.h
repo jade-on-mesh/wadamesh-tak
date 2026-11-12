@@ -331,6 +331,11 @@ bool     touchPrefsGetContactPurge();
 bool     touchPrefsSetContactPurge(bool on);
 uint16_t touchPrefsGetContactPurgeDays();
 bool     touchPrefsSetContactPurgeDays(uint16_t days);
+
+// The Chats "U" (unread only) chip (#824): while on, the inbox lists only threads with unread
+// messages, within the active All / Channels / Direct chip. Default off.
+bool     touchPrefsGetChatsUnreadOnly();
+bool     touchPrefsSetChatsUnreadOnly(bool on);
 /** Where the navigation bar sits (Settings > Display > Navigation bar). Stored in the
  *  v66 condense_nav byte, so no schema change: 0 bottom (the default) and 1 right (the
  *  old Condense Nav rail) keep their meaning; 2 top and 3 left are new. Read once when
@@ -414,6 +419,12 @@ bool touchPrefsReadUseSdAtBoot();
  *  device so the UI rebuilds at the new orientation. */
 uint8_t touchPrefsGetUiRotation();
 bool    touchPrefsSetUiRotation(uint8_t rot);
+#if defined(HELTEC_LORA_V4_R8)
+uint8_t touchPrefsGetRotKept();              // landscape the user kept (0xFF = none yet)
+void    touchPrefsSetRotKept(uint8_t r);
+bool    touchPrefsGetRotTrying();            // a landscape boot is waiting for "Keep"
+void    touchPrefsSetRotTrying(bool on);
+#endif
 // Pre-storage boot copy of the rotation (raw NVS), for the boot logo. Falls back
 // to touchPrefsGetUiRotation() when absent. Sync after touchPrefsReload().
 uint8_t touchPrefsGetBootUiRotation();
@@ -680,14 +691,16 @@ uint8_t  touchPrefsGetChargeTmin();          // stop charging below this, deg C 
 void     touchPrefsSetChargeTmin(uint8_t c);
 bool     touchPrefsGetChargeCare();          // battery care: stop at 80 %, resume below 75 % (default off)
 void     touchPrefsSetChargeCare(bool on);
-bool     touchPrefsGetLowBattWarn();         // warn at 20 / 10 %, switch off at 3 % (default on)
-void     touchPrefsSetLowBattWarn(bool on);
 uint32_t touchPrefsGetBattDayKey();          // local date (YYYYMMDD) the daily mAh count below belongs to
 void     touchPrefsSetBattDayKey(uint32_t key);
 uint32_t touchPrefsGetBattDayMah();          // mAh drawn: today in the low 16 bits, the day before in the high
 void     touchPrefsSetBattDayMah(uint32_t v); // (0xFFFF = not known). Not in the backup: it is this pack's.
 uint32_t touchPrefsGetBattUse();             // average draw on battery: 0.1 mA low 16 bits, minutes seen high
 void     touchPrefsSetBattUse(uint32_t v);
+#endif
+#if defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9) || defined(HAS_M9_IMU)
+bool     touchPrefsGetLowBattWarn();         // warn at 20 / 10 %, switch off at 3 % (default on)
+void     touchPrefsSetLowBattWarn(bool on);
 bool     touchPrefsGetFaceDownQuiet();       // lying face down: screen off, no sound or vibration (default off)
 void     touchPrefsSetFaceDownQuiet(bool on);
 bool     touchPrefsGetPickupWake();          // lifting it off a table lights the screen (default off)

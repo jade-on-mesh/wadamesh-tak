@@ -2,6 +2,7 @@
 // Raw RGB565+alpha pixels, NOT compiled: scripts/build/pack-emoji.py packs them
 // into emoji_data.c. add-emoji.py adds to this file and re-runs the packer.
 #include "emoji_data.h"
+#include <string.h>
 
 static const uint8_t e_zero[] = {0,0,0, 0,0,0, 0,0,0, 0,0,0};
 static const lv_img_dsc_t d_zero = { { LV_IMG_CF_TRUE_COLOR_ALPHA, 0, 0, 2, 2 }, sizeof(e_zero), e_zero };
@@ -857,6 +858,10 @@ static const EmojiGlyph kGlyphs[] = {
   { 0x1F9D0u, &d_1f9d0 },
   { 0x1F9E1u, &d_1f9e1 },
 };
+typedef struct { const char* utf8; const lv_img_dsc_t* dsc; } EmojiSequence;
+static const EmojiSequence kSequences[] = {
+  { "\xF0\x9F\x8F\xB3\xEF\xB8\x8F\xE2\x80\x8D\xE2\x9A\xA7\xEF\xB8\x8F", &d_1f3f3 },
+};
 const uint16_t kEmojiGlyphCount = 280;
 
 const lv_img_dsc_t* emojiGlyphLookup(uint32_t cp) {
@@ -867,5 +872,12 @@ const lv_img_dsc_t* emojiGlyphLookup(uint32_t cp) {
     if (cp == v) return kGlyphs[mid].dsc;
     if (cp < v) hi = mid - 1; else lo = mid + 1;
   }
+  return 0;
+}
+
+const lv_img_dsc_t* emojiGlyphSequenceLookup(const char* utf8) {
+  if (!utf8) return 0;
+  for (size_t i = 0; i < sizeof(kSequences) / sizeof(kSequences[0]); ++i)
+    if (strcmp(utf8, kSequences[i].utf8) == 0) return kSequences[i].dsc;
   return 0;
 }
