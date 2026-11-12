@@ -47,7 +47,8 @@ static constexpr size_t kGifMaxBytes = 4u << 20;
 static volatile bool s_gif_busy = false;   // the GIF picker is using the network: links wait
 // A GIF in its bubble: thumbnail-sized frames, a few GIFs' worth kept.
 static constexpr int kGifBubbleFrames = 48;
-static constexpr size_t kGifBubbleBytes = 768u * 1024u;
+static constexpr size_t kGifBubbleBytes = 512u * 1024u;   // ~36 frames at 96 x 72
+static void gifAnimTrim();   // frees the bubble GIFs nothing shows (below)
 
 // Settings > General > Linked images.
 static int8_t s_li_on = -1;
@@ -164,7 +165,11 @@ class LiSink final : public Stream {
 
 // GET `url` into buf (at most cap bytes; `over` when it had more). The HTTP status,
 // or < 0 without a connection. On a worker: TLS wants its stack.
-static int liGet(const char* url, uint8_t* buf, size_t cap, size_t* len, bool* over, const char* accept) {
+// With `*pbuf` null, the buffer is allocated here (PSRAM) once the answer says how
+// big it is, at that size: a 300 KB GIF takes 300 KB, not the cap. That 3 MB block
+// up front was what "Out of memory" meant on a T-Deck busy with chats, emoji and
+// GIFs. A failed allocation is -2.
+static int liGet(const char* url, uint8_t** pbuf, size_t cap, size_t* len, bool* over, const char* accept) {
   *len = 0;
   *over = false;
   HTTPClient http;
@@ -188,8 +193,12 @@ static int liGet(const char* url, uint8_t* buf, size_t cap, size_t* len, bool* o
       const int clen = http.getSize();
       if (clen > 0 && (size_t)clen > cap) {
         *over = true;
+      } else if (!*pbuf && !(*pbuf = (uint8_t*)heap_caps_malloc(clen > 0 ? (size_t)clen : cap,
+                                                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT))) {
+        code = -2;
       } else {
-        LiSink sink(buf, cap);
+        if (clen > 0) cap = (size_t)clen;
+        LiSink sink(*pbuf, cap);
         http.writeToStream(&sink);
         *len = sink.size();
         *over = sink.over();
@@ -227,13 +236,12 @@ static void linkImgJobBody() {
     j.http = 0;
   }
   if (!raw) {
-    raw = (uint8_t*)heap_caps_malloc(kLiMaxBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!raw) { j.res = linkimg::kNoMemory; j.state = 2; return; }
     char fetch[sizeof j.url + 64];
     if (!linkimg::fetchUrl(j.url, kLiFetchSide, fetch, sizeof fetch)) snprintf(fetch, sizeof fetch, "%s", j.url);
     bool over = false;
-    const int code = liGet(fetch, raw, kLiMaxBytes, &len, &over,
+    const int code = liGet(fetch, &raw, kLiMaxBytes, &len, &over,
                            "image/jpeg,image/png,image/gif,image/webp;q=0.9,*/*;q=0.5");
+    if (code == -2) { j.res = linkimg::kNoMemory; j.state = 2; return; }
     j.http = code;
     if (over) { free(raw); j.res = linkimg::kTooLarge; j.state = 2; return; }
     if (code != HTTP_CODE_OK || !len) { free(raw); j.res = linkimg::kBroken; j.state = 2; return; }
@@ -277,6 +285,7 @@ static void linkImgJobWorkerFn(void*) { linkImgJobBody(); }
 static bool linkImgStart(bool view, uint32_t id, const char* url, const char* title, bool anim = false) {
   LiJob& j = s_li_job;
   if (j.state != 0 || s_gif_busy) return false;
+  if (view || anim) gifAnimTrim();   // a GIF's frames take megabytes: hand back what's off screen
   j = LiJob();
   j.view = view;
   j.anim = anim;
@@ -452,7 +461,7 @@ static void gifSearchBody() {
   else
     snprintf(url, sizeof url, "https://api.giphy.com/v1/gifs/trending?api_key=%s&limit=%d&rating=g", kGiphyKey,
              kGifResults);
-  g.http = buf ? liGet(url, buf, kGifJsonMax, &len, &over, "application/json") : -1;
+  g.http = buf ? liGet(url, &buf, kGifJsonMax, &len, &over, "application/json") : -1;
   n = 0;
   if (g.http == HTTP_CODE_OK && len) n = giphy::idsInJson((const char*)buf, len, g.ids, kGifResults);
   g.n = n;
@@ -464,7 +473,7 @@ stills:
     char su[160];
     uint8_t ok = 2;
     if (buf && giphy::mediaUrl(g.ids[i], "100w_s", su, sizeof su) &&
-        liGet(su, buf, kGifStillMax, &len, &over, "image/gif") == HTTP_CODE_OK && len && !over) {
+        liGet(su, &buf, kGifStillMax, &len, &over, "image/gif") == HTTP_CODE_OK && len && !over) {
       uint16_t* px = nullptr;
       int w = 0, h = 0;
       if (linkimg::decode(buf, len, g.side, 1u << 20, 0x2104, linkImgThumbAlloc, &px, &w, &h) == linkimg::kOk) {
@@ -694,6 +703,15 @@ static char s_ga_want_url[6][96];
 static uint8_t s_ga_want_n = 0;
 static uint32_t s_ga_failed[16];
 static uint8_t s_ga_failed_at = 0;
+
+// Frees the kept frames of GIFs no bubble on screen shows (the UI loop only).
+static void gifAnimTrim() {
+  for (auto& g : s_ga) {
+    if (!g.px || g.refs) continue;
+    lvglPsramFree(g.px);
+    g = GifAnim();
+  }
+}
 
 static int gifAnimFind(uint32_t id) {
   for (int i = 0; i < 4; ++i) if (s_ga[i].px && s_ga[i].id == id) return i;
