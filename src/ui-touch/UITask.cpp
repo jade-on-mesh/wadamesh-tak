@@ -18484,7 +18484,7 @@ static void buildMediaMeshRadioCards() {
     NodePrefs* np = the_mesh.getNodePrefs();
     if (np && np->client_repeat) {
       setNote(c, cfg.mode != mediamesh::MODE_OFF
-                     ? "Client repeat is on, so radio2 runs MediaMesh beside the off-grid channel (250 kHz above "
+                     ? "Client repeat is on, so radio2 runs MediaMesh beside the off-grid channel (800 kHz above "
                        "it, 250 kHz SF7) and photos and voice go there. radio2 goes back to how it was when "
                        "Client repeat is turned off."
                      : "Client repeat is on, so radio2 is Off: everything, photos and voice too, goes out on the "
@@ -18853,7 +18853,7 @@ static void buildExperimentalSettings() {
                                            prefs && prefs->multi_acks, nullptr);
   g_set_modal.exp_repeat_sw = setSwitchRow(c, "Client repeat", "Forwards other nodes' packets, like a repeater, on the off-grid "
                                            "channel (918 MHz, 62.5 kHz, SF7 in the US) with MediaMesh beside it on "
-                                           "918.250 MHz. Your radio settings come back when it's off. Costs airtime "
+                                           "918.800 MHz. Your radio settings come back when it's off. Costs airtime "
                                            "and battery.",
                                            prefs && prefs->client_repeat, nullptr);
   g_set_modal.exp_boost_sw  = setSwitchRow(c, "RX boosted gain", "A little more receive sensitivity for a little more current.",

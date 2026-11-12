@@ -239,18 +239,18 @@ static void testShare() {
   assert(holdForClientRepeat(r, false) && r.saved.mode == MODE_RX && r.saved.held == kNotHeld);
   assert(!holdForClientRepeat(r, false));
 
-  // In the US band radio2 runs beside the off-grid channel instead: 918.250,
+  // In the US band radio2 runs beside the off-grid channel instead: 918.800,
   // 250 kHz SF7, listening and sending, cross off; all of it put back after.
   run("set radio2 911.15,250,7,5,rxtx", r, e, out);
   run("set radio2.cross on", r, e, out);
   Params beside;
-  beside.freq = 918.25f; beside.bw = 250.0f; beside.sf = 7; beside.cr = 5;
+  beside.freq = 918.8f; beside.bw = 250.0f; beside.sf = 7; beside.cr = 5;
   assert(holdForClientRepeat(r, true, &beside));
   assert(r.saved.mode == MODE_RXTX && sameParams(r.saved.p, beside) && r.saved.cross == CROSS_OFF);
   assert(r.saved.held == MODE_RXTX && r.saved.held_p.freq == 911.15f && r.saved.held_cross == CROSS_ON);
   assert(!holdForClientRepeat(r, true, &beside));   // steady
   run("get radio2", r, e, out);
-  assert(!strncmp(out, "> 918.250,", 10) && strstr(out, "client repeat is on (radio2 back to rxtx"));
+  assert(!strncmp(out, "> 918.800,", 10) && strstr(out, "client repeat is on (radio2 back to rxtx"));
   run("get mediamesh", r, e, out);
   assert(strstr(out, "radio2 set by client repeat"));
   // The blob keeps what is held.
