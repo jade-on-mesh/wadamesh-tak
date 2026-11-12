@@ -48,7 +48,7 @@ static volatile bool s_gif_busy = false;   // the GIF picker is using the networ
 // A GIF in its bubble: thumbnail-sized frames, a few GIFs' worth kept.
 static constexpr int kGifBubbleFrames = 48;
 static constexpr size_t kGifBubbleBytes = 512u * 1024u;   // ~36 frames at 96 x 72
-static void gifAnimTrim();   // frees the bubble GIFs nothing shows (below)
+static void gifAnimTrim(uint32_t idle_ms = 0);   // frees the bubble GIFs nothing shows (below)
 
 // Settings > General > Linked images.
 static int8_t s_li_on = -1;
@@ -704,10 +704,12 @@ static uint8_t s_ga_want_n = 0;
 static uint32_t s_ga_failed[16];
 static uint8_t s_ga_failed_at = 0;
 
-// Frees the kept frames of GIFs no bubble on screen shows (the UI loop only).
-static void gifAnimTrim() {
+// Frees the kept frames of GIFs no bubble on screen shows (the UI loop only),
+// those let go of over `idle_ms` ago (0: all of them).
+static void gifAnimTrim(uint32_t idle_ms) {
+  const uint32_t now = millis();
   for (auto& g : s_ga) {
-    if (!g.px || g.refs) continue;
+    if (!g.px || g.refs || (uint32_t)(now - g.used) < idle_ms) continue;
     lvglPsramFree(g.px);
     g = GifAnim();
   }
@@ -785,7 +787,7 @@ static void gifLiveAdd(lv_obj_t* img, lv_img_dsc_t* still, const char* still_url
 static bool gifLiveGone(lv_obj_t* img) {
   for (auto& l : s_gl) {
     if (l.img != img) continue;
-    if (l.a >= 0 && s_ga[(int)l.a].refs) --s_ga[(int)l.a].refs;
+    if (l.a >= 0 && s_ga[(int)l.a].refs) { --s_ga[(int)l.a].refs; s_ga[(int)l.a].used = millis(); }
     lv_img_cache_invalidate_src(&l.dsc);
     if (l.still) { free((void*)l.still->data); free(l.still); }
     l = GifLive();
@@ -819,6 +821,7 @@ static void gifAnimLanded(uint32_t id, uint16_t* px, int w, int h, int n, const 
 // From the UI loop: collects a finished job, then starts the next download.
 static void linkImgTick() {
   LiJob& j = s_li_job;
+  gifAnimTrim(30000);   // a chat closed or scrolled on: its GIFs' frames go after 30 s
   if (j.state == 1) return;
   if (j.state == 2) {
     const uint32_t id = j.id;
