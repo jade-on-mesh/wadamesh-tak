@@ -296,22 +296,31 @@ Crossing never sends on an `rx`-only radio2.
     5 minutes) is answered there: on the main radio for a direct reply, on both
     for a channel. Asked for on radio2, or not asked for, it stays on
     `tx.media`'s route.
-- **Client Repeat** switches radio2 **Off** when it is turned on (and ends a
-  `tempradio2`), exactly as choosing Off does, and remembers whether radio2 was
-  Off or on (and how: `rx` or `rxtx`). Everything, photos and voice too, goes out on
-  the main radio (918 MHz for a client-repeat group). radio2 can't be turned
-  back on while Client Repeat is on (one turned on from an app or the
-  Terminal goes off again, and that choice is the one remembered). Turning
-  Client Repeat off puts radio2 back as it was. `get radio2` says
-  `> off; client repeat is on (radio2 back to rxtx when it is off)`; the
-  remembered mode is saved, so it survives a restart. In general, a repeating node relays
-  each packet on the radio it arrived on, following
-  `radio2.cross` from that radio. With MediaMesh's `cross off`, radio2 traffic
-  is relayed on radio2 and main-mesh traffic on the main radio, so others'
-  radio2 photos and voice aren't relayed onto the main mesh. A packet its sender put on both radios (a
-  request with `mediamesh.share on`, anything with `cross on`) is relayed on
-  each radio it is heard on, once per radio, and handled (shown, passed to the
-  app) only once. radio2 must be on and sending (`rxtx`) to relay there.
+- **Client Repeat** moves the main radio to the off-grid channel, the allowed
+  client-repeat frequency nearest the current one (918.000 MHz in the US,
+  869.495 in EU868, 433.000 at 433) at 62.5 kHz, SF7, CR 4/5, as MeshCore Open
+  TAK's Off-Grid Repeat does, and remembers the settings it replaced; turning it
+  off puts them back.
+  - **US band:** radio2 runs MediaMesh beside it, 250 kHz above (918.250 MHz)
+    at 250 kHz, SF7, CR 4/5, listening and sending, with `radio2.cross off`.
+    The two channels don't overlap (keymindCascade's spacing rule wants more
+    than (62.5 + 250) / 2 + 6 = 162.25 kHz between centres), so the radio scans
+    them as it scans the main mesh and MediaMesh normally. Photos and voice go
+    on radio2; everything else stays on the off-grid channel.
+  - **Elsewhere** (EU868's off-grid channel has no room beside it in its
+    sub-band): radio2 is **Off**, a 2.4 GHz radio2 included, and everything
+    goes out on the off-grid main radio.
+  - Either way radio2's mode, settings and `radio2.cross` are remembered and
+    put back when Client Repeat is turned off, and a `tempradio2` ends.
+    radio2 changed meanwhile (from an app or the Terminal) is set again, and
+    that newer choice is the one put back. `get radio2` adds
+    `; client repeat is on (radio2 back to rxtx when it is off)`; the
+    remembered settings are saved, so they survive a restart.
+  - A repeating node relays each packet on the radio it arrived on, following
+    `radio2.cross` from that radio, so others' MediaMesh photos and voice are
+    relayed on radio2 and the off-grid channel's traffic on the main radio. A
+    packet its sender put on both radios is relayed on each radio it is heard
+    on, once per radio, and handled (shown, passed to the app) only once.
 - **tx.user** covers everything addressed to a contact: messages, logins,
   requests, path-return retries, every flood to them, and the ACKs and replies
   we send them. Direct packets the core sends by itself (room keep-alives) are
@@ -546,11 +555,10 @@ repeat. It needs radio2 On (listen and send). On a 2.4 GHz radio2, a few
 standalones with it on make a 2.4 GHz MediaMesh with no repeaters on 900 MHz
 involved.
 
-**Client repeat** normally turns radio2 off. A radio2 on 2.4 GHz is left on
-instead: it shares no band with the main mesh, so a standalone in Client repeat
-relays the main mesh at 900 MHz and MediaMesh at 2.4 GHz, each on the band it
-arrived on, with no extra setting. Moving radio2 to 2.4 GHz while Client repeat
-holds it off turns it back on.
+**Client repeat** sets radio2 itself: beside the off-grid channel in the US
+band (918.250 MHz, 250 kHz), off elsewhere, a 2.4 GHz radio2 included. It
+relays radio2 traffic on radio2 as it is, so Repeat MediaMesh adds nothing
+while it is on.
 
 ## Limits
 

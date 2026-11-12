@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "ClientRepeat.h"
 #include "MediaMesh.h"
 
 #include <Arduino.h>
@@ -280,7 +281,19 @@ void loop() {
 
 void setClientRepeat(bool on) {
   ensureLoaded();
-  if (!holdForClientRepeat(s_rt, on)) return;
+  // radio2 beside the off-grid main channel (US band), else off.
+  Params beside;
+  bool has_beside = false;
+  if (on && supported()) {
+    const Params m = savedPrimary();
+    clientrepeat::Radio main, r2;
+    main.freq = m.freq; main.bw = m.bw; main.sf = m.sf; main.cr = m.cr;
+    if (clientrepeat::radio2For(main, r2)) {
+      beside.freq = r2.freq; beside.bw = r2.bw; beside.sf = r2.sf; beside.cr = r2.cr; beside.preamble = 0;
+      has_beside = validParams(beside);
+    }
+  }
+  if (!holdForClientRepeat(s_rt, on, has_beside ? &beside : nullptr)) return;
   save();
   applySecondary();
 }

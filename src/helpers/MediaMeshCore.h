@@ -83,12 +83,16 @@ struct Config {
   // and a transfer asked for only on the main radio is answered there.
   uint8_t share = 0;
   // radio2.repeat ("Repeat MediaMesh"): relay what is heard on radio2, on
-  // radio2, like Client Repeat does for the main mesh but leaving the main
-  // mesh alone. A standalone becomes a MediaMesh repeater (on 2.4 GHz too).
+  // radio2, leaving the main mesh alone. A standalone becomes a MediaMesh
+  // repeater (on 2.4 GHz too). Client Repeat holds radio2 off, so not then.
   uint8_t relay = 0;
-  // Client Repeat switched radio2 off: the mode it had (off, rx or rxtx), put
-  // back when Client Repeat is turned off. kNotHeld when Client Repeat is off.
+  // Client Repeat holds radio2 (off, or beside the off-grid channel): the mode
+  // it had (off, rx or rxtx), put back when Client Repeat is turned off.
+  // kNotHeld when Client Repeat is off. held_p and held_cross are its radio
+  // settings and radio2.cross then (held_p.freq 0: not recorded, kept as is).
   uint8_t held = 0xFF;
+  uint8_t held_cross = CROSS_AUTO;
+  Params held_p;
   // Developer switch (hidden `mediamesh.main`): photos and voice may use the
   // main mesh. Off, they go on radio2 alone, whatever tx.media and
   // mediamesh.share say, and nowhere without radio2: a photo burst on the
@@ -396,10 +400,12 @@ inline const char* maskName(uint8_t mask) {
 // blob keeps its behaviour: media where it was, crossing off. v3 adds byte 18,
 // mediamesh.share; older blobs read as share off. v4 adds byte 19, the radio2
 // mode Client Repeat is holding (0xFF none). v5 adds byte 20, the developer
-// switch (mediamesh.main). v6 adds byte 21, radio2.repeat.
+// switch (mediamesh.main). v6 adds byte 21, radio2.repeat. v7 adds bytes
+// 22-34, the radio2 settings and cross mode Client Repeat is holding.
 
-static constexpr uint8_t kBlobVersion = 6;
-static constexpr size_t kBlobSize = 22;
+static constexpr uint8_t kBlobVersion = 7;
+static constexpr size_t kBlobSize = 35;
+static constexpr size_t kBlobSizeV6 = 22;
 static constexpr size_t kBlobSizeV5 = 21;
 static constexpr size_t kBlobSizeV4 = 20;
 static constexpr size_t kBlobSizeV2 = 18;
@@ -416,13 +422,20 @@ inline size_t encode(const Config& c, uint8_t out[kBlobSize]) {
   out[19] = c.held;
   out[20] = c.main_ok ? 1 : 0;
   out[21] = c.relay ? 1 : 0;
+  memcpy(&out[22], &c.held_p.freq, 4);
+  memcpy(&out[26], &c.held_p.bw, 4);
+  out[30] = c.held_p.sf;
+  out[31] = c.held_p.cr;
+  out[32] = (uint8_t)(c.held_p.preamble & 0xFF);
+  out[33] = (uint8_t)(c.held_p.preamble >> 8);
+  out[34] = c.held_cross;
   return kBlobSize;
 }
 
 inline bool decode(const uint8_t* in, size_t len, Config& c) {
-  if (!in || len < kBlobSizeV2 || in[0] != 'M' || in[1] != 'M' || in[2] < 1 || in[2] > 6) return false;
+  if (!in || len < kBlobSizeV2 || in[0] != 'M' || in[1] != 'M' || in[2] < 1 || in[2] > 7) return false;
   if ((in[2] == 3 && len < kBlobSizeV3) || (in[2] == 4 && len < kBlobSizeV4) || (in[2] == 5 && len < kBlobSizeV5)
-      || (in[2] == 6 && len < kBlobSize))
+      || (in[2] == 6 && len < kBlobSizeV6) || (in[2] == 7 && len < kBlobSize))
     return false;
   Config d;
   d.mode = in[3] <= MODE_RXTX ? in[3] : (uint8_t)MODE_OFF;
@@ -441,6 +454,16 @@ inline bool decode(const uint8_t* in, size_t len, Config& c) {
   d.held = in[2] >= 4 && in[19] <= MODE_RXTX ? in[19] : kNotHeld;
   d.main_ok = in[2] >= 5 && in[20] == 1 ? 1 : 0;
   d.relay = in[2] >= 6 && in[21] == 1 ? 1 : 0;
+  if (in[2] >= 7) {
+    Params hp;
+    memcpy(&hp.freq, &in[22], 4);
+    memcpy(&hp.bw, &in[26], 4);
+    hp.sf = in[30];
+    hp.cr = in[31];
+    hp.preamble = (uint16_t)(in[32] | (in[33] << 8));
+    if (validParams(hp)) d.held_p = hp;
+    d.held_cross = in[34] <= CROSS_OFF ? in[34] : (uint8_t)CROSS_AUTO;
+  }
   if (!validParams(d.p)) return false;
   c = d;
   return true;
@@ -1207,33 +1230,50 @@ inline void endTemp2(Runtime& r) {
   for (int i = 4; i < 8; ++i) r.sched[i] = Schedule();
 }
 
-/** Client Repeat forces radio2 off, as choosing Off does, and remembers the
- *  mode it had; turning Client Repeat off puts that mode back. Call with the
- *  current setting every loop: radio2 turned on meanwhile (from the app, the
- *  Terminal or a schedule) goes off again, and that newer choice is the one
- *  restored. True when the saved settings changed (save and apply them). */
-//
-// A radio2 on 2.4 GHz is left on: it shares no band with the main mesh, so
-// Client Repeat relays it too (what arrives on radio2 goes back out there),
-// and a standalone repeating at 900 MHz repeats MediaMesh at 2.4 GHz as well.
-// Moving radio2 to 2.4 GHz while it is held puts its mode back.
-inline bool holdForClientRepeat(Runtime& r, bool on) {
-  if (on && is24GHz(r.saved.p.freq) && validParams(r.saved.p)) {
-    if (r.saved.held == kNotHeld) return false;
-    r.saved.mode = r.saved.held;
-    r.saved.held = kNotHeld;
-    return true;
-  }
+/** Client Repeat holds radio2: with `beside` (the US band; ClientRepeat.h's
+ *  radio2For) radio2 runs MediaMesh there, listening and sending, with
+ *  radio2.cross off so ordinary traffic stays on the off-grid main channel;
+ *  without it radio2 is off, as choosing Off is, a 2.4 GHz radio2 included.
+ *  The mode, settings and cross mode it had are remembered and put back when
+ *  Client Repeat is turned off. Call with the current setting every loop:
+ *  radio2 changed meanwhile (from the app, the Terminal or a schedule) is held
+ *  again, and that newer choice is the one restored. True when the saved
+ *  settings changed (save and apply them). */
+inline bool holdForClientRepeat(Runtime& r, bool on, const Params* beside = nullptr) {
+  Config& c = r.saved;
   if (!on) {
-    if (r.saved.held == kNotHeld) return false;
-    r.saved.mode = r.saved.held;
-    r.saved.held = kNotHeld;
+    if (c.held == kNotHeld) return false;
+    c.mode = c.held;
+    if (c.held_p.freq > 0 && validParams(c.held_p)) c.p = c.held_p;
+    c.cross = c.held_cross;
+    c.held = kNotHeld;
+    c.held_p = Params();
+    c.held_cross = CROSS_AUTO;
     return true;
   }
+  // What Client Repeat wants radio2 to be.
+  const uint8_t want_mode = beside ? (uint8_t)MODE_RXTX : (uint8_t)MODE_OFF;
+  const bool holding = c.mode == want_mode && (!beside || (sameParams(c.p, *beside) && c.cross == CROSS_OFF));
+  // A radio2 Client Repeat itself set (beside one it set before, the main
+  // radio having moved since) isn't a choice to remember.
+  const bool ours = c.held != kNotHeld && c.mode == MODE_RXTX && c.cross == CROSS_OFF && c.p.bw == 250.0f &&
+                    c.p.sf == 7 && c.p.cr == 5 && c.p.preamble == 0;
   bool changed = false;
-  if (r.saved.held == kNotHeld || r.saved.mode != MODE_OFF) {
-    r.saved.held = r.saved.mode;
-    r.saved.mode = MODE_OFF;
+  if (c.held == kNotHeld || !holding) {   // the first call always records
+    if (c.held == kNotHeld || !ours) {
+      c.held = c.mode;
+      // `set radio2 off` keeps the settings (and cross) Client Repeat put
+      // there: those aren't a choice to remember.
+      if (c.held_p.freq == 0 || !beside || !sameParams(c.p, *beside)) {
+        c.held_p = c.p;
+        c.held_cross = c.cross;
+      }
+    }
+    c.mode = want_mode;
+    if (beside) {
+      c.p = *beside;
+      c.cross = CROSS_OFF;
+    }
     changed = true;
   }
   if (r.temp2) {
@@ -1297,7 +1337,8 @@ inline CliResult handleCli(const char* cmd, Runtime& r, const Env& env, char* re
                policyName(r.saved.media), crossName(r.saved.cross), r.saved.share ? "on" : "off",
                r.saved.relay ? "on" : "off", r.temp2 ? "; tempradio2 on" : "",
                !env.supported ? "unsupported on this radio"
-               : r.saved.held != kNotHeld ? "radio2 off for client repeat"
+               : r.saved.held != kNotHeld
+                   ? (r.saved.mode == MODE_OFF ? "radio2 off for client repeat" : "radio2 set by client repeat")
                : (policyMask(r, r.saved.media) & 2) ? "media on radio2" : "media on radio");
       return res;
     }

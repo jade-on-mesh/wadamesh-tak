@@ -34,6 +34,7 @@
 #if defined(ESP32) && defined(HAS_TOUCH_UI)
 #include "helpers/esp32/TouchPrefsStore.h"
 #include "helpers/MediaMesh.h"   // MediaMesh: photos/voice on the radio2 profile
+#include "helpers/ClientRepeat.h"   // Client Repeat: the off-grid preset it moves to
 #include "helpers/LoraUpdate.h"  // LoRa Update: serve .mota firmware to a repeater
 #include "helpers/ota/OtaFormat.h"
 #endif
@@ -4507,6 +4508,51 @@ static FreqRange repeat_freq_ranges[] = {
   #endif
 };
 
+// Client Repeat's remembered radio settings (helpers/ClientRepeat.h).
+static constexpr const char* kClientRepeatKey = "crprev";
+
+static void applyRadioPrefs(const NodePrefs& p) {
+  radio_driver.radioAcquire();   // hold off the RX drain task mid-sequence (no-op when off)
+  radio_driver.setParams(p.freq, p.bw, p.sf, p.cr);
+#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_LR1121) || defined(USE_LR2021) || defined(SX126X_RX_BOOSTED_GAIN)
+  radio_driver.setRxBoostedGainMode(p.rx_boosted_gain != 0);
+#endif
+  radio_driver.radioRelease();
+}
+
+static void rememberRadioForClientRepeat(const NodePrefs& p) {
+  clientrepeat::Radio r;
+  r.freq = p.freq; r.bw = p.bw; r.sf = p.sf; r.cr = p.cr;
+  uint8_t b[clientrepeat::kBlobSize];
+  clientrepeat::encode(r, b);
+  touchPrefsSetBlob(kClientRepeatKey, b, sizeof b);
+}
+
+bool MyMesh::setClientRepeat(bool on) {
+  if ((_prefs.client_repeat != 0) == on) return true;
+  const NodePrefs before = _prefs;
+  if (on) {
+    clientrepeat::Range ranges[sizeof(repeat_freq_ranges) / sizeof(repeat_freq_ranges[0])];
+    const int n = (int)(sizeof(ranges) / sizeof(ranges[0]));
+    for (int i = 0; i < n; ++i) ranges[i] = {repeat_freq_ranges[i].lower_freq, repeat_freq_ranges[i].upper_freq};
+    const clientrepeat::Radio og = clientrepeat::offGrid(_prefs.freq, ranges, n);
+    _prefs.freq = og.freq; _prefs.bw = og.bw; _prefs.sf = og.sf; _prefs.cr = og.cr;
+  } else {
+    uint8_t b[clientrepeat::kBlobSize + 4];
+    clientrepeat::Radio prev;
+    if (clientrepeat::decode(b, touchPrefsGetBlob(kClientRepeatKey, b, sizeof b), prev)) {
+      _prefs.freq = prev.freq; _prefs.bw = prev.bw; _prefs.sf = prev.sf; _prefs.cr = prev.cr;
+    }
+  }
+  _prefs.client_repeat = on ? 1 : 0;
+  if (!savePrefs()) { _prefs = before; return false; }
+  if (on) rememberRadioForClientRepeat(before);
+  else touchPrefsSetBlob(kClientRepeatKey, nullptr, 0);
+  applyRadioPrefs(_prefs);
+  mediamesh::setClientRepeat(on);   // radio2 off now, not at the next loop
+  return true;
+}
+
 bool MyMesh::isValidClientRepeatFreq(uint32_t f) const {
   for (int i = 0; i < sizeof(repeat_freq_ranges)/sizeof(repeat_freq_ranges[0]); i++) {
     auto r = &repeat_freq_ranges[i];
@@ -5160,6 +5206,12 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     } else if (freq >= 300000 && freq <= 2500000 && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
         bw <= 500000) {
+      // Client Repeat turned on from the app: remember what it replaced, so
+      // turning it off on the touch screen puts that back. The app turning it
+      // off sends the settings to go back to itself.
+      const bool was_repeat = _prefs.client_repeat != 0;
+      if (repeat && !was_repeat) rememberRadioForClientRepeat(_prefs);
+      else if (!repeat && was_repeat) touchPrefsSetBlob(kClientRepeatKey, nullptr, 0);
       _prefs.sf = sf;
       _prefs.cr = cr;
       _prefs.freq = (float)freq / 1000.0;
@@ -5167,12 +5219,8 @@ void MyMesh::handleCmdFrame(size_t len) {
       _prefs.client_repeat = repeat;
       savePrefs();
 
-      radio_driver.radioAcquire();   // hold off the RX drain task mid-sequence (no-op when off)
-      radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
-#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_LR1121) || defined(USE_LR2021) || defined(SX126X_RX_BOOSTED_GAIN)
-      radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain != 0);
-#endif
-      radio_driver.radioRelease();
+      applyRadioPrefs(_prefs);
+      mediamesh::setClientRepeat(repeat != 0);
       MESH_DEBUG_PRINTLN("OK: CMD_SET_RADIO_PARAMS: f=%d, bw=%d, sf=%d, cr=%d", freq, bw, (uint32_t)sf,
                          (uint32_t)cr);
 

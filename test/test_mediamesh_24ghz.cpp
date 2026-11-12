@@ -97,36 +97,39 @@ static void testRepeat() {
   res = handleCli("set radio2.repeat off", r, e, out, sizeof out);
   assert(res.save && r.saved.relay == 0);
 
-  // Saved in the v6 blob; a v5 blob (21 bytes) reads as off.
+  // Saved in the blob (v7); a v6 blob (22 bytes) still reads, a v5 one as off.
   Config c;
   defaults(c);
   c.mode = MODE_RXTX;
   c.p = P(k24Freq, k24Bw, 7, 5);
   c.relay = 1;
   uint8_t b[kBlobSize];
-  assert(encode(c, b) == kBlobSize && b[2] == 6);
+  assert(encode(c, b) == kBlobSize && b[2] == 7);
   Config d;
   assert(decode(b, sizeof b, d) && d.relay == 1 && is24GHz(d.p.freq));
+  assert(!decode(b, kBlobSizeV6, d));   // v7 cut short
+  b[2] = 6;
+  assert(decode(b, kBlobSizeV6, d) && d.relay == 1 && d.held_p.freq == 0);
   assert(!decode(b, kBlobSizeV5, d));   // v6 cut short
   b[2] = 5;
   assert(decode(b, kBlobSizeV5, d) && d.relay == 0);
 }
 
-// Client Repeat leaves a 2.4 GHz radio2 on (it relays it too), and moving a
-// held radio2 to 2.4 GHz puts its mode back.
+// Client Repeat holds a 2.4 GHz radio2 off too, like a 900 MHz one, and moving
+// a held radio2 to 2.4 GHz doesn't bring it back.
 static void testClientRepeat() {
   Runtime r;
   defaults(r.saved);
   r.saved.mode = MODE_RXTX;
   r.saved.p = P(k24Freq, k24Bw, 7, 5);
-  assert(!holdForClientRepeat(r, true) && r.saved.mode == MODE_RXTX && r.saved.held == kNotHeld);
-  // A 900 MHz radio2 is held off as before ...
-  r.saved.p = P(911.15f, 250.0f, 7, 5);
   assert(holdForClientRepeat(r, true) && r.saved.mode == MODE_OFF && r.saved.held == MODE_RXTX);
-  // ... and comes back on when moved to 2.4 GHz.
-  r.saved.p = P(k24Freq, k24Bw, 7, 5);
-  assert(holdForClientRepeat(r, true) && r.saved.mode == MODE_RXTX && r.saved.held == kNotHeld);
   assert(!holdForClientRepeat(r, true));   // steady
+  r.saved.p = P(911.15f, 250.0f, 7, 5);
+  assert(!holdForClientRepeat(r, true) && r.saved.mode == MODE_OFF);
+  r.saved.p = P(k24Freq, k24Bw, 7, 5);
+  assert(!holdForClientRepeat(r, true) && r.saved.mode == MODE_OFF && r.saved.held == MODE_RXTX);
+  // Off puts it back as it was.
+  assert(holdForClientRepeat(r, false) && r.saved.mode == MODE_RXTX && r.saved.held == kNotHeld);
   assert(!holdForClientRepeat(r, false));  // nothing held
 }
 

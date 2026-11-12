@@ -1227,6 +1227,12 @@ private:
 public:
   bool savePrefs() { return _store->savePrefs(_prefs, sensors.node_lat, sensors.node_lon); }
 
+  // Client Repeat on: the main radio moves to the off-grid preset (918 MHz,
+  // 250 kHz, SF11, CR 4/8 in the US; helpers/ClientRepeat.h) and remembers the
+  // settings it replaced. Off: those come back. radio2 is held off meanwhile
+  // (MediaMesh). False if the settings couldn't be saved.
+  bool setClientRepeat(bool on);
+
   // Set the default flood scope (region) used to tag outgoing flood packets, so
   // repeaters on region-scoped networks ("flood only for their region") will
   // re-broadcast them. A public "#hashtag" region's scope key is SHA256("#name");
