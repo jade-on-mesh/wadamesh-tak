@@ -21,7 +21,7 @@ GIFs work the way they do in MeshCore Open. A GIF is sent as `g:<id>`, a Giphy G
 - **Giphy links:** `media.giphy.com/media/<id>/giphy.gif` and `giphy.com/gifs/<title>-<id>` messages count as GIFs too.
 - **Sending:** in a chat, open the emoji picker and pick **GIF** (it is next to 🔍). Trending GIFs show first. Type to search; results come after a short pause. Tap one to preview it: it plays full size with **Send** under it. Send sends it to the chat; Back (the status bar) returns to the picker, which finishes loading its stills.
 - **Previews and notifications** say "GIF".
-- **In a bubble** a GIF plays from Giphy's 100 px copy, at most 48 frames (768 KB), so a longer GIF loops its first part there. The last four GIFs' frames are kept and shared by every bubble showing them. At most ten GIFs play at once; any more stay still.
+- **In a bubble** a GIF plays from Giphy's 100 px copy, at most 512 KB of frames (about 36), so a longer GIF loops its first part there. The last four GIFs' frames are kept and shared by every bubble showing them, and the ones no bubble on screen shows are let go when a GIF is opened or previewed. At most ten GIFs play at once; any more stay still.
 - **The player** downloads Giphy's 200 px animated copy and decodes up to 150 frames (4 MB) into PSRAM. A longer GIF plays its first part. It is kept on the SD card like other linked pictures.
 - **The picker** asks Giphy for 12 GIFs and fetches each one's 100 px still, one at a time. Other linked pictures wait while it works.
 - **Privacy:** fetching from Giphy tells Giphy this radio's address, as the app does. It uses MeshCore Open's API key.

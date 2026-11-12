@@ -50,7 +50,7 @@ here so every standalone gets it.
 - A head giving log-magnitude and phase for an inverse STFT (512 samples, hop
   128) at 16 kHz, the standalones' speaker rate.
 
-About 0.5 million weights (kept as floats in PSRAM, about 2 MB, while it's on)
+About 0.5 million weights (kept as floats in PSRAM, about 2 MB, from the first clip it restores until a minute with no voice playing; the next clip loads it again, in about a second)
 and 60 million multiply-adds per second of voice. A clip also needs about
 160 KB of PSRAM per second of voice while it's restored. The model file's shape is read
 from its header, so a kit run at another size (`KIT_SMALL_DIM`,

@@ -42824,6 +42824,19 @@ static MapMarkerStyles& mapMarkerStyles() {   // non-const: LVGL 8 takes lv_styl
 static bool mapOnScreen() {
   return s_map_canvas && getActiveTab() == MAP_TAB_INDEX && g_lv.task && !g_lv.task->isScreenOff();
 }
+// The map off screen for 20 s: the tiles kept decoded for panning back (128 KB
+// each, up to a couple of MB) go; the ones on its canvas stay, so it comes back
+// as it was. Reopening and panning reads the rest from the card again.
+static void mapTilesIdleTick(uint32_t now) {
+  static uint32_t s_off_since = 0;
+  if (mapOnScreen()) { s_off_since = 0; return; }
+  if (!s_off_since) { s_off_since = now ? now : 1; return; }
+  if ((uint32_t)(now - s_off_since) < 20000) return;
+  for (int i = 0; i < k_map_tile_slots; ++i) {
+    MapTile& t = s_map_tiles[i];
+    if (t.rgb565 && !t.in_use) freeMapTileSlot(t);
+  }
+}
 static void renderMapMarkers() {
   if (s_map_canvas && !mapOnScreen()) { s_map_markers_stale = true; return; }
   // renderMapTiles rebuilt them a moment ago for this very centre and zoom, and
@@ -81402,6 +81415,18 @@ void voxRsDownloadNow() {
 #endif
 }
 
+// The model is ~2 MB of PSRAM: let it go after a minute with no voice playing,
+// and load it again (about a second, from the card) for the next clip.
+static void voxRsIdleTick(uint32_t now) {
+  static uint32_t s_quiet_since = 0;
+  if (!s_vox_rs.loaded() || s_vox_voice_sid) { s_quiet_since = 0; return; }
+  if (!s_quiet_since) { s_quiet_since = now ? now : 1; return; }
+  if ((uint32_t)(now - s_quiet_since) < 60000) return;
+  s_vox_rs.unload();
+  s_quiet_since = 0;
+  Serial.println("[VOX] restorer unloaded after a minute of quiet (~2 MB PSRAM back)");
+}
+
 void voxRsSetOn(bool on) {
   touchPrefsSetVoiceRestore(on);
   if (!on && !s_vox_voice_sid) s_vox_rs.unload();   // gives its ~2 MB of PSRAM back
@@ -81568,6 +81593,7 @@ static bool voxVoicePlay(uint32_t, const char** err) {
   *err = "This radio can't play voice clips";
   return false;
 }
+static void voxRsIdleTick(uint32_t) {}
 #endif
 static void voxVoiceStop() { if (s_vox_voice_sid) s_vox_voice_stop = true; }
 
@@ -90870,6 +90896,8 @@ void UITask::loop() {
     uiCp("ui:team");
     teamui::loopTick();     // beacons, alert repeats, alarm, Bloodhound, map refresh
     if (s_map_markers_stale && mapOnScreen()) renderMapMarkers();   // the map came back into view
+    mapTilesIdleTick(now);  // off screen: the spare decoded tiles go back to PSRAM
+    voxRsIdleTick(now);     // the voice restorer's 2 MB model, after a minute of quiet
     uiCp("ui:mmcov");
     mmcovui::loopTick(now); // MediaMesh coverage: ask the repeaters every 150 m
 #if CAP_FLOCK_YOU
