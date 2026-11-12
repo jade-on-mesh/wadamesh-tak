@@ -238,6 +238,39 @@ static void testShare() {
   // Client Repeat off: radio2 as it was.
   assert(holdForClientRepeat(r, false) && r.saved.mode == MODE_RX && r.saved.held == kNotHeld);
   assert(!holdForClientRepeat(r, false));
+
+  // In the US band radio2 runs beside the off-grid channel instead: 918.250,
+  // 250 kHz SF7, listening and sending, cross off; all of it put back after.
+  run("set radio2 911.15,250,7,5,rxtx", r, e, out);
+  run("set radio2.cross on", r, e, out);
+  Params beside;
+  beside.freq = 918.25f; beside.bw = 250.0f; beside.sf = 7; beside.cr = 5;
+  assert(holdForClientRepeat(r, true, &beside));
+  assert(r.saved.mode == MODE_RXTX && sameParams(r.saved.p, beside) && r.saved.cross == CROSS_OFF);
+  assert(r.saved.held == MODE_RXTX && r.saved.held_p.freq == 911.15f && r.saved.held_cross == CROSS_ON);
+  assert(!holdForClientRepeat(r, true, &beside));   // steady
+  run("get radio2", r, e, out);
+  assert(!strncmp(out, "> 918.250,", 10) && strstr(out, "client repeat is on (radio2 back to rxtx"));
+  run("get mediamesh", r, e, out);
+  assert(strstr(out, "radio2 set by client repeat"));
+  // The blob keeps what is held.
+  {
+    uint8_t b[kBlobSize];
+    encode(r.saved, b);
+    Config d;
+    assert(decode(b, sizeof b, d) && d.held == MODE_RXTX && d.held_p.freq == 911.15f && d.held_cross == CROSS_ON);
+  }
+  // Turned off from the app meanwhile: held again, Off remembered, settings kept.
+  run("set radio2 off", r, e, out);
+  assert(holdForClientRepeat(r, true, &beside) && r.saved.mode == MODE_RXTX && r.saved.held == MODE_OFF);
+  assert(r.saved.held_p.freq == 911.15f);
+  // The main radio moved: radio2 follows it, nothing new remembered.
+  Params moved = beside;
+  moved.freq = 918.5f;
+  assert(holdForClientRepeat(r, true, &moved) && sameParams(r.saved.p, moved) && r.saved.held == MODE_OFF);
+  // Client Repeat off: off, at 911.150, cross on, as before.
+  assert(holdForClientRepeat(r, false));
+  assert(r.saved.mode == MODE_OFF && r.saved.p.freq == 911.15f && r.saved.cross == CROSS_ON && r.saved.held == kNotHeld);
   // Off before Client Repeat: stays off after.
   run("set radio2 off", r, e, out);
   holdForClientRepeat(r, true);

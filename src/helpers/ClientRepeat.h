@@ -2,12 +2,13 @@
 #pragma once
 
 // Client Repeat: a standalone forwards other nodes' packets on the off-grid
-// channel, MeshCore Open TAK's "Off-Grid" preset: the allowed client-repeat
-// frequency nearest the current one (918.000 MHz in the US, 869.495 in EU868,
-// 433.000 at 433), 250 kHz, SF11, CR 4/8. Turning it on remembers the radio
-// settings it replaced; turning it off puts them back. radio2 is held off
-// meanwhile (MediaMeshCore.h, holdForClientRepeat), so everything goes out on
-// the off-grid main radio. Pure, so the host test runs it
+// channel: the allowed client-repeat frequency nearest the current one
+// (918.000 MHz in the US, 869.495 in EU868, 433.000 at 433) in the standard
+// shape, 62.5 kHz, SF7, CR 4/5, as MeshCore Open TAK's Off-Grid Repeat sets it.
+// Turning it on remembers the radio settings it replaced; turning it off puts
+// them back. In the US band radio2 runs MediaMesh beside it, 250 kHz above at
+// 250 kHz, SF7, CR 4/5 (radio2For); elsewhere radio2 is held off
+// (MediaMeshCore.h, holdForClientRepeat). Pure, so the host test runs it
 // (test/test_client_repeat.cpp); MyMesh keeps the remembered settings.
 
 #include <math.h>
@@ -24,10 +25,18 @@ struct Radio {
   uint8_t cr = 0;   // 5..8 = 4/5..4/8
 };
 
-// The preset's settings apart from the frequency (the app's Off-Grid presets).
-constexpr float kBw = 250.0f;
-constexpr uint8_t kSf = 11;
-constexpr uint8_t kCr = 8;
+// The off-grid main radio's settings apart from the frequency.
+constexpr float kBw = 62.5f;
+constexpr uint8_t kSf = 7;
+constexpr uint8_t kCr = 5;
+
+// radio2 beside it: MediaMesh's fast preset, its centre this far from the
+// main channel's. Clear of a 62.5 kHz main channel with room to spare
+// (keymindCascade warns under (62.5 + 250) / 2 + 6 = 162.25 kHz).
+constexpr float kRadio2Bw = 250.0f;
+constexpr uint8_t kRadio2Sf = 7;
+constexpr uint8_t kRadio2Cr = 5;
+constexpr float kRadio2OffsetMhz = 0.250f;
 
 struct Range { uint32_t lo_khz, hi_khz; };
 
@@ -46,6 +55,23 @@ inline Radio offGrid(float freq_mhz, const Range* ranges, int n) {
   }
   r.freq = best < 0 ? freq_mhz : (float)((double)best / 1000.0);
   return r;
+}
+
+/** The radio2 Client Repeat runs beside an off-grid main radio on `main`: in
+ *  the US band (902-928 MHz), 250 kHz above it (below, if above leaves the
+ *  band). False elsewhere, where radio2 stays off: EU868's off-grid channel
+ *  has no room beside it in its sub-band. */
+inline bool radio2For(const Radio& main, Radio& out) {
+  if (!(main.freq >= 902.0f && main.freq <= 928.0f)) return false;
+  const float half = kRadio2Bw / 2000.0f;
+  float f = main.freq + kRadio2OffsetMhz;
+  if (f + half > 928.0f) f = main.freq - kRadio2OffsetMhz;
+  if (f - half < 902.0f) return false;
+  out.freq = (float)((double)lround((double)f * 1000.0) / 1000.0);
+  out.bw = kRadio2Bw;
+  out.sf = kRadio2Sf;
+  out.cr = kRadio2Cr;
+  return true;
 }
 
 inline bool same(const Radio& a, const Radio& b) {
