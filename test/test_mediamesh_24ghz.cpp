@@ -112,21 +112,21 @@ static void testRepeat() {
   assert(decode(b, kBlobSizeV5, d) && d.relay == 0);
 }
 
-// Client Repeat leaves a 2.4 GHz radio2 on (it relays it too), and moving a
-// held radio2 to 2.4 GHz puts its mode back.
+// Client Repeat holds a 2.4 GHz radio2 off too, like a 900 MHz one, and moving
+// a held radio2 to 2.4 GHz doesn't bring it back.
 static void testClientRepeat() {
   Runtime r;
   defaults(r.saved);
   r.saved.mode = MODE_RXTX;
   r.saved.p = P(k24Freq, k24Bw, 7, 5);
-  assert(!holdForClientRepeat(r, true) && r.saved.mode == MODE_RXTX && r.saved.held == kNotHeld);
-  // A 900 MHz radio2 is held off as before ...
-  r.saved.p = P(911.15f, 250.0f, 7, 5);
   assert(holdForClientRepeat(r, true) && r.saved.mode == MODE_OFF && r.saved.held == MODE_RXTX);
-  // ... and comes back on when moved to 2.4 GHz.
-  r.saved.p = P(k24Freq, k24Bw, 7, 5);
-  assert(holdForClientRepeat(r, true) && r.saved.mode == MODE_RXTX && r.saved.held == kNotHeld);
   assert(!holdForClientRepeat(r, true));   // steady
+  r.saved.p = P(911.15f, 250.0f, 7, 5);
+  assert(!holdForClientRepeat(r, true) && r.saved.mode == MODE_OFF);
+  r.saved.p = P(k24Freq, k24Bw, 7, 5);
+  assert(!holdForClientRepeat(r, true) && r.saved.mode == MODE_OFF && r.saved.held == MODE_RXTX);
+  // Off puts it back as it was.
+  assert(holdForClientRepeat(r, false) && r.saved.mode == MODE_RXTX && r.saved.held == kNotHeld);
   assert(!holdForClientRepeat(r, false));  // nothing held
 }
 

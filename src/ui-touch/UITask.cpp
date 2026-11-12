@@ -18482,16 +18482,9 @@ static void buildMediaMeshRadioCards() {
   }
   {
     NodePrefs* np = the_mesh.getNodePrefs();
-    if (np && np->client_repeat && mediamesh::is24GHz(cfg.p.freq)) {
-      setNote(c, "Client repeat is on and radio2 is on 2.4 GHz, so radio2 stays on: this radio repeats the "
-                 "main mesh at 900 MHz and MediaMesh at 2.4 GHz.");
-    } else if (np && np->client_repeat) {
-      setNote(c, mediamesh::has24GHz()
-                     ? "Client repeat is on, so radio2 is Off: everything, photos and voice too, goes out on the "
-                       "main radio. radio2 goes back to how it was when Client repeat is turned off. On the "
-                       "2.4 GHz preset radio2 stays on and is repeated too."
-                     : "Client repeat is on, so radio2 is Off: everything, photos and voice too, goes out on the "
-                       "main radio. radio2 goes back to how it was when Client repeat is turned off.");
+    if (np && np->client_repeat) {
+      setNote(c, "Client repeat is on, so radio2 is Off: everything, photos and voice too, goes out on the "
+                 "off-grid main radio. radio2 goes back to how it was when Client repeat is turned off.");
     }
   }
   if (mediamesh::has24GHz()) {
@@ -18511,12 +18504,8 @@ static void buildMediaMeshRadioCards() {
                                    opts, 2, mmPresetIndex(cfg), mmPresetCb);
   }
   setSwitchRow(c, "Repeat MediaMesh",
-               mediamesh::has24GHz()
-                   ? "Relay what this radio hears on radio2, on radio2, like a MediaMesh repeater. Main-mesh "
-                     "traffic isn't relayed (that's Client repeat, which also repeats a 2.4 GHz radio2). Needs "
-                     "radio2 On."
-                   : "Relay what this radio hears on radio2, on radio2, like a MediaMesh repeater. Main-mesh "
-                     "traffic isn't relayed (that's Client repeat). Needs radio2 On.",
+               "Relay what this radio hears on radio2, on radio2, like a MediaMesh repeater. Main-mesh "
+               "traffic isn't relayed (that's Client repeat). Needs radio2 On.",
                cfg.relay != 0, mmRelayToggleCb);
   s_mm_find_btn = setButton(c, LV_SYMBOL_GPS, "Find MediaMesh", mmFindCb);
   if (s_mm_find_timer) lv_obj_add_state(s_mm_find_btn, LV_STATE_DISABLED);
@@ -18858,7 +18847,9 @@ static void buildExperimentalSettings() {
   lv_obj_t* c = setCard("Experimental");
   g_set_modal.exp_multi_sw  = setSwitchRow(c, "Multi ACKs", "Sends an extra copy of each ACK, so the sender is likelier to hear one.",
                                            prefs && prefs->multi_acks, nullptr);
-  g_set_modal.exp_repeat_sw = setSwitchRow(c, "Client repeat", "Forwards other nodes' packets, like a repeater. Costs airtime and battery.",
+  g_set_modal.exp_repeat_sw = setSwitchRow(c, "Client repeat", "Forwards other nodes' packets, like a repeater, on the off-grid "
+                                           "channel (918 MHz, 250 kHz, SF11 in the US) with radio2 off. Your radio "
+                                           "settings come back when it's off. Costs airtime and battery.",
                                            prefs && prefs->client_repeat, nullptr);
   g_set_modal.exp_boost_sw  = setSwitchRow(c, "RX boosted gain", "A little more receive sensitivity for a little more current.",
                                            prefs && prefs->rx_boosted_gain, nullptr);
@@ -86536,9 +86527,16 @@ void UITask::setLocationTelemetryMode(uint8_t mode) {
 void UITask::setExperimentalFlags(uint8_t multi_acks, uint8_t client_repeat, uint8_t rx_boosted) {
   if (!_node_prefs) return;
   _node_prefs->multi_acks = multi_acks ? 1u : 0u;
-  _node_prefs->client_repeat = client_repeat ? 1u : 0u;
   _node_prefs->rx_boosted_gain = rx_boosted ? 1u : 0u;
+  const bool repeat_was = _node_prefs->client_repeat != 0;
   the_mesh.savePrefs();
+  // Client Repeat moves the main radio to the off-grid preset and back, and
+  // holds radio2 off (MyMesh::setClientRepeat).
+  if ((client_repeat != 0) != repeat_was) {
+    if (the_mesh.setClientRepeat(client_repeat != 0))
+      showAlert(client_repeat ? TR("Client repeat on: off-grid radio, radio2 off")
+                              : TR("Client repeat off: radio settings restored"), 2000);
+  }
   // Boosted gain is a radio register: set it now, the way the phone app's radio command
   // does (CMD_SET_RADIO_PARAMS in MyMesh), instead of leaving it for the next boot.
 #if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_LR1121) || defined(USE_LR2021) || defined(SX126X_RX_BOOSTED_GAIN)

@@ -83,8 +83,8 @@ struct Config {
   // and a transfer asked for only on the main radio is answered there.
   uint8_t share = 0;
   // radio2.repeat ("Repeat MediaMesh"): relay what is heard on radio2, on
-  // radio2, like Client Repeat does for the main mesh but leaving the main
-  // mesh alone. A standalone becomes a MediaMesh repeater (on 2.4 GHz too).
+  // radio2, leaving the main mesh alone. A standalone becomes a MediaMesh
+  // repeater (on 2.4 GHz too). Client Repeat holds radio2 off, so not then.
   uint8_t relay = 0;
   // Client Repeat switched radio2 off: the mode it had (off, rx or rxtx), put
   // back when Client Repeat is turned off. kNotHeld when Client Repeat is off.
@@ -1211,19 +1211,10 @@ inline void endTemp2(Runtime& r) {
  *  mode it had; turning Client Repeat off puts that mode back. Call with the
  *  current setting every loop: radio2 turned on meanwhile (from the app, the
  *  Terminal or a schedule) goes off again, and that newer choice is the one
- *  restored. True when the saved settings changed (save and apply them). */
-//
-// A radio2 on 2.4 GHz is left on: it shares no band with the main mesh, so
-// Client Repeat relays it too (what arrives on radio2 goes back out there),
-// and a standalone repeating at 900 MHz repeats MediaMesh at 2.4 GHz as well.
-// Moving radio2 to 2.4 GHz while it is held puts its mode back.
+ *  restored. True when the saved settings changed (save and apply them).
+ *  No exceptions, a 2.4 GHz radio2 included: while repeating, everything goes
+ *  out on the off-grid main radio (918 MHz in the US). */
 inline bool holdForClientRepeat(Runtime& r, bool on) {
-  if (on && is24GHz(r.saved.p.freq) && validParams(r.saved.p)) {
-    if (r.saved.held == kNotHeld) return false;
-    r.saved.mode = r.saved.held;
-    r.saved.held = kNotHeld;
-    return true;
-  }
   if (!on) {
     if (r.saved.held == kNotHeld) return false;
     r.saved.mode = r.saved.held;

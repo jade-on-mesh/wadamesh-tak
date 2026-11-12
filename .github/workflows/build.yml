@@ -132,6 +132,11 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_mediamesh_24ghz test/test_mediamesh_24ghz.cpp
           /tmp/test_mediamesh_24ghz
+      - name: Client Repeat (off-grid preset, remembered settings)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_client_repeat test/test_client_repeat.cpp
+          /tmp/test_client_repeat
       - name: Quick replies (golden bytes and report hashes shared with Open TAK)
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \

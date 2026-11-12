@@ -296,10 +296,14 @@ Crossing never sends on an `rx`-only radio2.
     5 minutes) is answered there: on the main radio for a direct reply, on both
     for a channel. Asked for on radio2, or not asked for, it stays on
     `tx.media`'s route.
-- **Client Repeat** switches radio2 **Off** when it is turned on (and ends a
-  `tempradio2`), exactly as choosing Off does, and remembers whether radio2 was
-  Off or on (and how: `rx` or `rxtx`). Everything, photos and voice too, goes out on
-  the main radio (918 MHz for a client-repeat group). radio2 can't be turned
+- **Client Repeat** moves the main radio to the off-grid preset, the allowed
+  client-repeat frequency nearest the current one (918.000 MHz in the US,
+  869.495 in EU868, 433.000 at 433) at 250 kHz, SF11, CR 4/8, the same as
+  MeshCore Open TAK's Off-Grid presets, and remembers the settings it replaced;
+  turning it off puts them back. It switches radio2 **Off** (and ends a
+  `tempradio2`), exactly as choosing Off does, a 2.4 GHz radio2 included, and
+  remembers whether radio2 was Off or on (and how: `rx` or `rxtx`). Everything,
+  photos and voice too, goes out on the off-grid main radio. radio2 can't be turned
   back on while Client Repeat is on (one turned on from an app or the
   Terminal goes off again, and that choice is the one remembered). Turning
   Client Repeat off puts radio2 back as it was. `get radio2` says
@@ -546,11 +550,9 @@ repeat. It needs radio2 On (listen and send). On a 2.4 GHz radio2, a few
 standalones with it on make a 2.4 GHz MediaMesh with no repeaters on 900 MHz
 involved.
 
-**Client repeat** normally turns radio2 off. A radio2 on 2.4 GHz is left on
-instead: it shares no band with the main mesh, so a standalone in Client repeat
-relays the main mesh at 900 MHz and MediaMesh at 2.4 GHz, each on the band it
-arrived on, with no extra setting. Moving radio2 to 2.4 GHz while Client repeat
-holds it off turns it back on.
+**Client repeat** turns radio2 off, a 2.4 GHz radio2 too, and moves the main
+radio to the off-grid preset (918 MHz in the US), so everything goes out there.
+Repeat MediaMesh does nothing while it is on.
 
 ## Limits
 
