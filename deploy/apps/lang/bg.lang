@@ -1,7 +1,7 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: bg
-# ver: 32
+# ver: 33
 # name: Български
 # base: bg
  (device behind)	 (устройството изостава)
@@ -1419,8 +1419,8 @@ Never	Никога
 New PIN	New PIN
 No backups available to restore.	Няма резервни копия за възстановяване.
 No backups yet. Use Export Backup above to create one.	No backups yet. Use Export Backup above to create one.
-No channels yet	No channels yet
-No direct chats yet	No direct chats yet
+No channels yet	Все още няма канали
+No direct chats yet	Все още няма лични чатове
 Normal\nLarge text\nHuge text	Normal\nLarge text\nHuge text
 Not delivered, tap to resend	Not delivered, tap to resend
 Nov	Nov
@@ -2413,3 +2413,28 @@ Asleep: tap screen or 🤍 to wake	Заспал: докосни екрана и�
 Receiving %s\n%lu / %lu bytes	Получаване на %s\n%lu / %lu байта
 Sending %s\n%lu / %lu bytes	Изпращане на %s\n%lu / %lu байта
 File Transfer	Прехвърляне на файлове
+U	Н
+Unread only	Само непрочетени
+No unread chats	Няма непрочетени чатове
+No unread channels	Няма непрочетени канали
+No unread direct chats	Няма непрочетени лични чатове
+Recent	Скорошни
+Smileys	Емотикони
+People	Хора
+Nature	Природа
+Food	Храна
+Activity	Занимания
+Travel	Пътуване
+Objects	Предмети
+Symbols	Символи
+Flags	Знамена
+Chars	Знаци
+Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.	Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.
+Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.	Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.
+Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.	Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.
+\n%d%%, about %lu s left	\n%d%%, още около %lu s
+\n%d%%, about %lu min left	\n%d%%, още около %lu мин
+Keep this orientation?\nIf the screen does not answer your taps, leave it: it goes back to portrait in %d s.	Да се запази ли тази ориентация?\nАко екранът не реагира на докосване, оставете го: след %d s се връща в портретна.
+Back to portrait… restarting	Обратно към портретна… рестартиране
+Keep	Запази
+Orientation kept	Ориентацията е запазена

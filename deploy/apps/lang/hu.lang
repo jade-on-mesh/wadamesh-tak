@@ -1,7 +1,7 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: hu
-# ver: 32
+# ver: 33
 # name: Magyar
 # base: hu
  (device behind)	 (készülék hátulján)
@@ -1432,8 +1432,8 @@ Never	Soha
 New PIN	New PIN
 No backups available to restore.	Nincs visszaállítható mentés.
 No backups yet. Use Export Backup above to create one.	No backups yet. Use Export Backup above to create one.
-No channels yet	No channels yet
-No direct chats yet	No direct chats yet
+No channels yet	Még nincs csatorna
+No direct chats yet	Még nincs közvetlen csevegés
 Normal\nLarge text\nHuge text	Normal\nLarge text\nHuge text
 Not delivered, tap to resend	Not delivered, tap to resend
 Nov	Nov
@@ -2423,3 +2423,28 @@ Asleep: tap screen or 🤍 to wake	Alvó mód: koppints a képernyőre vagy 🤍
 Receiving %s\n%lu / %lu bytes	%s fogadása\n%lu / %lu bájt
 Sending %s\n%lu / %lu bytes	%s küldése\n%lu / %lu bájt
 File Transfer	Fájlátvitel
+U	O
+Unread only	Csak olvasatlan
+No unread chats	Nincs olvasatlan csevegés
+No unread channels	Nincs olvasatlan csatorna
+No unread direct chats	Nincs olvasatlan közvetlen csevegés
+Recent	Legutóbbi
+Smileys	Arcok
+People	Emberek
+Nature	Természet
+Food	Étel
+Activity	Tevékenység
+Travel	Utazás
+Objects	Tárgyak
+Symbols	Szimbólumok
+Flags	Zászlók
+Chars	Jelek
+Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.	Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.
+Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.	Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.
+Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.	Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.
+\n%d%%, about %lu s left	\n%d%%, kb. %lu mp van hátra
+\n%d%%, about %lu min left	\n%d%%, kb. %lu perc van hátra
+Keep this orientation?\nIf the screen does not answer your taps, leave it: it goes back to portrait in %d s.	Megtartod ezt a tájolást?\nHa a képernyő nem reagál az érintésre, hagyd: %d mp múlva visszaáll állóra.
+Back to portrait… restarting	Vissza álló nézetre… újraindítás
+Keep	Megtart
+Orientation kept	Tájolás megtartva

@@ -1,7 +1,7 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: cs
-# ver: 32
+# ver: 33
 # name: Čeština
 # base: cs
  (device behind)	 (zařízení za)
@@ -1439,8 +1439,8 @@ Never	Nikdy
 New PIN	New PIN
 No backups available to restore.	Žádné zálohy k obnovení.
 No backups yet. Use Export Backup above to create one.	No backups yet. Use Export Backup above to create one.
-No channels yet	No channels yet
-No direct chats yet	No direct chats yet
+No channels yet	Zatím žádné kanály
+No direct chats yet	Zatím žádné přímé chaty
 Not delivered, tap to resend	Not delivered, tap to resend
 Nov	Nov
 November	November
@@ -2429,3 +2429,28 @@ Asleep: tap screen or 🤍 to wake	Spí: klepněte na obrazovku nebo 🤍 pro pr
 Receiving %s\n%lu / %lu bytes	Přijímání %s\n%lu / %lu bajtů
 Sending %s\n%lu / %lu bytes	Odesílání %s\n%lu / %lu bajtů
 File Transfer	Přenos souborů
+U	N
+Unread only	Jen nepřečtené
+No unread chats	Žádné nepřečtené chaty
+No unread channels	Žádné nepřečtené kanály
+No unread direct chats	Žádné nepřečtené přímé chaty
+Recent	Nedávné
+Smileys	Smajlíci
+People	Lidé
+Nature	Příroda
+Food	Jídlo
+Activity	Aktivity
+Travel	Cestování
+Objects	Objekty
+Symbols	Symboly
+Flags	Vlajky
+Chars	Znaky
+Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.	Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.
+Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.	Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.
+Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.	Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.
+\n%d%%, about %lu s left	\n%d%%, zbývá asi %lu s
+\n%d%%, about %lu min left	\n%d%%, zbývá asi %lu min
+Keep this orientation?\nIf the screen does not answer your taps, leave it: it goes back to portrait in %d s.	Ponechat tuto orientaci?\nPokud obrazovka nereaguje na dotyk, nechte ji být: za %d s se vrátí na výšku.
+Back to portrait… restarting	Zpět na výšku… restartuje se
+Keep	Ponechat
+Orientation kept	Orientace ponechána

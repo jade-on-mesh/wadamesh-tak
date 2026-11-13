@@ -1,7 +1,7 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: ro
-# ver: 32
+# ver: 33
 # name: Română
 # base: ro
  (device behind)	 (dispozitiv în urmă)
@@ -1420,8 +1420,8 @@ Never	Niciodată
 New PIN	New PIN
 No backups available to restore.	Niciun backup de restaurat.
 No backups yet. Use Export Backup above to create one.	No backups yet. Use Export Backup above to create one.
-No channels yet	No channels yet
-No direct chats yet	No direct chats yet
+No channels yet	Încă niciun canal
+No direct chats yet	Încă nicio conversație directă
 Normal\nLarge text\nHuge text	Normal\nLarge text\nHuge text
 Not delivered, tap to resend	Not delivered, tap to resend
 Nov	Nov
@@ -2414,3 +2414,28 @@ Asleep: tap screen or 🤍 to wake	În repaus: atinge ecranul sau 🤍 pentru tr
 Receiving %s\n%lu / %lu bytes	Se primeşte %s\n%lu / %lu octeţi
 Sending %s\n%lu / %lu bytes	Se trimite %s\n%lu / %lu octeţi
 File Transfer	Transfer de fişiere
+U	N
+Unread only	Doar necitite
+No unread chats	Nicio conversație necitită
+No unread channels	Niciun canal necitit
+No unread direct chats	Nicio conversație directă necitită
+Recent	Recente
+Smileys	Fețe
+People	Oameni
+Nature	Natură
+Food	Mâncare
+Activity	Activități
+Travel	Călătorii
+Objects	Obiecte
+Symbols	Simboluri
+Flags	Steaguri
+Chars	Semne
+Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.	Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.
+Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.	Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.
+Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.	Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.
+\n%d%%, about %lu s left	\n%d%%, mai sunt circa %lu s
+\n%d%%, about %lu min left	\n%d%%, mai sunt circa %lu min
+Keep this orientation?\nIf the screen does not answer your taps, leave it: it goes back to portrait in %d s.	Păstrezi această orientare?\nDacă ecranul nu răspunde la atingere, las-o așa: revine la portret în %d s.
+Back to portrait… restarting	Înapoi la portret… repornire
+Keep	Păstrează
+Orientation kept	Orientare păstrată
