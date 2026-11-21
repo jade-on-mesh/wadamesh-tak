@@ -280,6 +280,7 @@ static void collect(uint32_t now) {
 }
 
 static void shareTick(uint32_t now);
+static void rcptTick(uint32_t now);
 
 static void loopTick(uint32_t now) {
   if (!s_loaded) prefsLoad();
