@@ -18,6 +18,11 @@
 #include "VoxVoice.h"
 #include "device_caps.h"
 #include "../helpers/PsramStatic.h"
+#include "../helpers/MediaMeshCoverageShare.h"
+
+// Defined by the coverage sharing code (UITask.cpp, MediaMeshCoverageUI.inc)
+// on builds that can reach an analyzer; weak, so the others link without it.
+void mmReceiptAdd(const mmshare::Receipt& r) __attribute__((weak));
 
 namespace VoxPhotos {
 namespace {
@@ -595,6 +600,22 @@ class MeshIo : public VoxFetchIo {
   void changed(uint32_t sid) override {
     touched(sid);
     earlyThumbCheck(sid);
+  }
+
+  // A delivery receipt (Settings > MediaMesh > Share delivery receipts):
+  // handed to the coverage sharing code, when the build has it.
+  void finished(uint32_t sid, VoxWire::Kind kind, int total, int got, int asked, int rebuilt, bool whole) override {
+    if (!mmReceiptAdd) return;
+    mmshare::Receipt r;
+    r.sid = sid;
+    r.voice = kind != VoxWire::kImage;
+    r.at = the_mesh.getRTCClock()->getCurrentTime();
+    r.total = (uint16_t)total;
+    r.got = (uint16_t)got;
+    r.asked = (uint16_t)asked;
+    r.rebuilt = (uint16_t)rebuilt;
+    r.whole = whole;
+    mmReceiptAdd(r);
   }
 };
 

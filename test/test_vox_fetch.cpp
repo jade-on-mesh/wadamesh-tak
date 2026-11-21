@@ -215,6 +215,13 @@ struct Sim : VoxFetchIo {
   }
   void changed(uint32_t) override { changes++; }
 
+  // Delivery receipts: each finished() call.
+  struct Told { uint32_t sid; int total, got, asked, rebuilt; bool whole; };
+  std::vector<Told> told;
+  void finished(uint32_t sid, VoxWire::Kind, int total, int got, int asked, int rebuilt, bool whole) override {
+    told.push_back(Told{sid, total, got, asked, rebuilt, whole});
+  }
+
   // The radio profile every delivered payload is tagged with (MediaMesh).
   uint8_t via = VoxFetch::kViaUnknown;
   uint8_t hop[2] = {0, 0};   // the last repeater's path hash on every packet (hop_len 0: none)
@@ -316,6 +323,26 @@ int main() {
     sim.run(60000);
     uint8_t h[3], n = 0;
     assert(gotIt(sim, f) && !f.radio2Hop(kSid, h, &n));   // main-mesh packets name no MediaMesh repeater
+  }
+
+  // 1d. Delivery receipts: whole once it's stored, with the packets that came
+  //     after asking again for missing ones; in part when given up on.
+  {
+    Sim sim; setup(sim, 2750); sim.drop_first = {3, 7};
+    VoxFetch f(sim); sim.fetch = &f;
+    f.onEnvelope(envFor(sim), sim.sender_pub, nullptr, -1, true);
+    sim.run(120000);
+    assert(gotIt(sim, f) && sim.told.size() == 1);
+    const auto& t = sim.told[0];
+    assert(t.sid == kSid && t.whole && t.total == envFor(sim).total && t.got == t.total && t.asked == 2 && t.rebuilt == 0);
+  }
+  {
+    Sim sim; setup(sim, 2750); sim.our_route_works = false; sim.flood_works = false;
+    VoxFetch f(sim); sim.fetch = &f;
+    f.onEnvelope(envFor(sim), sim.sender_pub, nullptr, -1, true);
+    sim.run(1800000);
+    assert(f.status(kSid) == VoxFetch::kUnavailable && sim.told.size() == 1 && !sim.told[0].whole && sim.told[0].got == 0);
+    printf("receipts: whole after asking again, and given up on\n");
   }
 
   // 2. 25% loss: re-asks only for what's missing until it has everything.

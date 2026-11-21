@@ -19,6 +19,12 @@
 // signed by this standalone's key (helpers/MediaMeshCoverageShare.h; the net
 // worker does the request). Where it got to in the file is kept, so each
 // point goes once.
+//
+// Share delivery receipts (off by default) tells the same analyzer, for each
+// photo or voice clip the standalone fetched whole or gave up on after asking
+// for it (VoxFetch -> mmReceiptAdd), the clip's id, piece counts and whether
+// it was whole: never its content, sender, channel or position. They wait in
+// memory (up to kReceiptsMax) and go a minute after the last one.
 
 #include "helpers/MediaMeshCoverage.h"
 #include "helpers/MediaMeshCoverageShare.h"
@@ -36,6 +42,7 @@ static uint32_t s_counts[4] = {0, 0, 0, 0};          // per reach, of the sample
 static bool s_loaded = false, s_rec = false, s_show = true;
 // Sharing (see the top): on, where to, and how far into the file has gone.
 static bool s_share = false;
+static bool s_receipts = false;                      // Share delivery receipts
 static char s_url[128] = "";
 static uint32_t s_sent_off = 0;
 static bool s_have_last = false;
@@ -157,6 +164,7 @@ static void prefsLoad() {
     s_rec = p.getBool("rec", false);
     s_show = p.getBool("show", true);
     s_share = p.getBool("share", false);
+    s_receipts = p.getBool("rcpt", false);
     if (!p.getString("url", s_url, sizeof s_url)) snprintf(s_url, sizeof s_url, "%s", mmshare::kDefaultAnalyzer);
     s_sent_off = p.getUInt("off", 0);
     p.end();
@@ -173,6 +181,7 @@ static void prefsSave() {
     p.putBool("rec", s_rec);
     p.putBool("show", s_show);
     p.putBool("share", s_share);
+    p.putBool("rcpt", s_receipts);
     p.putString("url", s_url);
     p.putUInt("off", s_sent_off);
     p.end();
@@ -275,6 +284,7 @@ static void shareTick(uint32_t now);
 static void loopTick(uint32_t now) {
   if (!s_loaded) prefsLoad();
   shareTick(now);
+  rcptTick(now);
   if (!s_rec) return;
   if (s_ask_ms) {
     if ((uint32_t)(now - s_ask_ms) >= mediamesh::kAskListenMs) collect(now);
@@ -316,12 +326,46 @@ struct Post {
   uint32_t next_off;                                 // the file offset once this batch is in
   int points;
   bool del;
+  bool rcpt;                                         // delivery receipts, not points
+  int receipts;                                      // in this batch
 };
 static constexpr size_t kBodyCap = 64 * 1024;
 static Post* s_post = nullptr;                       // PSRAM
 static volatile uint8_t s_post_state = 0;            // 0 idle, 1 with the worker, 2 answered
 static uint32_t s_share_next_ms = 0;
 static bool s_send_now = false;
+
+// Delivery receipts waiting to go (mmReceiptAdd), oldest first.
+static constexpr int kReceiptsMax = 64;
+static mmshare::Receipt s_rq[kReceiptsMax];
+static int s_rq_n = 0;
+static uint32_t s_rcpt_next_ms = 0;                  // when to send them
+static lv_obj_t* s_rcpt_note = nullptr;              // Settings: what the last receipts send did
+static char s_rcpt_msg[120] = "";
+
+static void rcptNoteRefresh() {
+  if (!s_rcpt_note || !lv_obj_is_valid(s_rcpt_note)) { s_rcpt_note = nullptr; return; }
+  char waiting[64] = "";
+  if (!s_rcpt_msg[0] && s_receipts && s_rq_n) snprintf(waiting, sizeof waiting, "%s: %d", TR("Receipts waiting to send"), s_rq_n);
+  lv_label_set_text(s_rcpt_note, s_rcpt_msg[0] ? s_rcpt_msg : waiting[0] ? waiting
+                                 : TR("Off: nothing leaves the standalone. On: for each photo or voice clip it fetches, tells the analyzer above its ID, how many pieces came and whether it was whole, signed by its key. Never what was in it, who sent it, or where you were."));
+}
+
+static void rcptSay(const char* m) {
+  snprintf(s_rcpt_msg, sizeof s_rcpt_msg, "%s", m);
+  rcptNoteRefresh();
+}
+
+static void receiptAdd(const mmshare::Receipt& r) {
+  if (!s_receipts) return;
+  if (s_rq_n == kReceiptsMax) {   // full: the oldest goes
+    memmove(s_rq, s_rq + 1, sizeof(s_rq[0]) * (kReceiptsMax - 1));
+    s_rq_n--;
+  }
+  s_rq[s_rq_n++] = r;
+  s_rcpt_next_ms = millis() + 60000;
+  rcptNoteRefresh();
+}
 
 static void shareNoteRefresh() {
   if (!s_share_note || !lv_obj_is_valid(s_share_note)) { s_share_note = nullptr; return; }
@@ -413,6 +457,29 @@ static bool buildBatch() {
 }
 
 static void shareTick(uint32_t now) {
+  if (s_post_state == 2 && s_post->rcpt) {   // receipts answered
+    s_post_state = 0;
+    char m[120], err[96];
+    mmshare::replyError(s_post->resp, err, sizeof err);
+    if (s_post->code == 200 && s_post->del) {
+      const char* r = strstr(s_post->resp, "\"removed\":");
+      snprintf(m, sizeof m, "%s: %ld", TR("Receipts removed from the analyzer"), r ? strtol(r + 10, nullptr, 10) : 0L);
+      s_receipts = false;   // off until switched on again
+      s_rq_n = 0;
+      prefsSave();
+    } else if (s_post->code == 200) {
+      const int k = s_post->receipts < s_rq_n ? s_post->receipts : s_rq_n;
+      memmove(s_rq, s_rq + k, sizeof(s_rq[0]) * (size_t)(s_rq_n - k));
+      s_rq_n -= k;
+      snprintf(m, sizeof m, "%s: %d", TR("Receipts sent"), k);
+      s_rcpt_next_ms = now + 3000;   // there may be more
+    } else {
+      snprintf(m, sizeof m, "%s: %s", TR("Couldn't send"), err[0] ? err : s_post->msg[0] ? s_post->msg : "no answer");
+      s_rcpt_next_ms = now + 10UL * 60UL * 1000UL;
+    }
+    rcptSay(m);
+    return;
+  }
   if (s_post_state == 2) {   // answered
     s_post_state = 0;
     char m[120], err[96];
@@ -445,6 +512,7 @@ static void shareTick(uint32_t now) {
   if (!mmshare::endpointFor(s_url, s_post->url, sizeof s_post->url)) { shareSay(TR("Couldn't send: that isn't a web address")); return; }
   if (!buildBatch()) { if (asked) shareSay(TR("Nothing new to send")); return; }
   s_post->del = false;
+  s_post->rcpt = false;
   signPost(mmshare::kSignPrefix);
   shareSay(TR("Sending…"));
   startPost("POST");
@@ -458,8 +526,43 @@ static void removeMine() {
   selfHex(radio);
   s_post->len = (size_t)mmshare::deleteBody((char*)s_post->body, kBodyCap, radio, (uint32_t)rtc_clock.getCurrentTime());
   s_post->del = true;
+  s_post->rcpt = false;
   signPost(mmshare::kDeletePrefix);
   shareSay(TR("Removing…"));
+  startPost("DELETE");
+}
+
+// Sends the waiting receipts when due (from the UI loop, after shareTick).
+static void rcptTick(uint32_t now) {
+  if (!s_receipts || !s_rq_n || s_post_state || (int32_t)(now - s_rcpt_next_ms) < 0) return;
+  s_rcpt_next_ms = now + 5UL * 60UL * 1000UL;
+  if (!wifiUp() || !ensurePost()) return;
+  if (!mmshare::receiptsEndpointFor(s_url, s_post->url, sizeof s_post->url)) { rcptSay(TR("Couldn't send: that isn't a web address")); return; }
+  char radio[65];
+  selfHex(radio);
+  const size_t n = mmshare::receiptsBody((char*)s_post->body, kBodyCap, radio, (uint32_t)rtc_clock.getCurrentTime(),
+                                         "Wadamesh TAK", s_rq, s_rq_n);
+  if (!n) return;
+  s_post->len = n;
+  s_post->receipts = s_rq_n;
+  s_post->del = false;
+  s_post->rcpt = true;
+  signPost(mmshare::kReceiptSignPrefix);
+  rcptSay(TR("Sending…"));
+  startPost("POST");
+}
+
+static void removeMyReceipts() {
+  if (s_post_state) return;
+  if (!wifiUp()) { rcptSay(TR("Couldn't send: not on Wi-Fi")); return; }
+  if (!ensurePost() || !mmshare::receiptsEndpointFor(s_url, s_post->url, sizeof s_post->url)) return;
+  char radio[65];
+  selfHex(radio);
+  s_post->len = (size_t)mmshare::deleteBody((char*)s_post->body, kBodyCap, radio, (uint32_t)rtc_clock.getCurrentTime());
+  s_post->del = true;
+  s_post->rcpt = true;
+  signPost(mmshare::kReceiptDeletePrefix);
+  rcptSay(TR("Removing…"));
   startPost("DELETE");
 }
 #else
@@ -469,6 +572,8 @@ static void shareNoteRefresh() {
 }
 static void shareTick(uint32_t) {}
 static void removeMine() {}
+static void rcptTick(uint32_t) {}
+static void receiptAdd(const mmshare::Receipt&) {}
 #endif
 
 static bool recording() { return s_rec; }
@@ -643,6 +748,23 @@ static void buildRows(lv_obj_t* c) {
     showConfirm(TR("Remove every coverage point this standalone sent to the analyzer? The file on the card is kept, and sharing switches off."),
                 TR("Remove"), +[]() { removeMine(); });
   }, nullptr, SET_DANGER);
+  // Delivery receipts, to the same analyzer
+  setSwitchRow(c, "Share delivery receipts",
+               "So the analyzer can show whether MediaMesh delivers: observers only hear part of each clip.",
+               s_receipts, [](lv_event_t* e) {
+                 s_receipts = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+                 if (!s_receipts) s_rq_n = 0;   // off: what was waiting is dropped
+                 s_rcpt_msg[0] = 0;
+                 prefsSave();
+                 rcptNoteRefresh();
+               });
+  s_rcpt_note = setNote(c, "");
+  rcptNoteRefresh();
+  setButton(c, LV_SYMBOL_CLOSE, "Remove my receipts from the analyzer", [](lv_event_t* e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    showConfirm(TR("Remove every delivery receipt this standalone sent to the analyzer? Sharing receipts switches off."),
+                TR("Remove"), +[]() { removeMyReceipts(); });
+  }, nullptr, SET_DANGER);
 #endif
   setButton(c, LV_SYMBOL_TRASH, "Clear coverage map", [](lv_event_t* e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
@@ -659,6 +781,9 @@ static void buildRows(lv_obj_t* c) {
 }  // namespace mmcovui
 
 static void mmcovBuildRows(lv_obj_t* card) { mmcovui::buildRows(card); }
+
+// VoxPhotos.cpp's fetcher hands each finished transfer here (weak there).
+void mmReceiptAdd(const mmshare::Receipt& r) { mmcovui::receiptAdd(r); }
 
 #if MMCOV_SHARE
 // On the net worker: the request shareTick built.

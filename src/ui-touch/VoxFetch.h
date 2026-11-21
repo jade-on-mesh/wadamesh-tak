@@ -56,6 +56,13 @@ class VoxFetchIo {
   virtual uint32_t random32() { return 0; }
   // A line for the serial log (the transfer's timing).
   virtual void log(const char* line) { (void)line; }
+  // A transfer finished: whole (stored), or given up on after asking for it.
+  // For MediaMesh delivery receipts (helpers/MediaMeshCoverageShare.h): got =
+  // packets over the air, asked = of those, ones that came after asking again
+  // for missing packets, rebuilt = from parity or repair packets.
+  virtual void finished(uint32_t sid, VoxWire::Kind kind, int total, int got, int asked, int rebuilt, bool whole) {
+    (void)sid; (void)kind; (void)total; (void)got; (void)asked; (void)rebuilt; (void)whole;
+  }
 };
 
 class VoxFetch {
@@ -296,6 +303,13 @@ class VoxFetch {
     uint8_t* repairs = nullptr;
     uint8_t n_repairs = 0;
     uint8_t rebuilt = 0;       // packets rebuilt from parity
+    // Delivery receipts: packets that came after asking again for missing
+    // ones, whether the latest request was such a repair, and whether a
+    // receipt went out whole / in part.
+    uint16_t asked_got = 0;
+    bool repairing = false;
+    bool told_whole = false;
+    bool told_part = false;
     uint8_t min_hops = 0xFF;   // fewest hops a channel packet of it came over
     bool tried_zero_hop = false;
     // Some packet came by raw data (a zero-hop push, a direct answer), which
@@ -344,6 +358,7 @@ class VoxFetch {
   void noteGap(Session& s, uint32_t now);
   void complete(Session& s);
   void fail(Session& s, const char* why);
+  void tell(Session& s, bool whole);
   int hops(const Session& s);
   uint32_t packetGap(bool flood, int hops, uint32_t air);
   uint32_t packetGap(bool flood, int hops) { return packetGap(flood, hops, io_.packetAirMs()); }
