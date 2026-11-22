@@ -185,6 +185,25 @@ are in `src/helpers/MediaMeshCoverageShare.h` (host-tested); the request runs
 on the net worker (`forkPostJson` in `ForkUpdate.inc`), so only builds with the
 fork's updates can share.
 
+#### Sharing delivery receipts
+
+Observers only hear the pieces of a clip that pass near them, so an analyzer
+can't tell from them whether a photo or voice clip arrived. *Share delivery
+receipts* (under Share coverage points, off by default) lets the standalone tell
+it, the same as MeshCore Open TAK's switch. For each clip it fetched whole, and
+each one it gave up on after asking for it, it keeps a receipt: the clip's
+session id (already on the air in every piece), photo or voice, how many pieces
+it has, how many came over the air, how many came after asking again for
+missing ones, how many were rebuilt from parity, and whether it ended up whole.
+Never what was in it, who sent it, the channel, or where the standalone was.
+Up to 64 wait in memory and go to the same analyzer (its
+`/api/mediamesh/receipts`) a minute after the last one, on Wi-Fi, signed over
+`corescope-receipt:` and the SHA-256 of the batch. Switching it off drops any
+still waiting; *Remove my receipts from the analyzer* deletes them there and
+switches it off. The transfers report them from `VoxFetch`
+(`VoxFetchIo::finished`, host-tested in `test/test_vox_fetch.cpp`); the body is
+built in `MediaMeshCoverageShare.h`.
+
 ### MediaMesh repeaters on the map
 
 Repeaters known to run MediaMesh get a fuchsia rim and a fuchsia badge on the

@@ -233,6 +233,63 @@ inline int signedMessage(char* out, size_t cap, const char* prefix, const uint8_
   return o;
 }
 
+// ---- Delivery receipts (MEDIAMESH.md, "Sharing delivery receipts") ----
+// For each photo or voice clip the standalone fetched whole, or gave up on
+// after asking for it: the clip's session id (on the air in every piece),
+// kind, piece counts and whether it ended up whole. Never its content, who
+// sent it, the channel or where the standalone was. CoreScope's POST
+// /api/mediamesh/receipts, signed over kReceiptSignPrefix + the body's
+// SHA-256 hex, like coverage points.
+
+static constexpr const char* kReceiptSignPrefix = "corescope-receipt:";
+static constexpr const char* kReceiptDeletePrefix = "corescope-receipt-delete:";
+static constexpr const char* kReceiptsPath = "/api/mediamesh/receipts";
+
+struct Receipt {
+  uint32_t sid = 0;
+  bool voice = false;   // a voice clip; else a photo
+  uint32_t at = 0;      // epoch: when it finished
+  uint16_t total = 0, got = 0, asked = 0, rebuilt = 0;
+  bool whole = false;
+};
+
+/** Where receipts go, from the analyzer the coverage points go to. */
+inline bool receiptsEndpointFor(const char* analyzer, char* out, size_t cap) {
+  char ep[200];
+  if (!endpointFor(analyzer, ep, sizeof ep)) return false;
+  const size_t n = strlen(ep), up = strlen(kUploadPath);
+  if (n < up || strcmp(ep + n - up, kUploadPath) != 0) return false;   // endpointFor always ends with it
+  const int w = snprintf(out, cap, "%.*s%s", (int)(n - up), ep, kReceiptsPath);
+  return w > 0 && (size_t)w < cap;
+}
+
+// Appends to out at *len; *len = cap once anything doesn't fit.
+inline void putf(char* out, size_t cap, size_t* len, const char* fmt, ...) __attribute__((format(printf, 4, 5)));
+inline void putf(char* out, size_t cap, size_t* len, const char* fmt, ...) {
+  if (*len >= cap) return;
+  va_list ap;
+  va_start(ap, fmt);
+  const int w = vsnprintf(out + *len, cap - *len, fmt, ap);
+  va_end(ap);
+  *len = (w < 0 || *len + (size_t)w >= cap) ? cap : *len + (size_t)w;
+}
+
+/** A receipts batch body; its length, or 0 when it doesn't fit. */
+inline size_t receiptsBody(char* out, size_t cap, const char* radio_hex, uint32_t sent, const char* app,
+                           const Receipt* r, int n) {
+  size_t len = 0;
+  putf(out, cap, &len, "{\"v\":1,\"radio\":\"%s\",\"sent\":%lu,\"app\":\"%s\",\"receipts\":[", radio_hex,
+       (unsigned long)sent, app);
+  for (int i = 0; i < n; i++)
+    putf(out, cap, &len,
+         "%s{\"sid\":\"%08lx\",\"kind\":\"%s\",\"at\":%lu,\"total\":%u,\"got\":%u,\"asked\":%u,\"rebuilt\":%u,\"whole\":%s}",
+         i ? "," : "", (unsigned long)r[i].sid, r[i].voice ? "voice" : "photo", (unsigned long)r[i].at,
+         (unsigned)r[i].total, (unsigned)r[i].got, (unsigned)r[i].asked, (unsigned)r[i].rebuilt,
+         r[i].whole ? "true" : "false");
+  putf(out, cap, &len, "]}");
+  return len >= cap ? 0 : len;
+}
+
 /** The analyzer's "error" from a reply body, into out ("" if none). */
 inline void replyError(const char* body, char* out, size_t cap) {
   if (!cap) return;

@@ -360,6 +360,7 @@ void VoxFetch::attempt(Session& s) {
     return;
   }
   s.attempts++;
+  s.repairing = s.storage && s.asm_.total() && s.asm_.received() > 0;
   s.last = m;
   if (m == kChannel) s.tried_channel = true;
   if (m == kZeroHop) s.tried_zero_hop = true;
@@ -522,7 +523,18 @@ void VoxFetch::fail(Session& s, const char* why) {
   s.timer_on = false;
   s.st = kUnavailable;
   s.note = why;
+  if (s.attempts > 0) tell(s, false);   // given up on after asking
   io_.changed(s.sid);
+}
+
+// A delivery receipt (VoxFetchIo::finished), once whole and once in part.
+void VoxFetch::tell(Session& s, bool whole) {
+  if (whole ? s.told_whole : s.told_part) return;
+  (whole ? s.told_whole : s.told_part) = true;
+  const int total = s.total ? s.total : (s.storage ? s.asm_.total() : 0);
+  const int received = whole ? total : (s.storage ? s.asm_.received() : 0);
+  const int got = received - s.rebuilt;
+  io_.finished(s.sid, s.kind, total, got < 0 ? 0 : got, s.asked_got, s.rebuilt, whole);
 }
 
 // --------------------------------------------------------------- packets
@@ -652,6 +664,7 @@ bool VoxFetch::rebuildFromRepairs(Session& s) {
 void VoxFetch::accept(Session& s, const VoxWire::Packet& p, uint8_t via, const uint8_t* hop, uint8_t hop_len) {
   if (!ensureStorage(s)) return;
   if (!s.asm_.add(p)) return;
+  if (s.repairing && s.asked_got < 0xFFFF) s.asked_got++;
   if (via == kViaMain || via == kViaRadio2) {
     if (s.via_count[via] < 0xFFFF) s.via_count[via]++;
   }
@@ -713,6 +726,7 @@ void VoxFetch::complete(Session& s) {
   if (io_.savePayload(s.sid, s.asm_.payload(), s.asm_.payloadLen())) {
     s.st = kComplete;
     s.note = nullptr;
+    tell(s, true);
   } else {
     s.st = kUnavailable;
     s.note = "couldn't store it. Tap to retry.";

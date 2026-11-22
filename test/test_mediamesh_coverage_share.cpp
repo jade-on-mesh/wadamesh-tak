@@ -89,5 +89,22 @@ int main() {
   replyError("<html>", err, sizeof err);
   assert(!err[0]);
   printf("mediamesh coverage share: ok\n");
+  // delivery receipts: next to the coverage points, in the analyzer's format
+  {
+    char out[200];
+    assert(receiptsEndpointFor(kDefaultAnalyzer, out, sizeof out) && !strcmp(out, "https://analyzer.cascadiamesh.org/api/mediamesh/receipts"));
+    assert(receiptsEndpointFor("http://192.168.1.5:3000/corescope/", out, sizeof out) && !strcmp(out, "http://192.168.1.5:3000/corescope/api/mediamesh/receipts"));
+    assert(!receiptsEndpointFor("not an address", out, sizeof out));
+    Receipt r[2];
+    r[0].sid = 0x1a2b3c4d; r[0].at = 1795300000; r[0].total = 17; r[0].got = 16; r[0].asked = 1; r[0].whole = true;
+    r[1].sid = 0x2b; r[1].voice = true; r[1].at = 1795300010; r[1].total = 6; r[1].got = 3; r[1].rebuilt = 1;
+    char body[600];
+    const size_t n = receiptsBody(body, sizeof body, "ab01", 1795300100, "Wadamesh TAK", r, 2);
+    assert(n == strlen(body));
+    assert(!strcmp(body, "{\"v\":1,\"radio\":\"ab01\",\"sent\":1795300100,\"app\":\"Wadamesh TAK\",\"receipts\":["
+                         "{\"sid\":\"1a2b3c4d\",\"kind\":\"photo\",\"at\":1795300000,\"total\":17,\"got\":16,\"asked\":1,\"rebuilt\":0,\"whole\":true},"
+                         "{\"sid\":\"0000002b\",\"kind\":\"voice\",\"at\":1795300010,\"total\":6,\"got\":3,\"asked\":0,\"rebuilt\":1,\"whole\":false}]}"));
+    assert(receiptsBody(body, 40, "ab01", 1, "x", r, 2) == 0);   // doesn't fit: nothing half-written is sent
+  }
   return 0;
 }
