@@ -168,7 +168,7 @@ added have no such column.
 
 #### Sharing coverage points
 
-*Share coverage points* (under Map coverage, off by default) sends the card's
+*Share coverage points* (under Map coverage, on by default) sends the card's
 points to a CoreScope analyzer over Wi-Fi, where the MediaMesh coverage
 estimate is checked against them, the same as MeshCore Open TAK's switch.
 **Analyzer** is the address the points are sent to,
@@ -179,7 +179,9 @@ yet, up to 200 points a batch, signed by the standalone's own key over
 got is kept, and a new analyzer gets everything. Lines without a `key` can't
 be sent and are skipped. The analyzer only takes radios it has heard, shows
 the points as 500 m hexagons where a MediaMesh repeater answered, without the first and last 300 m of each trip, and
-never says whose they are. *Remove my points from the analyzer* deletes them
+never says whose they are. Points already on the card when sharing came on by
+itself (it used to be off until switched on) stay there unless you switch
+sharing off and on again. *Remove my points from the analyzer* deletes them
 there and switches sharing off; the file stays. The batches and the signed text
 are in `src/helpers/MediaMeshCoverageShare.h` (host-tested); the request runs
 on the net worker (`forkPostJson` in `ForkUpdate.inc`), so only builds with the
@@ -189,7 +191,7 @@ fork's updates can share.
 
 Observers only hear the pieces of a clip that pass near them, so an analyzer
 can't tell from them whether a photo or voice clip arrived. *Share delivery
-receipts* (under Share coverage points, off by default) lets the standalone tell
+receipts* (under Share coverage points, on by default) lets the standalone tell
 it, the same as MeshCore Open TAK's switch. For each clip it fetched whole, and
 each one it gave up on after asking for it, it keeps a receipt: the clip's
 session id (already on the air in every piece), photo or voice, how many pieces
