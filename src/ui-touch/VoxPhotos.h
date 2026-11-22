@@ -97,6 +97,15 @@ bool fast();
 // the farthest listeners lose almost none (FloodPace.h).
 void setAdaptive(bool on);
 bool adaptive();
+// Photos and voice sent to us (and, with autoChannels, on channels) fetched as
+// they arrive, voice played once whole. Both on unless switched off.
+void setAuto(bool on);
+bool autoFetch();
+void setAutoChannels(bool on);
+bool autoChannels();
+// A voice clip fetched by itself that just came in whole, for the UI to play
+// (once); 0 when none.
+uint32_t takeAutoPlay();
 // Moves when answers that change a bubble's height may have changed (the index
 // landed): the open chat is laid out again.
 uint32_t layoutVersion();

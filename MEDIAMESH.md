@@ -542,6 +542,13 @@ mikecarper/MeshCore's, recomputed for the actual settings:
   each packet out within ~1 ms so the scan can move on), and goes back to your
   setting when radio2 is off.
 
+## Photos and voice: auto-play and auto-download
+
+**Settings → MediaMesh → Photos and voice**, under the radio2 settings, has the same two switches as MeshCore Open TAK. Both are on by default:
+
+- **Auto-play voice, auto-show photos**: a photo or voice message sent to you downloads as soon as it arrives. A voice message plays once it's whole, unless audio is busy or the sound is off. Off, they wait for a tap.
+- **Also auto-download in channels**: channel photos and voice download as they arrive too. Every listener pulls its own copy, which adds airtime on busy channels. Off, a channel photo still shows its thumbnail, and the rest waits for a tap.
+
 ## Fast MediaMesh
 
 **Settings → MediaMesh → Fast MediaMesh** (on by default) makes photo and voice transfers on radio2 quicker, through repeaters especially. It works the same way as in MeshCore Open TAK:

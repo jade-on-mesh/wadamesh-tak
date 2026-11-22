@@ -241,6 +241,21 @@ static int g_idx_ops_n = 0;
 static bool g_idx_ops_lost = false;
 static uint32_t g_layout_ver = 0;         // bubble heights may differ: lay the chat out again
 static bool g_quick = false;
+// Settings > MediaMesh > Photos and voice: fetch what's sent to us as it
+// arrives and play voice once it's whole (g_auto), and do the same on
+// channels (g_auto_ch). Both on unless switched off.
+static bool g_auto = true, g_auto_ch = true;
+static uint32_t g_auto_play_sid = 0;      // a voice clip fetched by itself, whole: the UI plays it
+static uint32_t g_auto_sids[8] = {};      // clips started by themselves (only these auto-play)
+static uint8_t g_auto_sids_at = 0;
+static void noteAuto(uint32_t sid) {
+  g_auto_sids[g_auto_sids_at] = sid;
+  g_auto_sids_at = (uint8_t)((g_auto_sids_at + 1) % 8);
+}
+static bool wasAuto(uint32_t sid) {
+  for (uint32_t s : g_auto_sids) if (s == sid) return true;
+  return false;
+}
 
 static IdxEntry* idxFindIn(IdxEntry* a, int n, uint32_t sid) {
   for (int i = 0; i < n; i++) if (a[i].sid == sid) return &a[i];
@@ -605,6 +620,7 @@ class MeshIo : public VoxFetchIo {
   // A delivery receipt (Settings > MediaMesh > Share delivery receipts):
   // handed to the coverage sharing code, when the build has it.
   void finished(uint32_t sid, VoxWire::Kind kind, int total, int got, int asked, int rebuilt, bool whole) override {
+    if (whole && kind != VoxWire::kImage && g_auto && wasAuto(sid)) g_auto_play_sid = sid;
     if (!mmReceiptAdd) return;
     mmshare::Receipt r;
     r.sid = sid;
@@ -798,7 +814,8 @@ bool onDirectText(const char* text, const uint8_t sender_pub[32]) {
     // the sender alone. The bubble stays the Mimi message's.
     noteMimi(env.sid);
     remember(copy);
-    g_fetch.onEnvelope(copy, sender_pub, nullptr, -1, true);
+    if (g_auto) noteAuto(copy.sid);
+    g_fetch.onEnvelope(copy, sender_pub, nullptr, -1, g_auto);
     return false;
   }
   if (!canFetch(env)) return false;
@@ -810,7 +827,9 @@ bool onDirectText(const char* text, const uint8_t sender_pub[32]) {
   // its sender is asked. A channel's post is pushed to the radios in range,
   // which keep it the same way (VoxFetch's passive packets). A build that
   // can't show photos (no AV1 decoder) leaves them to a tap.
-  g_fetch.onEnvelope(env, sender_pub, nullptr, -1, env.kind != VoxWire::kImage || VOX_AV1_AVAILABLE);
+  const bool start = g_auto && (env.kind != VoxWire::kImage || VOX_AV1_AVAILABLE);
+  if (start) noteAuto(env.sid);
+  g_fetch.onEnvelope(env, sender_pub, nullptr, -1, start);
   return false;
 }
 
@@ -833,10 +852,15 @@ void onChannelText(const char* text, int channel_idx) {
   remember(env);
   const char* body = strstr(text, ": ");
   noteLatest(body ? body + 2 : text, env, nullptr, name, channel_idx);
-  g_fetch.onEnvelope(env, nullptr, name, channel_idx, false);
+  // Fetched as it arrives (Also auto-download in channels): each listener
+  // asks for its own copy, more airtime on a busy channel, so it can be
+  // switched off. Off, it waits for a tap.
+  const bool start = g_auto && g_auto_ch && (env.kind != VoxWire::kImage || VOX_AV1_AVAILABLE);
+  if (start) noteAuto(env.sid);
+  g_fetch.onEnvelope(env, nullptr, name, channel_idx, start);
   // Its thumbnail before anyone taps: from the sender's push, or, when that
   // doesn't reach here, by asking the channel for its first packets alone.
-  if (env.kind == VoxWire::kImage && VOX_AV1_AVAILABLE)
+  if (!start && env.kind == VoxWire::kImage && VOX_AV1_AVAILABLE)
     g_fetch.probeFirst(env.sid, VoxFetch::kThumbProbeChannelWaitMs + esp_random() % VoxFetch::kThumbProbeSpreadMs);
 }
 
@@ -860,6 +884,15 @@ void setFast(bool on) {
 }
 bool fast() { return g_serve.fast(); }
 void setAdaptive(bool on) { g_serve.setAdaptive(on); }
+void setAuto(bool on) { g_auto = on; if (!on) g_auto_play_sid = 0; }
+bool autoFetch() { return g_auto; }
+void setAutoChannels(bool on) { g_auto_ch = on; }
+bool autoChannels() { return g_auto_ch; }
+uint32_t takeAutoPlay() {
+  const uint32_t sid = g_auto_play_sid;
+  g_auto_play_sid = 0;
+  return sid;
+}
 bool adaptive() { return g_serve.adaptive(); }
 uint32_t layoutVersion() { return g_layout_ver; }
 

@@ -19613,8 +19613,31 @@ static void buildFastMediaMeshCard() {
                "as soon as they lose more. Needs Fast MediaMesh. Switch off for the spacing as it was.",
                VoxPhotos::adaptive(), adaptiveSpacingToggleCb);
 }
+// Photos and voice on this standalone: fetched as they arrive and voice
+// played (VoxPhotos::setAuto), and on channels too.
+static void mediaAutoToggleCb(lv_event_t* e) {
+  const bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+  touchPrefsSetMediaAuto(on);
+  VoxPhotos::setAuto(on);
+}
+static void mediaAutoChannelsToggleCb(lv_event_t* e) {
+  const bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+  touchPrefsSetMediaAutoChannels(on);
+  VoxPhotos::setAutoChannels(on);
+}
+static void buildMediaAutoCard() {
+  lv_obj_t* c = setCard("Photos and voice");
+  setSwitchRow(c, "Auto-play voice, auto-show photos",
+               "Download new voice and photo messages as soon as they arrive, and play voice messages.",
+               VoxPhotos::autoFetch(), mediaAutoToggleCb);
+  setSwitchRow(c, "Also auto-download in channels",
+               "Channel photos and voice download as they arrive too. Every listener pulls its own copy, which adds "
+               "airtime on busy channels: switch off to download them on a tap.",
+               VoxPhotos::autoChannels(), mediaAutoChannelsToggleCb);
+}
 static void buildMediaMeshCard() {
   buildMediaMeshRadioCards();
+  buildMediaAutoCard();
   buildFastMediaMeshCard();
   buildPublicMediaCard();
 }
@@ -93708,6 +93731,8 @@ void UITask::loop() {
         VoxPhotos::setStore(in);
         VoxPhotos::setFast(touchPrefsGetFastMediaMesh());   // Fast MediaMesh
         VoxPhotos::setAdaptive(touchPrefsGetAdaptiveSpacing());   // and its adaptive spacing
+        VoxPhotos::setAuto(touchPrefsGetMediaAuto());               // fetched as they arrive
+        VoxPhotos::setAutoChannels(touchPrefsGetMediaAutoChannels());   // and on channels
         // When internal storage is full (settings, chat history and OTP pads
         // share it), photos and clips go on the SD card instead: a Super Sharp
         // photo on a ThinkNode M9 downloaded fully, then "couldn't store it".
@@ -93722,6 +93747,11 @@ void UITask::loop() {
     uiCp("ui:vox");
     mmRepsTick();           // which repeaters run MediaMesh: save, redraw, the quiet ask
     VoxPhotos::tick();
+    if (const uint32_t sid = VoxPhotos::takeAutoPlay()) {
+      // a voice clip fetched by itself is whole: play it, unless audio is busy or sound is off
+      const char* err = nullptr;
+      if (!voxVoicePlay(sid, &err)) Serial.printf("[VOX] auto-play skipped: %s\n", err ? err : "?");
+    }
 #if VOX_RS_DOWNLOAD
     voxRsModelTick(millis());   // the AI voice restorer's model, fetched over Wi-Fi when it isn't here
 #endif

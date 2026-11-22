@@ -597,6 +597,10 @@ bool    touchPrefsGetFastMediaMesh();
 void    touchPrefsSetFastMediaMesh(bool on);
 bool    touchPrefsGetAdaptiveSpacing();   // "mm_adapt", on by default
 void    touchPrefsSetAdaptiveSpacing(bool on);
+bool    touchPrefsGetMediaAuto();            // "mm_auto", on by default
+void    touchPrefsSetMediaAuto(bool on);
+bool    touchPrefsGetMediaAutoChannels();    // "mm_auto_ch", on by default
+void    touchPrefsSetMediaAutoChannels(bool on);
 /** "Brighter voice": play Codec2 at 16 kHz with the 4-8 kHz band filled in
  *  (VoxBrighten). Default on. */
 bool    touchPrefsGetVoiceBrighter();
