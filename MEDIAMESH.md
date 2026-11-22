@@ -178,7 +178,7 @@ yet, up to 200 points a batch, signed by the standalone's own key over
 `corescope-coverage:` and the SHA-256 of the batch; how far into the file it
 got is kept, and a new analyzer gets everything. Lines without a `key` can't
 be sent and are skipped. The analyzer only takes radios it has heard, shows
-the points as 200 m squares without the first and last 300 m of each trip, and
+the points as 500 m hexagons where a MediaMesh repeater answered, without the first and last 300 m of each trip, and
 never says whose they are. *Remove my points from the analyzer* deletes them
 there and switches sharing off; the file stays. The batches and the signed text
 are in `src/helpers/MediaMeshCoverageShare.h` (host-tested); the request runs
