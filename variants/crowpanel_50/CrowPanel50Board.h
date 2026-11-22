@@ -14,5 +14,11 @@ public:
     ESP32Board::begin();
   }
 
-  const char* getManufacturerName() const override { return "Elecrow CrowPanel Advance 5.0"; }
+  const char* getManufacturerName() const override {
+#ifdef CROWPANEL_70
+    return "Elecrow CrowPanel Advance 7.0";   // same board at 7 inches (crowpanel_70 env)
+#else
+    return "Elecrow CrowPanel Advance 5.0";
+#endif
+  }
 };

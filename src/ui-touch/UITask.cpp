@@ -41601,6 +41601,8 @@ static int wifiScanWatchdogSafe(uint32_t cap_ms, uint16_t per_chan_ms = 300) {
 #define WADA_BOARD_ID "wio-tracker-l2"
 #elif defined(HAS_CROWPANEL_35)
 #define WADA_BOARD_ID "crowpanel-35"
+#elif defined(HAS_CROWPANEL_50) && defined(CROWPANEL_70)
+#define WADA_BOARD_ID "crowpanel-70"   // the 5.0 code at 7 inches: its own update image
 #elif defined(HAS_CROWPANEL_50)
 #define WADA_BOARD_ID "crowpanel-50"
 #elif defined(HELTEC_LORA_V4_TFT)

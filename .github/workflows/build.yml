@@ -276,7 +276,7 @@ jobs:
               tlora_pager_sx1262_companion_radio_touch, tlora_pager_lr1121_companion_radio_touch,
               heltec_v4_tft_companion_radio_usb_tcp_touch, heltec_v4_r8_tft_companion_radio_usb_tcp_touch,
               wio_tracker_l2_companion_radio_touch, crowpanel_35_companion_radio_touch,
-              crowpanel_50_companion_radio_touch]
+              crowpanel_50_companion_radio_touch, crowpanel_70_companion_radio_touch]
     steps:
       - uses: actions/checkout@v4
         with:

@@ -168,6 +168,18 @@ USB) and the [GitHub releases](https://github.com/ALLFATHER-BV/wadamesh/releases
   full install and an on-device update, whose long flash erases the panel
   recovers from. Select it in
   the upload helper with `scripts/build-upload-monitor.sh --crowpanel-50`.
+- **CrowPanel Advance 7.0**: `crowpanel_70_companion_radio_touch` is the 5.0
+  build for the 7-inch board, which is the same hardware at a larger size: the
+  same ESP32-S3 N16R8, 800x480 RGB bus and timings, GT911 touch, backlight
+  controller (PCA9557 on V1.0, MCU from V1.1), function DIP switch and SX1262
+  wireless slot (Meshtastic drives the 4.3, 5.0 and 7.0 with one driver). Every
+  note for the 5.0 above applies: set the DIP switch to the wireless module, and
+  a V1.0 board needs `P_LORA_NSS=0`. It reports itself as the CrowPanel Advance
+  7.0 and updates itself from its own `wadamesh-crowpanel-70` image. Not yet
+  tested on a physical 7.0; if the picture drifts or shows stray lines, the
+  panel timings can be overridden with `-D CROWPANEL50_PCLK_HZ`,
+  `-D CROWPANEL50_HPORCH` and `-D CROWPANEL50_PCLK_IDLE_HIGH`. Select it in the
+  upload helper with `scripts/build-upload-monitor.sh --crowpanel-70`.
 - **SenseCAP Indicator D1L**: `sensecap_indicator_companion_radio_touch` drives
   the 480x480 ST7701S RGB panel, the FT6336 touch controller and the SX1262,
   whose control lines sit on a TCA9535 I/O expander. It is USB-powered with no

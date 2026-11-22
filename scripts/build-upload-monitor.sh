@@ -16,6 +16,7 @@ ATTAKY_ENV="attaky_mesh_series_companion_radio_touch"
 WIO_ENV="wio_tracker_l2_companion_radio_touch"
 CROWPANEL_ENV="crowpanel_35_companion_radio_touch"
 CROWPANEL_50_ENV="crowpanel_50_companion_radio_touch"
+CROWPANEL_70_ENV="crowpanel_70_companion_radio_touch"
 INDICATOR_ENV="sensecap_indicator_companion_radio_touch"
 PAGER_LR1121_ENV="tlora_pager_lr1121_companion_radio_touch"
 PAGER_SX1262_ENV="tlora_pager_sx1262_companion_radio_touch"
@@ -158,6 +159,7 @@ Devices:
   --wio                   Seeed Wio Tracker L2
   --crowpanel-35          Elecrow CrowPanel Advance 3.5
   --crowpanel-50          Elecrow CrowPanel Advance 5.0
+  --crowpanel-70          Elecrow CrowPanel Advance 7.0
   --sensecap-indicator    Seeed SenseCAP Indicator D1L
   --pager-lr1121          LilyGo T-LoRa Pager LR1121
   --pager-sx1262          LilyGo T-LoRa Pager SX1262
@@ -296,6 +298,7 @@ while [ $# -gt 0 ]; do
     --wio)          select_env "$WIO_ENV" ;;
     --crowpanel-35) select_env "$CROWPANEL_ENV" ;;
     --crowpanel-50) select_env "$CROWPANEL_50_ENV" ;;
+    --crowpanel-70) select_env "$CROWPANEL_70_ENV" ;;
     --sensecap-indicator) select_env "$INDICATOR_ENV" ;;
     --pager-lr1121) select_env "$PAGER_LR1121_ENV" ;;
     --pager-sx1262) select_env "$PAGER_SX1262_ENV" ;;
