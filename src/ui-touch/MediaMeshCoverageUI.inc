@@ -14,7 +14,7 @@
 // loop, so it keeps going with the screen off (GPS stays awake while it does).
 // Tapping a dot on the map (mapTap) shows the MediaMesh repeaters heard there.
 //
-// Share coverage points (on by default) sends the file's points to a
+// Share coverage points (off by default) sends the file's points to a
 // CoreScope analyzer, analyzer.cascadiamesh.org unless another is entered,
 // signed by this standalone's key (helpers/MediaMeshCoverageShare.h; the net
 // worker does the request). Where it got to in the file is kept, so each
@@ -41,11 +41,7 @@ static int s_n = 0;                                  // samples ever (ring slot 
 static uint32_t s_counts[4] = {0, 0, 0, 0};          // per reach, of the samples in the ring
 static bool s_loaded = false, s_rec = false, s_show = true;
 // Sharing (see the top): on, where to, and how far into the file has gone.
-static bool s_share = true;
-// Sharing came on by itself (it used to be off until switched on): the
-// points already in the file when it did stay on the card unless sharing is
-// switched on on purpose (off, then on again).
-static bool s_share_by_default = false;
+static bool s_share = false;
 static bool s_receipts = true;                       // Share delivery receipts
 static char s_url[128] = "";
 static uint32_t s_sent_off = 0;
@@ -159,52 +155,23 @@ static void loadFromCard() {
 #endif
 }
 
-static uint32_t csvSize() {
-#if CAP_SD || defined(TLORA_PAGER)
-  if (SD.cardType() == CARD_NONE) return 0;
-  markSdIo();
-  File f = SD.open(kCsv, FILE_READ);
-  if (!f) return 0;
-  const uint32_t size = (uint32_t)f.size();
-  f.close();
-  return size;
-#else
-  return 0;
-#endif
-}
-
-static void prefsSave();
-
 static void prefsLoad() {
   if (s_loaded) return;
   s_loaded = true;
-  bool chosen = true;
 #if defined(ESP32)
   SdNvsPrefs p;
   if (p.begin("mmcov", true)) {
     s_rec = p.getBool("rec", false);
     s_show = p.getBool("show", true);
-    // both on unless switched off: points and receipts help the whole mesh
-    chosen = p.isKey("share");
-    s_share = p.getBool("share", true);
+    s_share = p.getBool("share", false);
+    // on unless switched off: receipts help show whether MediaMesh delivers
     s_receipts = p.getBool("rcpt", true);
-    s_share_by_default = p.getBool("sdef", false);
     if (!p.getString("url", s_url, sizeof s_url)) snprintf(s_url, sizeof s_url, "%s", mmshare::kDefaultAnalyzer);
     s_sent_off = p.getUInt("off", 0);
     p.end();
-  } else {
-    chosen = false;
   }
 #endif
   if (!s_url[0]) snprintf(s_url, sizeof s_url, "%s", mmshare::kDefaultAnalyzer);
-  if (!chosen) {
-    // never chosen: on now, from the end of what the card already holds
-    s_share = true;
-    s_share_by_default = true;
-    const uint32_t size = csvSize();
-    if (size > s_sent_off) s_sent_off = size;
-    prefsSave();
-  }
   loadFromCard();
 }
 
@@ -216,7 +183,6 @@ static void prefsSave() {
     p.putBool("show", s_show);
     p.putBool("share", s_share);
     p.putBool("rcpt", s_receipts);
-    p.putBool("sdef", s_share_by_default);
     p.putString("url", s_url);
     p.putUInt("off", s_sent_off);
     p.end();
@@ -740,8 +706,6 @@ static void buildRows(lv_obj_t* c) {
                "against real measurements.",
                s_share, [](lv_event_t* e) {
                  s_share = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
-                 if (s_share && s_share_by_default) s_sent_off = 0;   // chosen now: the earlier points too
-                 s_share_by_default = false;
                  s_share_msg[0] = 0;
                  prefsSave();
                  shareNoteRefresh();
