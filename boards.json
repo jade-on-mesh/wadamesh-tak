@@ -127,15 +127,15 @@
       "id": "crowpanel",
       "name": "Elecrow CrowPanel Advance",
       "chip": "ESP32-S3",
-      "desc": "3.5\" or 5\" touch screen. Needs an SX1262 module fitted (the 5\": in the wireless slot, with the DIP switch set to it).",
+      "desc": "3.5\", 5\" or 7\" touch screen. Needs an SX1262 module fitted (the 5\" and 7\": in the wireless slot, with the DIP switch set to it).",
       "boot": "Usually connects on its own. If not: hold the BOOT button, press RST, then release BOOT. The first install resizes the app slots, so it has to be this full install once.",
-      "notes": "Elecrow CrowPanel Advance 3.5 and 5 inch",
+      "notes": "Elecrow CrowPanel Advance 3.5, 5 and 7 inch",
       "base": "crowpanel",
       "options": [
         {
           "key": "size",
           "label": "Screen",
-          "help": "The size on the box: 3.5\" (480x320) or 5\" (800x480).",
+          "help": "The size on the box: 3.5\" (480x320), 5\" or 7\" (both 800x480).",
           "choices": [
             [
               "35",
@@ -146,6 +146,11 @@
               "50",
               "5\"",
               "-50"
+            ],
+            [
+              "70",
+              "7\"",
+              "-70"
             ]
           ]
         }
@@ -156,6 +161,9 @@
         },
         "crowpanel-50": {
           "env": "crowpanel_50_companion_radio_touch"
+        },
+        "crowpanel-70": {
+          "env": "crowpanel_70_companion_radio_touch"
         }
       }
     },

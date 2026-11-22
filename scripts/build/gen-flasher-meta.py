@@ -48,6 +48,7 @@ BOARDS = {
     "manifest-sensecap-indicator.json": ("wadamesh - Seeed SenseCAP Indicator D1L (experimental)", "wadamesh-sensecap-indicator-merged.bin", "ESP32-S3"),
     "manifest-crowpanel-35.json": ("wadamesh - Elecrow CrowPanel Advance 3.5 (experimental)", "wadamesh-crowpanel-35-merged.bin", "ESP32-S3"),
     "manifest-crowpanel-50.json": ("wadamesh - Elecrow CrowPanel Advance 5.0 (experimental)", "wadamesh-crowpanel-50-merged.bin", "ESP32-S3"),
+    "manifest-crowpanel-70.json": ("wadamesh - Elecrow CrowPanel Advance 7.0 (experimental)", "wadamesh-crowpanel-70-merged.bin", "ESP32-S3"),
     # The 10.1" CrowPanel is an ESP32-P4 board with one image per hardware revision
     # (LoRa DIO1/RST and the C6 SDIO lines moved between them): the revision is printed
     # on the board, and the wrong image leaves the radio or Wi-Fi dead.
