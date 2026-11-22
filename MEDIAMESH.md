@@ -178,7 +178,7 @@ yet, up to 200 points a batch, signed by the standalone's own key over
 `corescope-coverage:` and the SHA-256 of the batch; how far into the file it
 got is kept, and a new analyzer gets everything. Lines without a `key` can't
 be sent and are skipped. The analyzer only takes radios it has heard, shows
-the points as 200 m squares without the first and last 300 m of each trip, and
+the points as 500 m hexagons where a MediaMesh repeater answered, without the first and last 300 m of each trip, and
 never says whose they are. *Remove my points from the analyzer* deletes them
 there and switches sharing off; the file stays. The batches and the signed text
 are in `src/helpers/MediaMeshCoverageShare.h` (host-tested); the request runs
@@ -189,7 +189,7 @@ fork's updates can share.
 
 Observers only hear the pieces of a clip that pass near them, so an analyzer
 can't tell from them whether a photo or voice clip arrived. *Share delivery
-receipts* (under Share coverage points, off by default) lets the standalone tell
+receipts* (under Share coverage points, on by default) lets the standalone tell
 it, the same as MeshCore Open TAK's switch. For each clip it fetched whole, and
 each one it gave up on after asking for it, it keeps a receipt: the clip's
 session id (already on the air in every piece), photo or voice, how many pieces
@@ -539,6 +539,13 @@ mikecarper/MeshCore's, recomputed for the actual settings:
 - Buffered receive is switched on while radio2 is active (its drain task lifts
   each packet out within ~1 ms so the scan can move on), and goes back to your
   setting when radio2 is off.
+
+## Photos and voice: auto-play and auto-download
+
+**Settings → MediaMesh → Photos and voice**, under the radio2 settings, has the same two switches as MeshCore Open TAK. Both are on by default:
+
+- **Auto-play voice, auto-show photos**: a photo or voice message sent to you downloads as soon as it arrives. A voice message plays once it's whole, unless audio is busy or the sound is off. Off, they wait for a tap.
+- **Also auto-download in channels**: channel photos and voice download as they arrive too. Every listener pulls its own copy, which adds airtime on busy channels. Off, a channel photo still shows its thumbnail, and the rest waits for a tap.
 
 ## Fast MediaMesh
 

@@ -20,7 +20,7 @@
 // worker does the request). Where it got to in the file is kept, so each
 // point goes once.
 //
-// Share delivery receipts (off by default) tells the same analyzer, for each
+// Share delivery receipts (on by default) tells the same analyzer, for each
 // photo or voice clip the standalone fetched whole or gave up on after asking
 // for it (VoxFetch -> mmReceiptAdd), the clip's id, piece counts and whether
 // it was whole: never its content, sender, channel or position. They wait in
@@ -42,7 +42,7 @@ static uint32_t s_counts[4] = {0, 0, 0, 0};          // per reach, of the sample
 static bool s_loaded = false, s_rec = false, s_show = true;
 // Sharing (see the top): on, where to, and how far into the file has gone.
 static bool s_share = false;
-static bool s_receipts = false;                      // Share delivery receipts
+static bool s_receipts = true;                       // Share delivery receipts
 static char s_url[128] = "";
 static uint32_t s_sent_off = 0;
 static bool s_have_last = false;
@@ -164,7 +164,8 @@ static void prefsLoad() {
     s_rec = p.getBool("rec", false);
     s_show = p.getBool("show", true);
     s_share = p.getBool("share", false);
-    s_receipts = p.getBool("rcpt", false);
+    // on unless switched off: receipts help show whether MediaMesh delivers
+    s_receipts = p.getBool("rcpt", true);
     if (!p.getString("url", s_url, sizeof s_url)) snprintf(s_url, sizeof s_url, "%s", mmshare::kDefaultAnalyzer);
     s_sent_off = p.getUInt("off", 0);
     p.end();

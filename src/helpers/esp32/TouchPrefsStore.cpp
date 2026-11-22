@@ -2784,6 +2784,12 @@ bool touchPrefsGetFastMediaMesh() { if (!s_begun) touchPrefsBegin(); return s_pr
 void touchPrefsSetFastMediaMesh(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_fast", on ? 1 : 0); }
 bool touchPrefsGetAdaptiveSpacing() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("mm_adapt", 1) != 0; }
 void touchPrefsSetAdaptiveSpacing(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_adapt", on ? 1 : 0); }
+// Photos and voice fetched as they arrive, voice played; and on channels too.
+// On unless turned off.
+bool touchPrefsGetMediaAuto() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("mm_auto", 1) != 0; }
+void touchPrefsSetMediaAuto(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_auto", on ? 1 : 0); }
+bool touchPrefsGetMediaAutoChannels() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("mm_auto_ch", 1) != 0; }
+void touchPrefsSetMediaAutoChannels(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_auto_ch", on ? 1 : 0); }
 bool touchPrefsGetVoiceBrighter() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("vox_bright", 1) != 0; }
 void touchPrefsSetVoiceBrighter(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("vox_bright", on ? 1 : 0); }
 // On unless turned off: only boards that can play it (CAP_LUA_AUDIO) ask, and the
