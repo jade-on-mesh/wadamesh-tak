@@ -60,6 +60,33 @@ int main() {
       "{\"t\":1795000180,\"lat\":47.613000,\"lon\":-122.325000,\"speed\":1.9,\"reps\":[{\"key\":\"1ea5e195\",\"snr\":0.20,\"remote_snr\":0.10,\"margin\":2.0}]}]}";
   if (strcmp(buf, want)) { printf("%s\n", buf); assert(false); }
 
+  // RSSI, answers on radio2 and the repeaters asked on radio2 that stayed silent
+  {
+    assert(parseRow("1795000060,47.611000,-122.325000,none,,,,,,,,,FBA9FE12;nothex;5d01cacf\n", r) && r.none);
+    assert(r.silent_n == 2 && !strcmp(r.silent[0], "fba9fe12") && !strcmp(r.silent[1], "5d01cacf"));
+    assert(parseRow("1795000060,47.611000,-122.325000,good,13.0,First Hill,11.5,12.0,13.0,1ea5e195,-64,,fba9fe12\n", r));
+    assert(r.rssi == -64 && !r.radio2 && r.silent_n == 1);
+    assert(parseRow("1795000060,47.611000,-122.325000,good,13.0,SoDo,2.0,1.0,8.5,5491c13d,,radio2,\n", r));
+    assert(r.rssi == 0 && r.radio2 && r.silent_n == 0);
+    static char b2[4096];
+    Batch c(b2, sizeof b2);
+    assert(c.begin("ab01", 1795000500, "Wadamesh TAK", 62500, 250000, 7));
+    const char* more[] = {
+        "1795000060,47.611000,-122.325000,good,13.0,First Hill,11.5,12.0,13.0,1ea5e195,-64,,fba9fe12\n",
+        "1795000060,47.611000,-122.325000,good,13.0,SoDo,2.0,1.0,8.5,5491c13d,,radio2,\n",
+        "1795000120,47.612000,-122.325000,none,,,,,,,,,fba9fe12;fba9fe12\n",
+    };
+    for (const char* l : more) { assert(parseRow(l, r)); assert(c.add(r)); }
+    assert(c.finish() && c.samples() == 2);
+    const char* want2 =
+        "{\"v\":1,\"radio\":\"ab01\",\"sent\":1795000500,\"app\":\"Wadamesh TAK\",\"radio2\":{\"bw_hz\":250000,\"sf\":7},\"main_bw_hz\":62500,"
+        "\"points\":[{\"t\":1795000060,\"lat\":47.611000,\"lon\":-122.325000,\"reps\":["
+        "{\"key\":\"1ea5e195\",\"snr\":11.50,\"remote_snr\":12.00,\"margin\":13.0,\"rssi\":-64},"
+        "{\"key\":\"5491c13d\",\"snr\":2.00,\"remote_snr\":1.00,\"margin\":8.5,\"via\":\"radio2\"}],\"silent\":[\"fba9fe12\"]},"
+        "{\"t\":1795000120,\"lat\":47.612000,\"lon\":-122.325000,\"speed\":1.9,\"reps\":[],\"silent\":[\"fba9fe12\"]}]}";
+    if (strcmp(b2, want2)) { printf("%s\n", b2); assert(false); }
+  }
+
   // A full batch stops at a sample's first line, and takes nothing of it.
   static char small[1600];
   Batch s(small, sizeof small);

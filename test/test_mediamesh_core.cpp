@@ -174,6 +174,25 @@ static void testHeard() {
   assert(strstr(out, " heard=42s"));
 }
 
+// radio2.trace: whether a companion app can ask for a trace on radio2.
+static void testTraceOnRadio2() {
+  Runtime r; defaults(r.saved);
+  Env e = E();
+  char out[200];
+  run("set radio2 off", r, e, out);
+  CliResult res = run("get radio2.trace", r, e, out);
+  assert(res.handled && !strcmp(out, "> off"));
+  run("set radio2 911.15,250,7,5,rx", r, e, out);
+  run("get radio2.trace", r, e, out);
+  assert(!strcmp(out, "> off"));   // listens only: can't send the ping
+  run("set radio2 911.15,250,7,5,rxtx", r, e, out);
+  run("get radio2.trace", r, e, out);
+  assert(!strcmp(out, "> on"));
+  run("set radio2.trace on", r, e, out);
+  assert(strstr(out, "read-only"));
+  assert((kTraceOnRadio2 & 0x03) == 0);   // never mistaken for the hash width
+}
+
 // mediamesh.share: strict MediaMesh unless sharing with main-mesh nodes.
 static void testShare() {
   // Off: requests and answers follow tx.media's route, as keymindCascade.
@@ -847,6 +866,7 @@ static void testDefaultOn() {
 }
 
 int main() {
+  testTraceOnRadio2();
   testFind();
   testDiscoverRadio2();
   testSwitchTimes();

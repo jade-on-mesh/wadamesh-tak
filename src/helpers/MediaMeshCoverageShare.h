@@ -31,7 +31,8 @@ static constexpr const char* kUploadPath = "/api/mediamesh/coverage-points";
 static constexpr const char* kSignPrefix = "corescope-coverage:";
 static constexpr const char* kDeletePrefix = "corescope-coverage-delete:";
 static constexpr int kBatchMax = 200;          // samples a batch
-static constexpr size_t kSampleRoom = 700;     // bytes a sample can take (6 repeaters)
+static constexpr size_t kSampleRoom = 900;     // bytes a sample can take (6 repeaters, RSSI, those asked)
+static constexpr int kSilentMax = 6;           // repeaters asked by name that didn't answer, a sample
 
 /** The upload address for what was typed as the analyzer: the full address the
  *  points go to, kept as it is, or just the analyzer ("analyzer.example.org",
@@ -76,17 +77,34 @@ struct Row {
   bool has_key = false;  // the repeater's key was written (newer lines)
   char key[9] = "";
   float snr = 0, remote = 0, margin = 0;
+  int rssi = 0;          // of a discovery answer, dBm; 0: not known
+  bool radio2 = false;   // it answered being asked by name on radio2 (its margin is radio2's own)
+  char silent[kSilentMax][9] = {};   // asked by name on radio2 and silent (on a sample's first line)
+  int silent_n = 0;
 };
 
-/** epoch,lat,lon,reach,best_margin,repeater,snr,remote_snr,margin[,key]:
+/** Up to 8 hex digits at p, lower-cased, into out; the count read. */
+inline size_t hexKey(const char* p, char out[9]) {
+  size_t k = 0;
+  while (k < 8 && p[k] && p[k] != '\n' && p[k] != '\r' && p[k] != ',' && p[k] != ';') {
+    char c = p[k];
+    if (c >= 'A' && c <= 'F') c = (char)(c - 'A' + 'a');
+    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) break;
+    out[k++] = c;
+  }
+  out[k] = 0;
+  return k;
+}
+
+/** epoch,lat,lon,reach,best_margin,repeater,snr,remote_snr,margin[,key[,rssi,via,silent]]:
  *  false for the header, a blank or a broken line. */
 inline bool parseRow(const char* line, Row& r) {
   r = Row();
   if (!line || *line < '0' || *line > '9') return false;
-  const char* f[11];
+  const char* f[14];
   int n = 0;
   f[n++] = line;
-  for (const char* q = line; *q && *q != '\n' && *q != '\r' && n < 11; q++)
+  for (const char* q = line; *q && *q != '\n' && *q != '\r' && n < 14; q++)
     if (*q == ',') f[n++] = q + 1;
   if (n < 9) return false;
   char* end = nullptr;
@@ -98,21 +116,25 @@ inline bool parseRow(const char* line, Row& r) {
   if (end != f[3] - 1) return false;
   if (r.lat == 0 && r.lon == 0) return false;
   r.none = !strncmp(f[3], "none", 4);
+  if (n >= 13) {   // the repeaters asked by name that didn't answer, ';' between
+    for (const char* p = f[12]; *p && *p != '\n' && *p != '\r' && r.silent_n < kSilentMax;) {
+      char k[9];
+      const size_t len = hexKey(p, k);
+      if (len == 8) snprintf(r.silent[r.silent_n++], 9, "%s", k);
+      while (*p && *p != ';' && *p != '\n' && *p != '\r') p++;
+      if (*p == ';') p++;
+    }
+  }
   if (r.none) return true;
+  if (n >= 11 && f[10][0] != ',' && f[10][0] != '\n') {
+    const long v = strtol(f[10], nullptr, 10);
+    if (v < 0 && v >= -150) r.rssi = (int)v;
+  }
+  if (n >= 12) r.radio2 = !strncmp(f[11], "radio2", 6);
   r.snr = strtof(f[6], nullptr);
   r.remote = strtof(f[7], nullptr);
   r.margin = strtof(f[8], nullptr);
-  if (n >= 10) {
-    size_t k = 0;
-    while (k < 8 && f[9][k] && f[9][k] != '\n' && f[9][k] != '\r' && f[9][k] != ',') {
-      char c = f[9][k];
-      if (c >= 'A' && c <= 'F') c = (char)(c - 'A' + 'a');
-      if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) break;
-      r.key[k++] = c;
-    }
-    r.key[k] = 0;
-    r.has_key = k == 8;
-  }
+  if (n >= 10) r.has_key = hexKey(f[9], r.key) == 8;
   return true;
 }
 
@@ -149,6 +171,11 @@ class Batch {
       startSample(r);
     }
     if (skip_) return true;
+    for (int i = 0; i < r.silent_n; i++) {   // asked by name, silent: once each
+      bool had = false;
+      for (int j = 0; j < silent_n_ && !had; j++) had = !strcmp(silent_[j], r.silent[i]);
+      if (!had && silent_n_ < kSilentMax) snprintf(silent_[silent_n_++], 9, "%s", r.silent[i]);
+    }
     if (r.none) return true;
     if (!r.has_key) {   // a line from before keys were written: the whole sample goes
       len_ = sample_at_;
@@ -156,7 +183,10 @@ class Batch {
       skip_ = true;
       return true;
     }
-    put("%s{\"key\":\"%s\",\"snr\":%.2f,\"remote_snr\":%.2f,\"margin\":%.1f}", reps_ ? "," : "", r.key, r.snr, r.remote, r.margin);
+    put("%s{\"key\":\"%s\",\"snr\":%.2f,\"remote_snr\":%.2f,\"margin\":%.1f", reps_ ? "," : "", r.key, r.snr, r.remote, r.margin);
+    if (r.rssi) put(",\"rssi\":%d", r.rssi);
+    if (r.radio2) put(",\"via\":\"radio2\"");
+    put("}");
     reps_++;
     return true;
   }
@@ -195,6 +225,7 @@ class Batch {
     cur_ = r;
     skip_ = false;
     reps_ = 0;
+    silent_n_ = 0;
     sample_at_ = len_;
     put("%s{\"t\":%lu,\"lat\":%.6f,\"lon\":%.6f,", samples_ ? "," : "", (unsigned long)r.epoch, r.lat, r.lon);
     if (speed > 0) put("\"speed\":%.1f,", speed);
@@ -203,7 +234,13 @@ class Batch {
   }
   void closeSample() {
     if (open_) {
-      put("]}");
+      put("]");
+      if (silent_n_) {
+        put(",\"silent\":[");
+        for (int i = 0; i < silent_n_; i++) put("%s\"%s\"", i ? "," : "", silent_[i]);
+        put("]");
+      }
+      put("}");
       samples_++;
       last_epoch_ = cur_.epoch;
     } else if (skip_) {
@@ -214,7 +251,8 @@ class Batch {
 
   char* buf_;
   size_t cap_, len_ = 0, sample_at_ = 0;
-  int samples_ = 0, reps_ = 0;
+  int samples_ = 0, reps_ = 0, silent_n_ = 0;
+  char silent_[kSilentMax][9] = {};
   bool open_ = false, skip_ = false, over_ = false, have_prev_ = false;
   Row cur_;
   uint32_t last_epoch_ = 0, prev_epoch_ = 0;
