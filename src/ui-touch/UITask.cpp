@@ -44713,6 +44713,7 @@ static void loopTick(uint32_t) {}
 static bool recording() { return false; }
 static void freeMapObj() {}
 static void drawOnMap(lv_obj_t*, double, double) {}
+static bool onPing(uint32_t, int8_t, int8_t) { return false; }
 }  // namespace mmcovui
 static void mmcovBuildRows(lv_obj_t*) {}
 #endif
