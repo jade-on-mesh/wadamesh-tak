@@ -4171,6 +4171,9 @@ void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code,
   // of their retransmission comes from packet->getSNR().
   if (_ui && tag != 0 && tag == _ui_trace_ping_tag) {
     _ui_trace_ping_tag = 0;
+    // which radio its answer came back on (MediaMesh coverage mapping counts
+    // only an answer on radio2)
+    _ui_trace_ping_radio2 = mediamesh::rxOriginKnown() && mediamesh::rxOrigin() == 1;
     const uint8_t snr_count = (path_sz >= 4) ? 0 : (uint8_t)(path_len >> path_sz);
     int8_t their_snr = (snr_count > 0) ? (int8_t)path_snrs[0] : (int8_t)0;
     int8_t our_snr = (int8_t)(packet->getSNR() * 4);
@@ -5650,8 +5653,12 @@ void MyMesh::handleCmdFrame(size_t len) {
       uint32_t tag, auth;
       memcpy(&tag, &cmd_frame[1], 4);
       memcpy(&auth, &cmd_frame[5], 4);
-      auto pkt = createTrace(tag, auth, flags);
+      // kTraceOnRadio2: the app asks for it on radio2 only (MediaMesh coverage
+      // mapping); the bit stays off the air
+      const bool on_radio2 = (flags & mediamesh::kTraceOnRadio2) != 0;
+      auto pkt = createTrace(tag, auth, (uint8_t)(flags & ~mediamesh::kTraceOnRadio2));
       if (pkt) {
+        if (on_radio2) mediamesh::markPacket(pkt, mediamesh::TX_RADIO2);
         sendDirect(pkt, &cmd_frame[10], path_len);
 
         uint32_t t = _radio->getEstAirtimeFor(pkt->payload_len + pkt->path_len + 2);

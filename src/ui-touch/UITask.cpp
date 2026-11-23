@@ -44713,6 +44713,7 @@ static void loopTick(uint32_t) {}
 static bool recording() { return false; }
 static void freeMapObj() {}
 static void drawOnMap(lv_obj_t*, double, double) {}
+static bool onPing(uint32_t, int8_t, int8_t) { return false; }
 }  // namespace mmcovui
 static void mmcovBuildRows(lv_obj_t*) {}
 #endif
@@ -86570,6 +86571,8 @@ bool UITask::hidesIncomingText(const char* text, bool channel) {
 
 void UITask::onTracePingResult(uint32_t tag, int8_t their_snr, int8_t our_snr,
                                uint8_t extra_hops, const int8_t* extra_snrs) {
+  // MediaMesh coverage mapping asking a repeater by name on radio2: no toast
+  if (mmcovui::onPing(tag, their_snr, our_snr)) return;
 #if CAP_LUA_SDK_EXT
   if (tag && tag == s_lua_ping_tag) {   // an app asked: no toast, its on_ping reports it
     s_lua_ping_their = their_snr;

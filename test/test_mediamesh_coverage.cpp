@@ -57,6 +57,15 @@ int main() {
   assert(strcmp(line, "1760000000,47.600000,-122.300000,marginal,4.5,First Hill,4.5,3.0,4.5,1ea5e195\n") == 0);
   csvLine(line, sizeof line, 1760000000, 47600000, -122300000, None, 0, nullptr, 0, 0, 0);
   assert(strcmp(line, "1760000000,47.600000,-122.300000,none,,,,,\n") == 0);
+  // RSSI, an answer on radio2 and the repeaters asked on radio2 that didn't answer
+  csvLine(line, sizeof line, 1760000000, 47600000, -122300000, Good, 13.0f, "First Hill", 11.5f, 12.0f, 13.0f, "1ea5e195",
+          -64, false, "fba9fe12;5d01cacf");
+  assert(strcmp(line, "1760000000,47.600000,-122.300000,good,13.0,First Hill,11.5,12.0,13.0,1ea5e195,-64,,fba9fe12;5d01cacf\n") == 0);
+  csvLine(line, sizeof line, 1760000000, 47600000, -122300000, Good, 13.0f, "SoDo", 2.0f, 1.0f, 8.5f, "5491c13d", 0, true);
+  assert(strcmp(line, "1760000000,47.600000,-122.300000,good,13.0,SoDo,2.0,1.0,8.5,5491c13d,,radio2,\n") == 0);
+  csvLine(line, sizeof line, 1760000000, 47600000, -122300000, None, 0, nullptr, 0, 0, 0, nullptr, 0, false, "fba9fe12");
+  assert(strcmp(line, "1760000000,47.600000,-122.300000,none,,,,,,,,,fba9fe12\n") == 0);
+  assert(kAskMax == 3 && kAskWaitMs < kMinGapMs);
   assert(reachRgb(Good) == 0x22C55E && reachRgb(None) == 0x6B7280);
 
   printf("mediamesh coverage: ok\n");

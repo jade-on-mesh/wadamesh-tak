@@ -1047,7 +1047,12 @@ public:
    *  neighbor's hash; when they retransmit, our radio picks it up and the
    *  dispatcher fires onTraceRecv at us with the SNRs in both directions.
    *  Returns 0 on failure. */
-  uint32_t uiSendTracePing(const uint8_t pub_key[32]) {
+  /** Whether the last UI ping's answer (onTracePingResult) arrived on radio2. */
+  bool uiTracePingOnRadio2() const { return _ui_trace_ping_radio2; }
+  /** The UI ping still waiting for its answer (0: none). */
+  uint32_t uiTracePingTag() const { return _ui_trace_ping_tag; }
+
+  uint32_t uiSendTracePing(const uint8_t pub_key[32], bool on_radio2 = false) {
     if (!pub_key) return 0;
     // A TRACE hop is 1, 2 or 4 bytes (1 << flags), so the 3-byte path mode sends 4: the
     // repeater reads as many as the flags declare (#818).
@@ -1061,6 +1066,8 @@ public:
     _ui_trace_ping_tag = tag;
     mesh::Packet* pkt = createTrace(tag, 0, flags);
     if (!pkt) { _ui_trace_ping_tag = 0; return 0; }
+    // on_radio2: MediaMesh coverage mapping, radio2 only (it comes back on radio2)
+    if (on_radio2) mediamesh::markPacket(pkt, mediamesh::TX_RADIO2);
     sendDirect(pkt, pub_key, hash_sz);
     return tag;
   }
@@ -1901,6 +1908,7 @@ private:
   // path. Single-slot is enough because the UI gates a new ping until the
   // last one resolves or times out.
   uint32_t _ui_trace_ping_tag = 0;
+  bool _ui_trace_ping_radio2 = false;   // the last UI ping's answer came back on radio2
   uint32_t _ui_sig_probe_tag  = 0;   // in-flight silent signal probe (updates _ui_sig_* only, no popup)
 };
 

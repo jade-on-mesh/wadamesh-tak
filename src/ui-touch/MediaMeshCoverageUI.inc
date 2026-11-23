@@ -6,9 +6,14 @@
 //
 // Every 150 m, at most every 40 s, the radio asks the repeaters in direct range
 // as Find MediaMesh does (DISCOVER_REQ with the radio2 flag) and keeps only the
-// ones answering with radio2 on. Each sample is a dot on the map coloured by the
-// best repeater's estimated radio2 margin (helpers/MediaMeshCoverage.h), and a
-// line per repeater in /meshcomod/mediamesh_coverage.csv on the card.
+// ones answering with radio2 on. Then, when radio2 can transmit, it asks the
+// nearest MediaMesh repeaters seen earlier that didn't answer, one at a time
+// by name on radio2 (a one-hop trace ping, uiSendTracePing on radio2): an
+// answer that comes back on radio2 is radio2 reaching both ways, measured on
+// radio2; one that doesn't come is noted as silent. Each sample is a dot on the
+// map coloured by the best repeater's radio2 margin (helpers/MediaMeshCoverage.h),
+// and a line per repeater in /meshcomod/mediamesh_coverage.csv on the card,
+// with the RSSI of each discovery answer.
 //
 // Included in UITask.cpp before the map markers; the recorder runs from the UI
 // loop, so it keeps going with the screen off (GPS stays awake while it does).
@@ -190,9 +195,21 @@ static void prefsSave() {
 #endif
 }
 
-struct Heard { char name[24]; char key[9]; float snr, remote, margin; };
+struct Heard { char name[24]; char key[9]; float snr, remote, margin; int8_t rssi; bool radio2; };
 
-static void writeSample(uint32_t epoch, const mmcov::Sample& s, const Heard* h, int n) {
+// Asking by name on radio2, after the discovery: collect() -> askStep() ->
+// finishSample(). The sample waits here meanwhile.
+struct Ask { uint8_t key[32]; uint32_t bw; uint8_t sf; char name[24]; };
+static Ask s_asks[mmcov::kAskMax];
+static int s_ask_n = 0, s_ask_i = -1;                // -1: not asking by name
+static uint32_t s_ping_tag = 0, s_ping_ms = 0;
+static bool s_pong = false, s_pong_r2 = false;
+static int8_t s_pong_their = 0, s_pong_ours = 0;
+static Heard s_heard[mmcov::kMaxRepeaters];
+static int s_heard_n = 0;
+static char s_silent[mmcov::kAskMax * 9 + 1] = "";   // keys asked and silent, ';' between
+
+static void writeSample(uint32_t epoch, const mmcov::Sample& s, const Heard* h, int n, const char* silent) {
 #if CAP_SD || defined(TLORA_PAGER)
   if (SD.cardType() == CARD_NONE) return;
   markSdIo();
@@ -203,17 +220,18 @@ static void writeSample(uint32_t epoch, const mmcov::Sample& s, const Heard* h, 
   char line[160];
   const float best = s.best_q4 / 4.0f;
   if (!n) {
-    mmcov::csvLine(line, sizeof line, epoch, s.lat_e6, s.lon_e6, mmcov::None, 0, nullptr, 0, 0, 0);
+    mmcov::csvLine(line, sizeof line, epoch, s.lat_e6, s.lon_e6, mmcov::None, 0, nullptr, 0, 0, 0, nullptr, 0, false,
+                   silent);
     f.print(line);
   }
   for (int i = 0; i < n; i++) {
     mmcov::csvLine(line, sizeof line, epoch, s.lat_e6, s.lon_e6, s.reach(), best, h[i].name, h[i].snr, h[i].remote,
-                   h[i].margin, h[i].key);
+                   h[i].margin, h[i].key, h[i].rssi, h[i].radio2, i == 0 ? silent : nullptr);
     f.print(line);
   }
   f.close();
 #else
-  (void)epoch; (void)s; (void)h; (void)n;
+  (void)epoch; (void)s; (void)h; (void)n; (void)silent;
 #endif
 }
 
@@ -232,6 +250,123 @@ static bool busy() {
   return s_discover_root != nullptr && s_discover_scanning;
 }
 
+// Strongest first, the best few kept.
+static void keepHeard(Heard* heard, int& n, const Heard& x) {
+  int at = n < mmcov::kMaxRepeaters ? n : mmcov::kMaxRepeaters;
+  while (at > 0 && heard[at - 1].margin < x.margin) {
+    if (at < mmcov::kMaxRepeaters) heard[at] = heard[at - 1];
+    at--;
+  }
+  if (at < mmcov::kMaxRepeaters) { heard[at] = x; if (n < mmcov::kMaxRepeaters) n++; }
+}
+
+// The sample, once the discovery and the asks by name are in.
+static void finishSample() {
+  mmcov::Sample s;
+  s.lat_e6 = s_ask_lat;
+  s.lon_e6 = s_ask_lon;
+  s.count = (uint8_t)s_heard_n;
+  s.best_q4 = s_heard_n ? mmcov::toQ4(s_heard[0].margin) : 0;
+  const uint32_t epoch = (uint32_t)rtc_clock.getCurrentTime();
+  push(s, epoch);
+  for (int i = 0; i < s_heard_n; i++) setRep(i, s_heard[i].name, s_heard[i].snr, s_heard[i].remote, s_heard[i].margin);
+  writeSample(epoch, s, s_heard, s_heard_n, s_silent);
+  s_have_last = true;
+  s_last_lat = s_ask_lat;
+  s_last_lon = s_ask_lon;
+  s_last_ms = s_ask_scan;
+  legendRefresh();
+  if (s_show) renderMapMarkers();
+}
+
+// The MediaMesh repeaters to ask by name: seen earlier this session (the
+// discovery table keeps their radio2 profile), not answering this time, with a
+// position within kAskWithinMetres, nearest first.
+static void pickAsks() {
+  s_ask_n = 0;
+  if (mediamesh::runtime().active2().mode != mediamesh::MODE_RXTX) return;   // can't send on radio2
+  double dist[mmcov::kAskMax];
+  for (int i = 0; i < the_mesh.discoverCount(); i++) {
+    MyMesh::DiscoverHit h;
+    if (!the_mesh.discoverGet((uint8_t)i, h) || h.node_type != ADV_TYPE_REPEATER || !h.r2_len) continue;
+    mediamesh::DiscoverRadio2 p;
+    if (!mediamesh::parseDiscoverRadio2(h.r2, h.r2_len, p) || !p.active()) continue;
+    char key[9];
+    snprintf(key, sizeof key, "%02x%02x%02x%02x", h.pubkey[0], h.pubkey[1], h.pubkey[2], h.pubkey[3]);
+    bool answered = false;
+    for (int k = 0; k < s_heard_n && !answered; k++) answered = !strcmp(s_heard[k].key, key);
+    if (answered) continue;
+    ContactInfo* c = the_mesh.lookupContactByPubKey(h.pubkey, PUB_KEY_SIZE);
+    if (!c || (c->gps_lat == 0 && c->gps_lon == 0)) continue;
+    const double d = mmcov::metresBetween(s_ask_lat, s_ask_lon, c->gps_lat, c->gps_lon);
+    if (d > mmcov::kAskWithinMetres) continue;
+    int at = s_ask_n < mmcov::kAskMax ? s_ask_n : mmcov::kAskMax;
+    while (at > 0 && dist[at - 1] > d) {
+      if (at < mmcov::kAskMax) { s_asks[at] = s_asks[at - 1]; dist[at] = dist[at - 1]; }
+      at--;
+    }
+    if (at >= mmcov::kAskMax) continue;
+    Ask& a = s_asks[at];
+    memcpy(a.key, h.pubkey, sizeof a.key);
+    a.bw = p.bw_hz;
+    a.sf = p.sf;
+    snprintf(a.name, sizeof a.name, "%s", c->name);
+    for (char* q = a.name; *q; q++) if (*q == ',' || *q == '\n' || *q == '"') *q = ' ';   // one CSV field
+    dist[at] = d;
+    if (s_ask_n < mmcov::kAskMax) s_ask_n++;
+  }
+}
+
+// One step of asking by name on radio2: send the next ping, or take its answer
+// (counted only if it came back on radio2), or give up on it after kAskWaitMs.
+static void askStep(uint32_t now) {
+  if (!s_ping_tag) {
+    if (s_ask_i >= s_ask_n) { s_ask_i = -1; finishSample(); return; }
+    s_pong = false;
+    s_ping_tag = the_mesh.uiSendTracePing(s_asks[s_ask_i].key, true);
+    s_ping_ms = now;
+    if (!s_ping_tag) s_ask_i++;   // couldn't send: counts neither way
+    return;
+  }
+  const Ask& a = s_asks[s_ask_i];
+  char key[9];
+  snprintf(key, sizeof key, "%02x%02x%02x%02x", a.key[0], a.key[1], a.key[2], a.key[3]);
+  if (s_pong) {
+    if (s_pong_r2) {   // radio2 both ways: its own SNR, no bandwidth to allow for
+      Heard x;
+      snprintf(x.name, sizeof x.name, "%s", a.name);
+      snprintf(x.key, sizeof x.key, "%s", key);
+      x.snr = s_pong_ours / 4.0f;
+      x.remote = s_pong_their / 4.0f;
+      x.margin = mmcov::margin(mmcov::linkSnr(s_pong_ours, s_pong_their), a.bw, a.bw, a.sf);
+      x.rssi = 0;
+      x.radio2 = true;
+      keepHeard(s_heard, s_heard_n, x);
+    }
+    s_ping_tag = 0;
+    s_ask_i++;
+    return;
+  }
+  if ((uint32_t)(now - s_ping_ms) < mmcov::kAskWaitMs) return;
+  // no answer; unless another ping took the slot meanwhile, it was asked and silent
+  if (the_mesh.uiTracePingTag() == s_ping_tag) {
+    const size_t len = strlen(s_silent);
+    snprintf(s_silent + len, sizeof s_silent - len, "%s%s", len ? ";" : "", key);
+  }
+  s_ping_tag = 0;
+  s_ask_i++;
+}
+
+// UITask::onTracePingResult: true when it was our ask's answer.
+static bool onPing(uint32_t tag, int8_t their_snr, int8_t our_snr) {
+  if (!tag || tag != s_ping_tag || s_pong) return false;
+  s_pong = true;
+  s_pong_their = their_snr;
+  s_pong_ours = our_snr;
+  s_pong_r2 = the_mesh.uiTracePingOnRadio2();
+  return true;
+}
+
 // The answers to our ask: MediaMesh repeaters only, heard directly.
 static void collect(uint32_t now) {
   s_ask_ms = 0;
@@ -247,6 +382,8 @@ static void collect(uint32_t now) {
     mediamesh::DiscoverRadio2 p;
     if (!mediamesh::parseDiscoverRadio2(h.r2, h.r2_len, p) || !p.active()) continue;
     Heard x;
+    x.rssi = h.our_rssi < 0 ? h.our_rssi : 0;
+    x.radio2 = false;
     x.snr = h.our_snr_q4 / 4.0f;
     x.remote = h.their_snr_q4 / 4.0f;
     x.margin = mmcov::margin(mmcov::linkSnr(h.our_snr_q4, h.their_snr_q4), main_bw, p.bw_hz, p.sf);
@@ -255,29 +392,14 @@ static void collect(uint32_t now) {
     if (c) snprintf(x.name, sizeof x.name, "%s", c->name);
     else snprintf(x.name, sizeof x.name, "%02X%02X%02X%02X", h.pubkey[0], h.pubkey[1], h.pubkey[2], h.pubkey[3]);
     for (char* q = x.name; *q; q++) if (*q == ',' || *q == '\n' || *q == '"') *q = ' ';   // one CSV field
-    // Strongest first, the best few kept.
-    int at = n < mmcov::kMaxRepeaters ? n : mmcov::kMaxRepeaters;
-    while (at > 0 && heard[at - 1].margin < x.margin) {
-      if (at < mmcov::kMaxRepeaters) heard[at] = heard[at - 1];
-      at--;
-    }
-    if (at < mmcov::kMaxRepeaters) { heard[at] = x; if (n < mmcov::kMaxRepeaters) n++; }
+    keepHeard(heard, n, x);
   }
-  mmcov::Sample s;
-  s.lat_e6 = s_ask_lat;
-  s.lon_e6 = s_ask_lon;
-  s.count = (uint8_t)n;
-  s.best_q4 = n ? mmcov::toQ4(heard[0].margin) : 0;
-  const uint32_t epoch = (uint32_t)rtc_clock.getCurrentTime();
-  push(s, epoch);
-  for (int i = 0; i < n; i++) setRep(i, heard[i].name, heard[i].snr, heard[i].remote, heard[i].margin);
-  writeSample(epoch, s, heard, n);
-  s_have_last = true;
-  s_last_lat = s_ask_lat;
-  s_last_lon = s_ask_lon;
-  s_last_ms = s_ask_scan;
-  legendRefresh();
-  if (s_show) renderMapMarkers();
+  memcpy(s_heard, heard, sizeof heard);
+  s_heard_n = n;
+  s_silent[0] = 0;
+  pickAsks();
+  if (s_ask_n) { s_ask_i = 0; s_ping_tag = 0; return; }   // askStep finishes it
+  finishSample();
 }
 
 static void shareTick(uint32_t now);
@@ -287,6 +409,7 @@ static void loopTick(uint32_t now) {
   if (!s_loaded) prefsLoad();
   shareTick(now);
   rcptTick(now);
+  if (s_ask_i >= 0) { askStep(now); return; }   // asking by name on radio2
   if (!s_rec) return;
   if (s_ask_ms) {
     if ((uint32_t)(now - s_ask_ms) >= mediamesh::kAskListenMs) collect(now);

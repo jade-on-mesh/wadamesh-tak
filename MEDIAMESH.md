@@ -144,7 +144,24 @@ the extra noise of radio2's wider bandwidth (10·log10 of radio2's bandwidth ove
 the main mesh's), against the lowest SNR radio2's spreading factor decodes
 (SF7 −7.5 dB, each SF step 2.5 dB lower). The sums are in
 `src/helpers/MediaMeshCoverage.h`, with the same golden values as the app's
-test. A margin under a few dB is worth checking by sending a photo there.
+test. A margin under a few dB is worth checking by sending a photo there. Each
+discovery answer also keeps the RSSI of the reply: SNR readings top out around
++12 dB however strong the signal, RSSI keeps rising.
+
+Then, when radio2 can transmit (rxtx), the radio asks up to three of the nearest
+MediaMesh repeaters it has seen this session (with a position, within 6 km)
+that didn't answer the discovery, one at a time by name **on radio2**: a
+one-hop trace ping on radio2 only, which a MediaMesh repeater forwards back on
+radio2, the radio it heard it on. An answer counts only if it came back on
+radio2, and is then radio2 reaching both ways, its margin from radio2's own SNR
+(no bandwidth to allow for). One that doesn't answer within 8 s is noted as
+silent. So a gap is a repeater really asked on radio2, not one the discovery's
+rate limit passed over.
+
+The CSV's last three columns (written only when they say something) carry the
+RSSI, `radio2` for an answer on radio2, and, on a sample's first line, the
+repeaters asked on radio2 that stayed silent (`;` between). Sharing sends them
+as `rssi`, `via: "radio2"` and `silent`.
 
 Tap a dot on the map to see when it was measured and each MediaMesh repeater
 heard there, strongest first: its margin on radio2 and the SNR both ways (as
@@ -462,10 +479,16 @@ Settings > App Settings > Messaging, also off by default.
 
 ```text
 get radio2.status    > rxtx; RX=12,40 TX=3,9 switches=5120 errors=0 max=1203us preamble=32,64; test=4/4 ready budget=1324us
+get radio2.trace     > on
 get radio2.scan      > slow=radio; listen_us=9421,21667; preamble=32,64
 get radio2.timing    > chirps=4.60,43.33; need=32,64; switch=1324us; loop=0us; test=4/4 ready; preamble=32,64
 get mediamesh        > radio2=...; tx.media=radio2; cross=off; share=off; media on radio2
 ```
+
+`radio2.trace` is `on` when radio2 can transmit: a companion app may then ask
+for a trace on radio2 only, by setting bit 3 (0x08) of CMD_SEND_TRACE_PATH's
+flags (`mediamesh::kTraceOnRadio2`; the bit stays off the air). MeshCore Open
+TAK's coverage map uses it to ask repeaters by name on radio2.
 
 `max=` is the longest retune ever seen and `typ=` the typical (median) one
 since the last profile change; `stalls=` counts retunes over 8 ms, held up

@@ -7,7 +7,13 @@
 // 40 s, so the repeaters' answers per two minutes go round) it asks the
 // repeaters in direct range, as Find MediaMesh does (DISCOVER_REQ with the
 // radio2 flag), and keeps only the ones that answer with radio2 on: MediaMesh
-// repeaters, nothing else.
+// repeaters, nothing else. Then it asks the nearest MediaMesh repeaters seen
+// earlier that didn't answer, up to kAskMax within kAskWithinMetres, one at a
+// time by name, on radio2 only (a one-hop trace ping a MediaMesh repeater
+// forwards back on radio2): an answer that comes back on radio2 is radio2
+// reaching both ways, with radio2's own SNR; one that stays quiet was asked.
+// Each discovery answer also keeps the RSSI of the reply: SNR readings top out
+// around +12 dB, RSSI keeps rising.
 //
 // The ask goes out on the main mesh, so radio2's reach is estimated from it:
 // the weaker of the two directions' SNR, less the extra noise of radio2's wider
@@ -30,6 +36,9 @@ static constexpr uint32_t kMoveMetres = 150;      // a new sample after moving t
 static constexpr uint32_t kMinGapMs = 40000;      // and never asking more often than this
 static constexpr uint32_t kTickMs = 5000;         // how often the recorder looks
 static constexpr int kMaxRepeaters = 6;           // kept per sample, strongest first
+static constexpr int kAskMax = 3;                 // asked by name after the discovery, nearest first
+static constexpr double kAskWithinMetres = 6000;  // only those this close (they have to be in direct range)
+static constexpr uint32_t kAskWaitMs = 8000;      // a ping's answer, at most
 
 /** The lowest SNR (dB) LoRa decodes at each spreading factor. */
 inline float snrFloor(uint8_t sf) {
@@ -119,17 +128,35 @@ inline bool due(bool have_last, int32_t last_lat, int32_t last_lon, uint32_t las
 
 // key: the repeater's first 4 key bytes (hex), so the points can be sent to an
 // analyzer (MediaMeshCoverageShare.h); files from before it have no such column.
-static constexpr const char* kCsvHeader = "epoch,lat,lon,reach,best_margin,repeater,snr,remote_snr,margin,key\n";
+// rssi: of a discovery answer (dBm, blank when not known); via: "radio2" when
+// it answered being asked by name on radio2 (its snr, remote_snr and margin
+// are then radio2's own); silent: on a sample's first line, the repeaters
+// asked by name on radio2 that didn't answer (keys, ';' between). Lines from
+// before have none of the three.
+static constexpr const char* kCsvHeader = "epoch,lat,lon,reach,best_margin,repeater,snr,remote_snr,margin,key,rssi,via,silent\n";
 
-/** One CSV line per repeater (or one with blanks when none answered). */
+/** One CSV line per repeater (or one with blanks when none answered). rssi 0:
+ *  not known. The last three columns are written only when one of them says
+ *  something, so lines read the same by older code. */
 inline int csvLine(char* out, size_t cap, uint32_t epoch, int32_t lat_e6, int32_t lon_e6, Reach reach, float best,
-                   const char* repeater, float snr, float remote_snr, float m, const char* key = nullptr) {
+                   const char* repeater, float snr, float remote_snr, float m, const char* key = nullptr,
+                   int rssi = 0, bool on_radio2 = false, const char* silent = nullptr) {
   char lat[16], lon[16];
   snprintf(lat, sizeof lat, "%.6f", lat_e6 / 1e6);
   snprintf(lon, sizeof lon, "%.6f", lon_e6 / 1e6);
-  if (!repeater) return snprintf(out, cap, "%lu,%s,%s,%s,,,,,\n", (unsigned long)epoch, lat, lon, reachName(reach));
-  return snprintf(out, cap, "%lu,%s,%s,%s,%.1f,%s,%.1f,%.1f,%.1f%s%s\n", (unsigned long)epoch, lat, lon, reachName(reach),
-                  best, repeater, snr, remote_snr, m, key ? "," : "", key ? key : "");
+  const bool extra = rssi != 0 || on_radio2 || (silent && *silent);
+  char tail[96] = "";
+  if (extra) {
+    char r[8] = "";
+    if (rssi) snprintf(r, sizeof r, "%d", rssi);
+    snprintf(tail, sizeof tail, ",%s,%s,%s", r, on_radio2 ? "radio2" : "", silent ? silent : "");
+  }
+  if (!repeater) {
+    if (!extra) return snprintf(out, cap, "%lu,%s,%s,%s,,,,,\n", (unsigned long)epoch, lat, lon, reachName(reach));
+    return snprintf(out, cap, "%lu,%s,%s,%s,,,,,,%s\n", (unsigned long)epoch, lat, lon, reachName(reach), tail);
+  }
+  return snprintf(out, cap, "%lu,%s,%s,%s,%.1f,%s,%.1f,%.1f,%.1f%s%s%s\n", (unsigned long)epoch, lat, lon, reachName(reach),
+                  best, repeater, snr, remote_snr, m, (key || extra) ? "," : "", key ? key : "", tail);
 }
 
 }  // namespace mmcov

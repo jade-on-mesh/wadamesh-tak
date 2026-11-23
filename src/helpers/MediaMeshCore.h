@@ -51,6 +51,13 @@ namespace mediamesh {
 
 enum Mode : uint8_t { MODE_OFF = 0, MODE_RX = 1, MODE_RXTX = 2 };
 
+/** CMD_SEND_TRACE_PATH's flags: this bit asks for the trace on radio2 only
+ *  (`get radio2.trace` says whether it can go). It never goes on the air: the
+ *  flags a trace carries are bits 0-1 (hash width). A MediaMesh repeater
+ *  forwards a packet on the radio it heard it on, so a one-hop trace sent on
+ *  radio2 comes back on radio2, its SNRs radio2's both ways. */
+static constexpr uint8_t kTraceOnRadio2 = 0x08;
+
 // A transmit choice, as mikecarper/MeshCore's RadioTxPolicy. AUTO follows the
 // radio2.cross rules; the others pick profiles regardless of crossing.
 enum Policy : uint8_t { TX_AUTO = 0, TX_RADIO = 1, TX_RADIO2 = 2, TX_BOTH = 3, TX_OFF = 4 };
@@ -1318,6 +1325,10 @@ inline CliResult handleCli(const char* cmd, Runtime& r, const Env& env, char* re
   const bool timing_key = !strcmp(key, "radio2.timing") || !strcmp(key, "radio.timing");
   const bool scan_key = !strcmp(key, "radio2.scan");
   const bool status_key = !strcmp(key, "radio2.status");
+  // Whether a companion app can ask for a trace on radio2 (CMD_SEND_TRACE_PATH
+  // with kTraceOnRadio2): radio2 can transmit now. Coverage mapping asks
+  // repeaters by name on radio2 only when it's on.
+  const bool trace_key = !strcmp(key, "radio2.trace");
   const bool summary = !strcmp(key, "mediamesh");
   const bool share = !strcmp(key, "mediamesh.share");
   const bool repeat = !strcmp(key, "radio2.repeat");
@@ -1326,13 +1337,19 @@ inline CliResult handleCli(const char* cmd, Runtime& r, const Env& env, char* re
   const bool normal = !strcmp(key, "normalradio");
   if (verb == BARE && !temp1 && !normal) return res;
   if (verb != BARE && (normal || (temp1 && verb == DEL))) return res;
-  if (!base && !temp && !sched && !media && !cross && !timing_key && !scan_key && !status_key && !summary
+  if (!base && !temp && !sched && !media && !cross && !timing_key && !scan_key && !status_key && !trace_key && !summary
       && !share && !repeat && !main_key && !temp1 && !normal) {
     return res;
   }
   if (verb == DEL && !sched) return res;
   res.handled = true;
   const Profile2 active = r.active2();
+
+  if (trace_key) {
+    if (verb != GET || *arg) { snprintf(reply, cap, "Error: %s is read-only", key); return res; }
+    snprintf(reply, cap, "> %s", active.mode == MODE_RXTX ? "on" : "off");
+    return res;
+  }
 
   // ---- read-only diagnostics ----
   if (timing_key || scan_key || status_key || summary) {
