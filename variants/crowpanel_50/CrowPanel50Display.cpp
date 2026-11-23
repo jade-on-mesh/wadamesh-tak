@@ -28,6 +28,11 @@ constexpr int kTouchSda = 15, kTouchScl = 16, kTouchInt = 1;
 #ifndef CROWPANEL50_HPORCH
 #define CROWPANEL50_HPORCH 8
 #endif
+// Sync polarities. Elecrow's examples use 0 (lessons 4-6, IDF) or 1 (their
+// 7.0 PlatformIO demo); 0 unless an env says otherwise.
+#ifndef CROWPANEL50_SYNC_POLARITY
+#define CROWPANEL50_SYNC_POLARITY 0
+#endif
 constexpr uint32_t kPclkHz = CROWPANEL50_PCLK_HZ;
 
 // V1.1+ board MCU: single-byte commands at 0x30. 0 brightest .. 244 dimmest,
@@ -182,11 +187,11 @@ CrowPanel50Display::CrowPanel50Display() : DisplayDriver(kPanelW, kPanelH) {
     cfg.pin_hsync = GPIO_NUM_40;
     cfg.pin_pclk = GPIO_NUM_39;
     cfg.freq_write = kPclkHz;
-    cfg.hsync_polarity = 0;
+    cfg.hsync_polarity = CROWPANEL50_SYNC_POLARITY;
     cfg.hsync_front_porch = CROWPANEL50_HPORCH;
     cfg.hsync_pulse_width = 4;
     cfg.hsync_back_porch = CROWPANEL50_HPORCH;
-    cfg.vsync_polarity = 0;
+    cfg.vsync_polarity = CROWPANEL50_SYNC_POLARITY;
     cfg.vsync_front_porch = 8;
     cfg.vsync_pulse_width = 4;
     cfg.vsync_back_porch = 8;
@@ -265,9 +270,16 @@ bool CrowPanel50Display::begin() {
   }
 #endif
   _isOn = true;
-  Serial.printf("[crowpanel-50] display %dx%d, pclk %lu Hz edge %d hporch %d, touch %s\n",
+  Serial.printf("[crowpanel-50] display %dx%d, pclk %lu Hz edge %d hporch %d sync pol %d, "
+                "flash pause %s, touch %s\n",
                 width(), height(), (unsigned long)kPclkHz, CROWPANEL50_PCLK_IDLE_HIGH,
-                CROWPANEL50_HPORCH, _lcd.touch() ? "up" : "not found");
+                CROWPANEL50_HPORCH, CROWPANEL50_SYNC_POLARITY,
+#if defined(CROWPANEL50_FLASH_PAUSE) && !defined(CROWPANEL50_NO_FLASH_PAUSE)
+                "on",
+#else
+                "off",
+#endif
+                _lcd.touch() ? "up" : "not found");
   return true;
 }
 

@@ -17,7 +17,13 @@ portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 int s_depth = 0;
 uint32_t s_saved = 0;
 
+// CROWPANEL50_NO_FLASH_PAUSE keeps the wrappers (the link flags stay the same)
+// but never stops the clock: a panel that blanks without a clock (the 7.0, it
+// seems) is better with the brief sideways jump.
 void lcdPause() {
+#ifdef CROWPANEL50_NO_FLASH_PAUSE
+  return;
+#endif
   portENTER_CRITICAL(&s_mux);
   if (s_depth++ == 0) {
     s_saved = LCD_CAM.lcd_clock.val;
@@ -27,6 +33,9 @@ void lcdPause() {
 }
 
 void lcdResume() {
+#ifdef CROWPANEL50_NO_FLASH_PAUSE
+  return;
+#endif
   portENTER_CRITICAL(&s_mux);
   if (--s_depth == 0) LCD_CAM.lcd_clock.val = s_saved;
   portEXIT_CRITICAL(&s_mux);
