@@ -1,0 +1,36 @@
+name: cp70 flicker trials (temporary)
+# Builds the CrowPanel 7.0 trial images as full-install merged bins.
+# Lives only on the crowpanel-70-flicker-test branch; never merged.
+on:
+  push:
+    branches: [crowpanel-70-flicker-test]
+jobs:
+  trial:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [cp70_test_a, cp70_test_b, cp70_test_c, cp70_test_d]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: pio-${{ runner.os }}-crowpanel_70_companion_radio_touch-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-crowpanel_70_companion_radio_touch-
+      - run: pip install --upgrade platformio
+      - run: |
+          unset WIFI_SSID WIFI_PWD
+          pio run -e ${{ matrix.env }}
+          pio run -t mergebin -e ${{ matrix.env }}
+          mkdir -p out && cp .pio/build/${{ matrix.env }}/firmware-merged.bin out/wadamesh-crowpanel-70-${{ matrix.env }}-merged.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wadamesh-crowpanel-70-${{ matrix.env }}
+          path: out/*.bin
+          retention-days: 14
