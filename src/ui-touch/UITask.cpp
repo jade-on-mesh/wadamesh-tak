@@ -22567,6 +22567,7 @@ static void buildSoundPage() {
     void voxRsDescribe(char* out, size_t cap);   // the AI voice restorer (defined with the voice player)
     void voxRsSetOn(bool on);
     void voxRsDownloadNow();
+    int voxRsDownloadPct();
 #if defined(HAS_TDECK_GT911) || defined(HAS_TDISPLAY_P4)
     // The Codec2 mode the mic records in (VoxMic), as in MeshCore Open TAK.
     static const uint8_t kModes[3] = { 1, 5, 6 };
@@ -22604,6 +22605,44 @@ static void buildSoundPage() {
         if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
         voxRsDownloadNow();
       });
+      // While the model downloads: how far it is, as a bar and a percentage.
+      static lv_obj_t* s_vrs_pct_lbl = nullptr;
+      static lv_obj_t* s_vrs_bar = nullptr;
+      static lv_timer_t* s_vrs_bar_timer = nullptr;
+      s_vrs_pct_lbl = setInfoRow(c, "Downloading voice model", "");
+      s_vrs_bar = lv_bar_create(c);
+      lv_obj_set_size(s_vrs_bar, s_settings_content_w, SC(8));
+      lv_bar_set_range(s_vrs_bar, 0, 100);
+      lv_obj_set_style_bg_color(s_vrs_bar, lv_color_hex(COLOR_CONTROL), LV_PART_MAIN);
+      lv_obj_set_style_bg_opa(s_vrs_bar, LV_OPA_COVER, LV_PART_MAIN);
+      lv_obj_set_style_bg_color(s_vrs_bar, lv_color_hex(COLOR_STATUS_OK_TEXT), LV_PART_INDICATOR);
+      auto refresh = [](lv_timer_t*) {
+        if (!s_vrs_bar || !s_vrs_pct_lbl) return;
+        const int p = voxRsDownloadPct();
+        lv_obj_t* row = lv_obj_get_parent(s_vrs_pct_lbl);
+        if (p == -2) {
+          lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(s_vrs_bar, LV_OBJ_FLAG_HIDDEN);
+          return;
+        }
+        lv_obj_clear_flag(row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(s_vrs_bar, LV_OBJ_FLAG_HIDDEN);
+        char t[16];
+        if (p < 0) snprintf(t, sizeof t, "...");
+        else snprintf(t, sizeof t, "%d%%", p);
+        lv_label_set_text(s_vrs_pct_lbl, t);
+        lv_bar_set_value(s_vrs_bar, p < 0 ? 0 : p, LV_ANIM_OFF);
+      };
+      refresh(nullptr);
+      if (s_vrs_bar_timer) lv_timer_del(s_vrs_bar_timer);
+      s_vrs_bar_timer = lv_timer_create(refresh, 500, nullptr);
+      lv_obj_add_event_cb(s_vrs_bar, [](lv_event_t* e) {
+        if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
+        if (s_vrs_bar_timer) lv_timer_del(s_vrs_bar_timer);
+        s_vrs_bar_timer = nullptr;
+        s_vrs_bar = nullptr;
+        s_vrs_pct_lbl = nullptr;
+      }, LV_EVENT_DELETE, nullptr);
 #endif
     }
   }
@@ -41648,6 +41687,7 @@ static uint32_t s_vrs_next_ms = 0;               // voxRsModelTick's next look
 static uint8_t* volatile s_vrs_dl = nullptr;     // the worker's download buffer
 static volatile size_t s_vrs_dl_len = 0;
 static char s_vrs_dl_msg[112];
+static volatile int s_vrs_dl_pct = -1;           // the download's 0..100, -1 until its size is known
 static constexpr size_t kVrsDlCap = 4u << 20;    // the model is about 1 MB
 #else
 #define VOX_RS_DOWNLOAD 0
@@ -42333,10 +42373,13 @@ static void tileFetchTaskFn(void* arg) {
       s_vrs_dl_msg[0] = 0;
       size_t got = 0;
       snprintf(url, sizeof url, "https://raw.githubusercontent.com/" WADA_FORK_REPO "/%s/models/vox-restorer-small.bin", tag);
-      bool ok = s_vrs_dl && forkFetchFile(url, s_vrs_dl, kVrsDlCap, &got, s_vrs_dl_msg, sizeof s_vrs_dl_msg);
+      s_vrs_dl_pct = -1;
+      bool ok = s_vrs_dl && forkFetchFile(url, s_vrs_dl, kVrsDlCap, &got, s_vrs_dl_msg, sizeof s_vrs_dl_msg,
+                                          &s_vrs_dl_pct);
       if (!ok && s_vrs_dl) {
         snprintf(url, sizeof url, "https://raw.githubusercontent.com/" WADA_FORK_REPO "/main/models/vox-restorer-small.bin");
-        ok = forkFetchFile(url, s_vrs_dl, kVrsDlCap, &got, s_vrs_dl_msg, sizeof s_vrs_dl_msg);
+        s_vrs_dl_pct = -1;
+        ok = forkFetchFile(url, s_vrs_dl, kVrsDlCap, &got, s_vrs_dl_msg, sizeof s_vrs_dl_msg, &s_vrs_dl_pct);
       }
       s_vrs_dl_len = got;
       s_vrs_dl_state = ok ? 3 : 4;
@@ -84016,6 +84059,7 @@ static void voxRsModelTick(uint32_t now) {
   if (!b) { next_ms = now + 60000; return; }
   s_vrs_dl = b;
   s_vrs_dl_len = 0;
+  s_vrs_dl_pct = -1;
   s_vrs_dl_state = 2;
   ensureTileFetchTaskRunning();
   s_vrs_dl_request = true;
@@ -84045,6 +84089,18 @@ void voxRsDescribe(char* out, size_t cap) {
     snprintf(out + k, cap - k, TR("\nModel loaded: %d channels, %d layers."), s_vox_rs.dim(), s_vox_rs.layers());
   }
 }
+// Settings > Sound's progress bar: the restorer model download's 0..100, -1 while
+// it hasn't learned the size yet, -2 when nothing is downloading.
+int voxRsDownloadPct() {
+#if VOX_RS_DOWNLOAD
+  if (s_vrs_dl_state != 2) return -2;
+  const int p = s_vrs_dl_pct;
+  return p < 0 ? -1 : p > 100 ? 100 : p;
+#else
+  return -2;
+#endif
+}
+
 // Settings > Sound > "Download voice model": fetches the restorer's model now,
 // even when one is here (a newer or a damaged one replaced), Wi-Fi permitting.
 void voxRsDownloadNow() {
