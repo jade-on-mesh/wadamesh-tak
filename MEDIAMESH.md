@@ -103,8 +103,11 @@ Everything else (schedules, `tempradio`, diagnostics) works from
 
 A radio that has never saved MediaMesh settings starts with radio2 **on**
 (send and listen) when its main radio is in the US 902-928 MHz band, and off
-elsewhere, since the default frequency below is a US one. Turning it off is
-remembered. **Sent on radio2** starts as *Photos & voice*. A radio whose
+elsewhere, since the default frequency below is a US one. Until something is
+saved this follows the main radio: picking a US region in setup turns radio2 on
+within a couple of seconds, without a reboot (it used to wait for the next
+boot), and moving the main radio out of the band turns it off. Turning it off
+is remembered. Standalones already set up keep their settings. **Sent on radio2** starts as *Photos & voice*. A radio whose
 `tx.media` was never chosen (still `auto`, shown as *Custom*) moves to
 *Photos & voice* once (NVS key `mm_pv_def`); choosing `auto` again from the
 Terminal afterwards is kept.
@@ -662,7 +665,7 @@ back on 911.150 MHz. The main radio stays sub-GHz (`tempradio` refuses 2.4 GHz).
 
 Settings → MediaMesh → **Repeat MediaMesh** (`set radio2.repeat on|off`) makes
 a standalone relay what it hears on radio2, back out on radio2, like a
-MediaMesh repeater. Main-mesh traffic isn't relayed; that is still Client
+MediaMesh repeater. It is **off** by default. Main-mesh traffic isn't relayed; that is still Client
 repeat. It needs radio2 On (listen and send). On a 2.4 GHz radio2, a few
 standalones with it on make a 2.4 GHz MediaMesh with no repeaters on 900 MHz
 involved.

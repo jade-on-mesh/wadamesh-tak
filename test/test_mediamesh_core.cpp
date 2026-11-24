@@ -851,6 +851,15 @@ static void testDefaultOn() {
   assert(!defaultOnFor(433.875f));
   assert(!defaultOnFor(0.0f));   // main radio not known yet
   assert(defaultOnFor(kDefaultFreq));
+  // Never set up: radio2 on (listen and send) in the US band, off elsewhere,
+  // and Repeat MediaMesh off whatever the band.
+  assert(neverSavedMode(910.525f) == MODE_RXTX);
+  assert(neverSavedMode(869.618f) == MODE_OFF);
+  {
+    Config d;
+    defaults(d);
+    assert(d.relay == 0);
+  }
   // "Sent on radio2" starts as Photos & voice; a chosen setting is kept.
   Config c;
   defaults(c);
