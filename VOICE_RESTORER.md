@@ -20,6 +20,9 @@ T-Display P4 and Tanmatsu.
 - **Download voice model** (under the setting) fetches it now, on Wi-Fi,
   replacing the one already there: for a newer model, or one that won't load.
   It works with the setting off too, so the model is ready when you turn it on.
+- While it downloads (by itself or from the button), **Downloading voice model**
+  under the button shows the percentage and a progress bar; both go away when
+  it's done.
 - Or copy it yourself: `/models/vox-restorer-small.bin` on the SD card.
 - Play a voice message. The clip is restored first, then plays, so there is a
   pause before it starts on a slow board. The setting's line says how long the

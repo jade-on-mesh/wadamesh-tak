@@ -489,9 +489,11 @@ static bool fetchToBuf(Job& j) {
     return false;
   }
   j.got = 0;
+  if (j.pct) *j.pct = 0;
   readBody(g, (size_t)len, 20000, [&](const uint8_t* b, size_t n) -> bool {
     memcpy(j.buf + j.got, b, n);
     j.got += n;
+    if (j.pct) *j.pct = (int)((uint64_t)j.got * 100 / (uint64_t)len);
     return true;
   });
   g.close();
@@ -701,8 +703,10 @@ static int forkPostJson(const char* url, const char* method, const char* sig, co
 }
 
 // A file of at most `cap` bytes, over HTTPS (redirects followed), into `buf`.
-static bool forkFetchFile(const char* url, uint8_t* buf, size_t cap, size_t* got, char* msg, size_t msg_cap) {
-  forkupd_dev::Job j{forkupd_dev::Kind::Fetch, 0, nullptr, nullptr, msg, msg_cap, 0, nullptr};
+// `pct`, when given, follows the download 0..100 once its size is known.
+static bool forkFetchFile(const char* url, uint8_t* buf, size_t cap, size_t* got, char* msg, size_t msg_cap,
+                          volatile int* pct = nullptr) {
+  forkupd_dev::Job j{forkupd_dev::Kind::Fetch, 0, nullptr, pct, msg, msg_cap, 0, nullptr};
   j.url = url;
   j.buf = buf;
   j.cap = cap;
