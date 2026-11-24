@@ -78,6 +78,8 @@ void ensureLoaded() {
 bool save() {
   uint8_t blob[kBlobSize];
   const size_t n = encode(s_rt.saved, blob);
+  // Saved now: the first-run default (loop) no longer touches radio2.
+  s_never_saved = false;
   return touchPrefsSetBlob(kPrefsKey, blob, n);
 }
 
@@ -273,6 +275,21 @@ void begin(SavedPrimaryFn saved_primary) {
 
 void loop() {
   ensureLoaded();
+  // Never set up: radio2 follows the main radio's band as soon as it changes,
+  // not only at boot. A fresh install starts on 869.618 MHz and the region is
+  // picked in setup; radio2 used to stay off until the next reboot.
+  if (s_never_saved && supported() && s_rt.saved.held == kNotHeld) {
+    static uint32_t s_next_band_check = 0;
+    const uint32_t now = millis();
+    if ((int32_t)(now - s_next_band_check) >= 0) {
+      s_next_band_check = now + 2000;
+      const uint8_t want = neverSavedMode(savedPrimary().freq);
+      if (s_rt.saved.mode != want) {
+        s_rt.saved.mode = want;
+        applySecondary();
+      }
+    }
+  }
   const TickResult t = tick(s_rt, millis());
   if (t.save) save();
   if (t.apply) applySecondary();

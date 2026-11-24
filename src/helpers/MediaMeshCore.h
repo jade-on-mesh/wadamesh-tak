@@ -314,6 +314,10 @@ inline void defaults(Config& c) {
 // band, where the default radio2 frequency belongs; elsewhere it starts off.
 inline bool defaultOnFor(float main_freq) { return main_freq >= 902.0f && main_freq <= 928.0f; }
 
+// radio2's mode for a radio that has never saved MediaMesh settings: on
+// (rxtx) in the US band, off elsewhere. Repeat MediaMesh stays off either way.
+inline uint8_t neverSavedMode(float main_freq) { return defaultOnFor(main_freq) ? MODE_RXTX : MODE_OFF; }
+
 // What's sent on radio2 starts as the settings page's "Photos & voice": photos
 // and voice go on radio2, nothing else crosses. A radio that never chose (its
 // media still automatic) moves to it once. True if `c` changed.
