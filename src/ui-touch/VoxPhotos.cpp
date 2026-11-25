@@ -896,6 +896,8 @@ void setFec(bool on) {
   g_serve.setFec(on);
 }
 bool fec() { return g_serve.fec(); }
+void setExtraParity(bool on) { g_serve.setExtra(on); }
+bool extraParity() { return g_serve.extra(); }
 void setAuto(bool on) { g_auto = on; if (!on) g_auto_play_sid = 0; }
 bool autoFetch() { return g_auto; }
 void setAutoChannels(bool on) { g_auto_ch = on; }

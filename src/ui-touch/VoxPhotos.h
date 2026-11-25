@@ -105,6 +105,10 @@ bool queue();
 // MediaMesh, repair packets. Off: neither sent or asked for.
 void setFec(bool on);
 bool fec();
+// Extra parity (with error correction): whole clips answered direct get
+// parity sized for the route's length (VoxFec::hopLossPct).
+void setExtraParity(bool on);
+bool extraParity();
 // Photos and voice sent to us (and, with autoChannels, on channels) fetched as
 // they arrive, voice played once whole. Both on unless switched off.
 void setAuto(bool on);

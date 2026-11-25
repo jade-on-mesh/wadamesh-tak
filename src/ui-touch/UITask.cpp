@@ -19614,6 +19614,12 @@ static void mediaFecToggleCb(lv_event_t* e) {
   touchPrefsSetMediaFec(on);
   VoxPhotos::setFec(on);
 }
+// Extra parity: direct answers' parity sized for the route's length.
+static void extraParityToggleCb(lv_event_t* e) {
+  const bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+  touchPrefsSetExtraParity(on);
+  VoxPhotos::setExtraParity(on);
+}
 static void buildFastMediaMeshCard() {
   lv_obj_t* c = setCard("Fast MediaMesh");
   setSwitchRow(c, "Fast MediaMesh",
@@ -19633,6 +19639,10 @@ static void buildFastMediaMeshCard() {
                "(with Fast MediaMesh) repair packets that mend everyone's gaps at once. Switch off to ask again for "
                "each missing packet instead.",
                VoxPhotos::fec(), mediaFecToggleCb);
+  setSwitchRow(c, "Extra parity",
+               "Photos and voice sent over a long route get more parity, so fewer listeners have to ask again. "
+               "Uses a little more airtime. Needs Error correction.",
+               VoxPhotos::extraParity(), extraParityToggleCb);
 }
 // Photos and voice on this standalone: fetched as they arrive and voice
 // played (VoxPhotos::setAuto), and on channels too.
@@ -93813,6 +93823,7 @@ void UITask::loop() {
         VoxPhotos::setAdaptive(touchPrefsGetAdaptiveSpacing());   // and its adaptive spacing
         VoxPhotos::setQueue(touchPrefsGetMediaQueue());           // send queue
         VoxPhotos::setFec(touchPrefsGetMediaFec());               // error correction
+        VoxPhotos::setExtraParity(touchPrefsGetExtraParity());    // and its extra parity
         VoxPhotos::setAuto(touchPrefsGetMediaAuto());               // fetched as they arrive
         VoxPhotos::setAutoChannels(touchPrefsGetMediaAutoChannels());   // and on channels
         // When internal storage is full (settings, chat history and OTP pads

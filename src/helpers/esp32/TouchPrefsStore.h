@@ -599,6 +599,8 @@ bool    touchPrefsGetMediaQueue();        // "mm_queue", on by default
 void    touchPrefsSetMediaQueue(bool on);
 bool    touchPrefsGetMediaFec();          // "mm_fec", on by default
 void    touchPrefsSetMediaFec(bool on);
+bool    touchPrefsGetExtraParity();       // "mm_xpar", on by default
+void    touchPrefsSetExtraParity(bool on);
 bool    touchPrefsGetAdaptiveSpacing();   // "mm_adapt", on by default
 void    touchPrefsSetAdaptiveSpacing(bool on);
 bool    touchPrefsGetMediaAuto();            // "mm_auto", on by default
