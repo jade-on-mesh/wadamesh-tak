@@ -1039,6 +1039,24 @@ void testPaceLearnsLoss() {
   CHECK(p.loss_pct == 40, "loss %d", p.loss_pct);
 }
 
+// Repair packets are sized for each listener's own loss, at most 25% (the
+// app's VoxFloodPace.lossFor).
+void testLossPerListener() {
+  floodpace::Pace p(338, true);
+  floodpace::Answer a;
+  for (int i = 0; i < 100; i++) a.add(i);
+  uint8_t far[32] = {0}, near[32] = {0};
+  for (int i = 0; i < 40; i++) far[i >> 3] |= (uint8_t)(1u << (i & 7));
+  for (int i = 0; i < 5; i++) near[i >> 3] |= (uint8_t)(1u << (i & 7));
+  const uint8_t kFar[6] = {1, 1, 1, 1, 1, 1}, kNear[6] = {2, 2, 2, 2, 2, 2}, kNew[6] = {3, 3, 3, 3, 3, 3};
+  p.feedback(a, far, kFar);
+  p.feedback(a, near, kNear);
+  CHECK(p.loss_pct == 40, "channel's worst %d", p.loss_pct);
+  CHECK(p.lossFor(kFar, VoxFountain::kMaxLossPct) == 25, "far capped %d", p.lossFor(kFar, VoxFountain::kMaxLossPct));
+  CHECK(p.lossFor(kNear, VoxFountain::kMaxLossPct) == 5, "near its own %d", p.lossFor(kNear, VoxFountain::kMaxLossPct));
+  CHECK(p.lossFor(kNew, VoxFountain::kMaxLossPct) == 25, "new: channel's, capped");
+}
+
 void testFastRepairCappedList() {
   Sim sim;
   sim.air = 150;
@@ -1102,6 +1120,7 @@ int main(int argc, char** argv) {
   testFastRepairMixedListeners();
   testFastRepairCappedList();
   testPaceLearnsLoss();
+  testLossPerListener();
   testSmallAnswerFirst();
   testAdaptiveSpacing();
   testFastFloodsZeroHopListener();

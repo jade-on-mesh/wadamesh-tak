@@ -181,6 +181,7 @@ class VoxServe {
       uint8_t miss[32] = {0};
       uint8_t sent[32] = {0};
       int repairs_at = 0;          // repairs_sent when it asked
+      int loss_pct = 0;            // the loss its repair packets are sized for (its own)
     };
     Need needs[3];
     int need_next = 0;
@@ -224,7 +225,7 @@ class VoxServe {
   bool sendRepair(Job& j, uint32_t now);
   int  repairsDue(const Job& j) const;
   bool zeroHop(const Job& j) const;
-  static void addNeed(Job& j, const VoxWire::FetchRequest& r, int tail_from);
+  static void addNeed(Job& j, const VoxWire::FetchRequest& r, int tail_from, int loss_pct);
   static void noteData(Job& j, int index);
   bool listCapped(const VoxWire::FetchRequest& r) const;
   static bool thumbAsk(const VoxWire::FetchRequest& r);

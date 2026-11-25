@@ -50,8 +50,10 @@ inline int firstPass(int total) { return total < 2 ? 0 : (total + 9) / 10 + 1; }
 // miss some while on the main mesh), so it costs a pass's share. Both sized for
 // the loss the channel's answers have seen lately. As the app's voxFountainOwed.
 // The most loss repair packets are sized for (percent): a listener losing more
-// is on a poor link of its own, and asks again. As voxFountainMaxLossPct.
-constexpr int kMaxLossPct = 40;
+// is on a poor link of its own, and asks again. As voxFountainMaxLossPct. Was
+// 40, which sized answers for the worst listener heard and flooded the channel
+// (2026-11-24).
+constexpr int kMaxLossPct = 25;
 inline int lossOf(int pct) { return pct < 0 ? 0 : pct > kMaxLossPct ? kMaxLossPct : pct; }
 
 // Repair packets for a listener missing `missing` when `loss_pct`% of what's
