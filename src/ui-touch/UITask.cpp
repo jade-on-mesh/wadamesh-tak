@@ -168,6 +168,7 @@ static void* wadaMp3Scratch() { return s_wada_mp3_scratch; }
 #include "TakTexts.h"            // host-tested MeshCore Open TAK / MediaMesh text rules
 #include "GiphyText.h"          // host-tested: GIFs as MeshCore Open sends them ("g:<id>")
 #include "ReactionCodec.h"       // host-tested emoji reactions from MeshCore Open / One (#791)
+#include "MessageEdit.h"         // host-tested edits to sent messages from MeshCore Open TAK
 #include "PasteHexKey.h"        // host-tested key extraction for pasted key fields (#526)
 #include "NavSpatial.h"         // host-tested keypad spatial step (navMoveDir)
 #include "SdThreat.h"           // SD-card malware rules: the mount-time warning + wada.sd.remove
@@ -52716,6 +52717,11 @@ static void chatBuildFoot(const UITask::UIMessage& m, bool channel_mode, ChatFoo
     } else {
       snprintf(t, tn, "%s", ts);
     }
+    if (m.deliv_state == UITask::DELIV_EDITED) {   // its sender corrected it (MessageEdit.h)
+      const size_t l = strlen(f.text);
+      if (l + 1 < sizeof f.text)
+        snprintf(f.text + l, sizeof f.text - l, "%s%s", l ? " \xC2\xB7 " : "", TR("edited"));
+    }
     return;
   }
   if (channel_mode) {
@@ -86801,7 +86807,18 @@ bool UITask::reactionPartsOfSlot(int msg_idx, uint32_t* ts, char* sender, size_t
   return true;
 }
 
+// An edited message's first hash rides in sent_fp (unused on a received message)
+// with this tag above it, so a later edit or reaction still finds it.
+static constexpr uint32_t kEditedHashTag = 0x10000u;
+
 bool UITask::reactionHashOfSlot(int msg_idx, uint16_t* hash) const {
+  if (_ui_msgs && msg_idx >= 0 && msg_idx < _ui_msg_cap) {
+    const UIMessage& m = _ui_msgs[msg_idx];
+    if (!m.outgoing && m.deliv_state == DELIV_EDITED && (m.sent_fp >> 16) == 1 && m.thread[0]) {
+      if (hash) *hash = (uint16_t)(m.sent_fp & 0xFFFF);
+      return true;
+    }
+  }
   uint32_t ts = 0;
   bool named = false, ch = false;
   char who[MAX_SENDER_NAME + 1];
@@ -86809,6 +86826,55 @@ bool UITask::reactionHashOfSlot(int msg_idx, uint16_t* hash) const {
   if (!reactionPartsOfSlot(msg_idx, &ts, who, sizeof who, &named, text, sizeof text, &ch)) return false;
   if (hash) *hash = reactions::hashOfMessage(ts, named ? who : nullptr, text, ch);
   return true;
+}
+
+bool UITask::applyIncomingEdit(const char* thread, bool channel, const char* sender,
+                               const char* body, uint32_t edit_ts) {
+  msgedit::Edit e;
+  if (!_ui_msgs || !body || !msgedit::parse(body, &e)) return false;
+  const int t = findThreadByName(thread, channel);
+  if (t < 0) return false;   // no chat yet: nothing in it to correct
+  if (!channel) {            // a 1:1 chat only, as the app edits
+    ContactInfo* c = the_mesh.lookupContactByPubKey(_ui_threads[t].mesh_contact_pub, PUB_KEY_SIZE);
+    if (c && c->type != ADV_TYPE_CHAT) return false;
+  }
+  int idx[128];
+  const int n = getThreadMessageIndexes(t, idx, 128, true);   // newest first
+  for (int i = 0; i < n; ++i) {
+    UIMessage& m = _ui_msgs[idx[i]];
+    if (m.outgoing) continue;
+    uint32_t ts = 0;
+    bool named = false, ch = false;
+    char who[MAX_SENDER_NAME + 1];
+    char txt[MAX_MSG_TEXT + 1];
+    if (!reactionPartsOfSlot(idx[i], &ts, who, sizeof who, &named, txt, sizeof txt, &ch)) continue;
+    if (channel && strcmp(who, sender ? sender : "") != 0) continue;   // only its sender corrects it
+    uint16_t h = 0;
+    if (!reactionHashOfSlot(idx[i], &h) || h != e.target_hash) continue;
+    if (!msgedit::arrivedInTime(ts, edit_ts)) return false;   // old history isn't rewritten
+    // The text as the app holds it: a channel reply without its "@[name] ", and an
+    // old record's "Name: " (kept whole in m.text) set aside.
+    const char* app_text = ch ? reactions::replyBody(txt) : txt;
+    const size_t mlen = strlen(m.text), tlen = strlen(txt);
+    if (tlen > mlen || strcmp(m.text + (mlen - tlen), txt) != 0) return false;
+    const size_t keep = (mlen - tlen) + (size_t)(app_text - txt);
+    char out[MAX_MSG_TEXT + 1];
+    memcpy(out, m.text, keep);
+    if (!msgedit::applyTo(e, app_text, out + keep, sizeof out - keep))
+      return msgedit::alreadyIn(e, app_text);   // a mesh repeat of one applied: drop it
+    if (m.deliv_state != DELIV_EDITED) m.sent_fp = kEditedHashTag | h;   // its first text's hash
+    m.deliv_state = DELIV_EDITED;
+    snprintf(m.text, sizeof m.text, "%s", out);
+    ++_react_gen;                 // its bubble's height changes: lay the chat out again
+    segMarkSeqDirty(m.seq);       // the owning segment is rewritten with the new text
+    _msgs_dirty = true;
+    markMsgsDirty();
+#if !defined(HAS_TANMATSU)
+    s_web_rx_nudge = true;
+#endif
+    return true;
+  }
+  return false;
 }
 
 void UITask::setActiveThread(int idx, bool channel_mode) {
@@ -91769,6 +91835,21 @@ void UITask::newMsgImpl(uint8_t path_len, const char* from_name, const char* tex
       }
       return;
     }
+  }
+
+  // Edits (MessageEdit.h, as MeshCore Open TAK's): a correction to a message in this
+  // chat is applied to it in place and marked edited -- no bubble, chime, glance or
+  // unread. One that names nothing here, or was made over an edit we missed, falls
+  // through and shows as the text it is, as on a client without edits. Not for room
+  // posts, which the app doesn't edit.
+  if (!have_sender_override && msgedit::looks(body) &&
+      applyIncomingEdit(thread, channel, sender, body, the_mesh.uiLastSenderTs())) {
+    the_mesh.uiConsumeLastSenderTs();   // an edit's own send-time names nothing here
+#if defined(HAS_TOUCH_UI)
+    g_lv.dirty_timeline = true;
+    g_lv.dirty_threads  = true;
+#endif
+    return;
   }
 
 #if defined(ATTAKY_MESH_SERIES)
