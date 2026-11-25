@@ -606,6 +606,29 @@ while radio2 is busy:
 `radio2.status` counts the waits as `lbt=`. MeshCore Open TAK waits the same
 way before each photo or voice packet it sends (`vox_timing.dart`).
 
+## Send queue and error correction
+
+Two switches in **Settings → MediaMesh → Fast MediaMesh**, both on by
+default. MeshCore Open TAK has the same two (**MediaMesh Settings → Speed &
+Routing**). Standalones and phones with them on and off still work together.
+
+**Send queue.** Answers go out one at a time. A voice clip's answer goes
+before photos' and videos' queued ahead of it (`VoxServe::tick`, the app's
+`voxPickServe`), so a few seconds of speech doesn't wait minutes behind a
+photo. Among the rest, a small answer goes first with adaptive spacing on,
+else first come, first served. Radio2 packets also wait for quiet, as
+described under Listen before talk above.
+
+Off: answers go first come, first served (small first with adaptive
+spacing), and radio2 packets go without waiting for quiet (`mediamesh::setLbt`).
+
+**Error correction.** A whole-clip answer ends with parity packets
+(`VoxFec.h`). With Fast MediaMesh on too, listeners are mended with repair
+packets (`VoxFountain.h`): asked for, and sent.
+
+Off: neither is sent or asked for, and listeners get the packets they ask
+for. Parity and repair packets heard from others are still used either way.
+
 ## Supported radios
 
 SX1262/SX1268 boards: T-Deck, T-Deck Pro/Max, Heltec V4, T-LoRa Pager (SX1262),

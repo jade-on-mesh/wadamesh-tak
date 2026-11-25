@@ -2782,6 +2782,12 @@ void touchPrefsSetPublicMedia(bool on) { if (!s_begun) touchPrefsBegin(); prefsP
 // turned off.
 bool touchPrefsGetFastMediaMesh() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("mm_fast", 1) != 0; }
 void touchPrefsSetFastMediaMesh(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_fast", on ? 1 : 0); }
+// Send queue (voice first, listen before talk on radio2) and error correction
+// (parity and repair packets). On unless turned off.
+bool touchPrefsGetMediaQueue() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("mm_queue", 1) != 0; }
+void touchPrefsSetMediaQueue(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_queue", on ? 1 : 0); }
+bool touchPrefsGetMediaFec() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("mm_fec", 1) != 0; }
+void touchPrefsSetMediaFec(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_fec", on ? 1 : 0); }
 bool touchPrefsGetAdaptiveSpacing() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("mm_adapt", 1) != 0; }
 void touchPrefsSetAdaptiveSpacing(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_adapt", on ? 1 : 0); }
 // Photos and voice fetched as they arrive, voice played; and on channels too.

@@ -709,6 +709,8 @@ class ServeIo : public VoxServeIo {
     return true;
   }
   void freeClip(uint8_t* bits) override { free(bits); }
+  // Voice clips are kept apart from photos (kind 1).
+  bool isVoiceClip(uint32_t sid) override { return existsVox(sid, 1); }
   void log(const char* line) override { Serial.println(line); }
 };
 
@@ -884,6 +886,16 @@ void setFast(bool on) {
 }
 bool fast() { return g_serve.fast(); }
 void setAdaptive(bool on) { g_serve.setAdaptive(on); }
+void setQueue(bool on) {
+  g_serve.setQueue(on);
+  mediamesh::setLbt(on);
+}
+bool queue() { return g_serve.queue(); }
+void setFec(bool on) {
+  g_fetch.setFec(on);
+  g_serve.setFec(on);
+}
+bool fec() { return g_serve.fec(); }
 void setAuto(bool on) { g_auto = on; if (!on) g_auto_play_sid = 0; }
 bool autoFetch() { return g_auto; }
 void setAutoChannels(bool on) { g_auto_ch = on; }

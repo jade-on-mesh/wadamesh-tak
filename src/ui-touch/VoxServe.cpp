@@ -121,13 +121,13 @@ bool VoxServe::mergeChannel(const VoxWire::FetchRequest& r, int channel, int hop
     const int h = hops < 0 ? 3 : hops;
     if (h > q.max_hops) q.max_hops = h;
     q.mark_ok = q.mark_ok && r.mark_ok;   // everyone it answers must read marked packets
-    if (fast_) q.loss_pct = paceFor(channel).loss_pct;
+    if (fountain()) q.loss_pct = paceFor(channel).loss_pct;
     // Fast MediaMesh: a list as long as a request holds may stop short of all
     // it lacks: the rest after the last one named goes too, as data.
     const int tail = listCapped(r) ? r.missing[r.n_missing - 1] + 1 : -1;
     // A listener that rebuilds from repair packets gets enough fresh ones for
     // what no data packet of this burst carries; they mend the others' gaps too.
-    if (fast_ && r.fountain_ok && !thumbAsk(r)) {
+    if (fountain() && r.fountain_ok && !thumbAsk(r)) {
       addNeed(q, r, tail);
       if (!r.all && tail < 0) {
         logf("[VOX] serve %08lx: another listener (%d hops) lacks %d: repair packets", (unsigned long)r.sid, h,
@@ -186,7 +186,7 @@ void VoxServe::enqueue(const VoxWire::FetchRequest& r, int channel, bool from_dm
   // Fast MediaMesh: a list that may stop short gets the rest after it too.
   const int tail = channel >= 0 && listCapped(r) ? r.missing[r.n_missing - 1] + 1 : -1;
   t.tail_from = tail;
-  if (fast_ && channel >= 0 && r.fountain_ok && !thumbAsk(r)) {   // Fast MediaMesh: repair packets
+  if (fountain() && channel >= 0 && r.fountain_ok && !thumbAsk(r)) {   // Fast MediaMesh: repair packets
     addNeed(t, r, tail);
     if (r.all) {
       t.repair_first = true;
@@ -238,7 +238,7 @@ void VoxServe::enqueue(const VoxWire::FetchRequest& r, int channel, bool from_dm
   recent_next_ = (recent_next_ + 1) % (int)(sizeof recent_ / sizeof recent_[0]);
   if (channel >= 0) {
     t.max_hops = hops < 0 ? 3 : hops;
-    if (fast_) t.loss_pct = paceFor(channel).loss_pct;
+    if (fountain()) t.loss_pct = paceFor(channel).loss_pct;
     if (mergeChannel(r, channel, hops)) return;
   }
 
@@ -263,6 +263,7 @@ void VoxServe::enqueue(const VoxWire::FetchRequest& r, int channel, bool from_dm
     return;
   }
   t.seq = ++seq_;
+  t.voice = io_.isVoiceClip(t.sid);
   jobs_[slot] = t;
   queued_++;
   char key[13];
@@ -358,7 +359,7 @@ bool VoxServe::start(Job& j) {
     finish(j, "nothing it asked for exists");
     return false;
   }
-  if (j.all && !j.repair_first) {
+  if (fec_ && j.all && !j.repair_first) {
     j.par_total = VoxFec::totalParity(j.total, j.mode == VoxWire::kImageModeId);
   }
   return true;
@@ -393,7 +394,7 @@ bool VoxServe::sendParity(Job& j, uint32_t now) {
 // A list as long as a request holds (Fast MediaMesh): it may stop short of
 // all the listener lacks.
 bool VoxServe::listCapped(const VoxWire::FetchRequest& r) const {
-  return fast_ && !r.all && r.n_missing >= VoxFountain::kListCap;
+  return fountain() && !r.all && r.n_missing >= VoxFountain::kListCap;
 }
 
 // A thumbnail probe: only packets of the first kThumbPackets. Answered with
@@ -522,9 +523,16 @@ void VoxServe::finish(Job& j, const char* why) {
 void VoxServe::tick() {
   const uint32_t now = io_.nowMs();
   if (active_ < 0) {
+    // Send queue: voice clips' answers that are due go before photos' and
+    // videos' (the app's voxPickServe voiceFirst); then the rest as before.
+    bool voice_only = false;
+    if (queue_) {
+      for (int i = 0; i < kMaxQueued; i++)
+        if (jobs_[i].used && jobs_[i].voice && after(now, jobs_[i].not_before)) voice_only = true;
+    }
     int pick = -1;
     for (int i = 0; i < kMaxQueued; i++)
-      if (jobs_[i].used && (pick < 0 || jobs_[i].seq < jobs_[pick].seq)) pick = i;
+      if (jobs_[i].used && (!voice_only || jobs_[i].voice) && (pick < 0 || jobs_[i].seq < jobs_[pick].seq)) pick = i;
     // Adaptive spacing: a small answer (repair packets, a few missing
     // packets) that's due goes before a bigger one queued ahead of it, as
     // the app's voxPickServe.
@@ -532,7 +540,9 @@ void VoxServe::tick() {
       int small = -1;
       for (int i = 0; i < kMaxQueued; i++) {
         const Job& q = jobs_[i];
-        if (!q.used || q.all || q.n_want > kSmallAnswerPackets || !after(now, q.not_before)) continue;
+        if (!q.used || (voice_only && !q.voice) || q.all || q.n_want > kSmallAnswerPackets ||
+            !after(now, q.not_before))
+          continue;
         if (small < 0 || q.seq < jobs_[small].seq) small = i;
       }
       if (small >= 0) pick = small;

@@ -16,6 +16,7 @@
 #include <string.h>
 
 #include <map>
+#include <set>
 #include <string>
 #include <initializer_list>
 #include <vector>
@@ -111,6 +112,8 @@ struct Sim : VoxServeIo {
     return true;
   }
   void freeClip(uint8_t* bits) override { free(bits); allocs--; }
+  std::set<uint32_t> voice_sids;
+  bool isVoiceClip(uint32_t sid) override { return voice_sids.count(sid) != 0; }
   void log(const char* line) override { if (verbose) printf("  %6u %s\n", now, line); }
 
   void run(VoxServe& s, uint32_t ms) {
@@ -946,6 +949,53 @@ void testSmallAnswerFirst() {
   }
 }
 
+// Send queue: a voice clip's answer goes before a photo's queued ahead of it.
+void testVoiceFirst() {
+  for (int queue = 0; queue < 2; queue++) {
+    Sim sim;
+    sim.air = 150;
+    VoxServe s(sim);
+    s.setQueue(queue != 0);
+    const uint32_t s1 = 0x11111111, s2 = 0x22222222, s3 = 0x33333333;
+    for (uint32_t sid : {s1, s2, s3}) { sim.clips[sid] = {1, clip1200(20 * 156)}; s.markOwn(sid); }
+    sim.voice_sids.insert(s3);
+    uint8_t req[64];
+    int n = VoxWire::encodeFetch(s1, kKeyA, nullptr, 0, req, sizeof req, true, nullptr, 0, -1, true, false);
+    s.onPayload(req, (size_t)n, 3, 1);
+    sim.run(s, 2000);   // s1 under way
+    n = VoxWire::encodeFetch(s2, kKeyA, nullptr, 0, req, sizeof req, true, nullptr, 0, -1, true, false);
+    s.onPayload(req, (size_t)n, 3, 1);
+    n = VoxWire::encodeFetch(s3, kKeyB, nullptr, 0, req, sizeof req, true, nullptr, 0, -1, true, false);
+    s.onPayload(req, (size_t)n, 3, 1);
+    sim.run(s, 300000);
+    int first1 = -1, first2 = -1, first3 = -1, last1 = -1;
+    for (size_t i = 0; i < sim.sent.size(); i++) {
+      VoxWire::Packet pk;
+      if (!VoxWire::parsePacket(sim.sent[i].data.data(), sim.sent[i].data.size(), &pk)) continue;
+      if (pk.sid == s1) { if (first1 < 0) first1 = (int)i; last1 = (int)i; }
+      if (pk.sid == s2 && first2 < 0) first2 = (int)i;
+      if (pk.sid == s3 && first3 < 0) first3 = (int)i;
+    }
+    CHECK(first1 == 0 && first2 > 0 && first3 > 0, "all answered (%d %d %d)", first1, first2, first3);
+    CHECK(last1 < first2 && last1 < first3, "the answer under way finishes first (%d)", last1);
+    if (queue) CHECK(first3 < first2, "queue: voice before the photo queued ahead (%d < %d)", first3, first2);
+    else CHECK(first2 < first3, "off: in order (%d < %d)", first2, first3);
+  }
+}
+
+// Error correction off: no parity after a whole clip.
+void testFecOff() {
+  Sim sim;
+  VoxServe s(sim);
+  s.setFec(false);
+  sim.clips[kSid] = {1, clip1200()};
+  const std::vector<uint8_t> path = {0x11};
+  const auto req = dartFetch(kSid, kKeyA, nullptr, true, &path);
+  s.onPayload(req.data(), req.size(), -1);
+  sim.run(s, 120000);
+  CHECK(sim.sent.size() == 10 && sim.parity.empty(), "%zu data, %zu parity", sim.sent.size(), sim.parity.size());
+}
+
 void testPaceLearnsLoss() {
   floodpace::Pace p(338, true);
   floodpace::Answer a;
@@ -1040,6 +1090,8 @@ int main(int argc, char** argv) {
   testNewerRequestReplaces();
   testQueuedListeners();
   testParityAfterWholeClip();
+  testVoiceFirst();
+  testFecOff();
   testZeroHopHoldsBack();
   testIgnores();
   testSendRetry();

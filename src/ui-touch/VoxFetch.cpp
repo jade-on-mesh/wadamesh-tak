@@ -420,7 +420,7 @@ void VoxFetch::attempt(Session& s) {
     uint8_t req[VoxWire::kFetchMinLen + VoxWire::kMaxFetchIndices];
     const int n = VoxWire::encodeFetch(s.sid, key6, any ? missing : nullptr, n_missing, req, sizeof req, true,
                                        nullptr, 0, salt, true,   // on a channel: we read marked answers
-                                       fast_);                   // and repair packets (Fast MediaMesh)
+                                       fast_ && fec_);           // and repair packets (Fast MediaMesh, error correction)
     sent = n > 0 && io_.sendChannelData(s.channel, VoxWire::kChannelDataType, req, (size_t)n);
   }
 

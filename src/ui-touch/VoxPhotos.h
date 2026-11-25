@@ -97,6 +97,14 @@ bool fast();
 // the farthest listeners lose almost none (FloodPace.h).
 void setAdaptive(bool on);
 bool adaptive();
+// Send queue: voice clips' answers first, and radio2 packets wait for it to
+// go quiet (listen before talk). Off: first come, first served, no wait.
+void setQueue(bool on);
+bool queue();
+// Error correction: parity packets after whole-clip answers and, with Fast
+// MediaMesh, repair packets. Off: neither sent or asked for.
+void setFec(bool on);
+bool fec();
 // Photos and voice sent to us (and, with autoChannels, on channels) fetched as
 // they arrive, voice played once whole. Both on unless switched off.
 void setAuto(bool on);

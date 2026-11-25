@@ -71,6 +71,9 @@ class VoxFetch {
   // repair packets (VoxFountain.h). Repair packets heard are used either way.
   void setFast(bool on) { fast_ = on; }
   bool fast() const { return fast_; }
+  // Error correction off: requests don't ask for repair packets (VoxServe::setFec).
+  void setFec(bool on) { fec_ = on; }
+  bool fec() const { return fec_; }
 
   enum Status : uint8_t { kUnknown = 0, kRemote, kRequesting, kReceiving, kComplete, kUnavailable };
   // kZeroHop: a raw request with an empty path, heard by every radio in range
@@ -371,6 +374,7 @@ class VoxFetch {
   Orphan* orphans_ = nullptr;   // kMaxOrphans, allocated on first use (PSRAM)
   int orphan_next_ = 0;
   bool fast_ = false;   // VoxPhotos::setFast turns it on from the setting
+  bool fec_ = true;     // VoxPhotos::setFec
   // The sessions whose packets were heard last, and when (busyAirHoldMs).
   struct HeardSid { uint32_t sid; uint32_t at; };
   HeardSid heard_sids_[8] = {};
