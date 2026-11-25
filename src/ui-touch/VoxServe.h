@@ -61,6 +61,9 @@ class VoxServeIo {
   // codec frames, copied into a buffer from alloc(). False if we don't have it.
   virtual bool loadClip(uint32_t sid, uint8_t* mode, uint8_t** bits, size_t* len) = 0;
   virtual void freeClip(uint8_t* bits) = 0;
+  // A voice clip (not a photo or video) this radio holds: the send queue
+  // serves voice first. Asked when a request is queued.
+  virtual bool isVoiceClip(uint32_t sid) { (void)sid; return false; }
   virtual void log(const char* line) { (void)line; }
 };
 
@@ -104,6 +107,17 @@ class VoxServe {
   // mediamesh-gold-2026-11-18 branch.
   void setAdaptive(bool on) { adaptive_ = on; }
   bool adaptive() const { return adaptive_; }
+  // Send queue: answers to voice clips go before photos' and videos' (the
+  // app's voxPickServe voiceFirst). Off: first come, first served (small
+  // first with adaptive spacing). The radio's listen before talk is
+  // mediamesh::setLbt.
+  void setQueue(bool on) { queue_ = on; }
+  bool queue() const { return queue_; }
+  // Error correction: parity after whole-clip answers (VoxFec.h) and, with
+  // Fast MediaMesh, repair packets (VoxFountain.h). Off: neither; listeners
+  // get the packets they ask for.
+  void setFec(bool on) { fec_ = on; }
+  bool fec() const { return fec_; }
 
   // For the UI and tests.
   bool busy() const { return active_ >= 0 || queued_ > 0; }
@@ -123,6 +137,7 @@ class VoxServe {
     uint8_t route[64];             // sender -> requester, 1-byte hashes
     int route_len = 0;
     uint32_t seq = 0;              // arrival order (served first come, first served)
+    bool voice = false;            // a voice clip: first with the send queue
     uint32_t route_try_at = 0;
     int send_failures = 0;
     uint32_t not_before = 0;       // channel: the author's 300 ms
@@ -208,6 +223,10 @@ class VoxServe {
 
   bool fast_ = false;   // VoxPhotos::setFast turns it on from the setting
   bool adaptive_ = false;   // VoxPhotos::setAdaptive, likewise
+  bool queue_ = true;   // VoxPhotos::setQueue, likewise
+  bool fec_ = true;     // VoxPhotos::setFec, likewise
+  // Repair packets: Fast MediaMesh with error correction.
+  bool fountain() const { return fast_ && fec_; }
   // The next repair seed for the clip last answered with repair packets, so
   // no two of ours are the same (radios drop repeats).
   uint32_t repair_sid_ = 0;

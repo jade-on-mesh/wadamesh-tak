@@ -52,6 +52,7 @@ uint32_t s_queue_dropped = 0;
 // Listen before talk on radio2 (MediaMeshCore.h lbtHold): packets held back,
 // and when the current wait began (0: none).
 uint32_t s_lbt_waits = 0;
+bool s_lbt_on = true;   // the send queue (setLbt)
 uint32_t s_lbt_since = 0;
 uint32_t s_lbt_quiet = 0;
 
@@ -207,6 +208,9 @@ Env makeEnv() {
 }
 
 }  // namespace
+
+void setLbt(bool on) { s_lbt_on = on; }
+bool lbt() { return s_lbt_on; }
 
 bool radio2HeardWithin(uint32_t window_ms) {
   return s_r2_heard && (uint32_t)(millis() - s_r2_heard_ms) < window_ms;
@@ -504,7 +508,7 @@ mesh::Packet* MarkingPacketManager::getNextOutbound(uint32_t now) {
 #if defined(MEDIAMESH_RADIO)
     // radio2 alone, and radio2 busy (a packet heard on it lately): back in the
     // queue until it has been quiet a while. Main-mesh packets go meanwhile.
-    if (mask == 2) {
+    if (mask == 2 && s_lbt_on) {
       if (!s_lbt_quiet) s_lbt_quiet = lbtQuietMs(radio2AirMs(MAX_TRANS_UNIT), (uint32_t)random(0x7FFFFFFF));
       const uint32_t since = (uint32_t)(now - s_r2_heard_ms);
       const uint32_t waiting = s_lbt_since ? (uint32_t)(now - s_lbt_since) : 0;

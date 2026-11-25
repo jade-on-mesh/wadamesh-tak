@@ -19602,6 +19602,18 @@ static void adaptiveSpacingToggleCb(lv_event_t* e) {
   touchPrefsSetAdaptiveSpacing(on);
   VoxPhotos::setAdaptive(on);
 }
+// Send queue: voice first, and radio2 packets wait for it to go quiet.
+static void mediaQueueToggleCb(lv_event_t* e) {
+  const bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+  touchPrefsSetMediaQueue(on);
+  VoxPhotos::setQueue(on);
+}
+// Error correction: parity and (with Fast MediaMesh) repair packets.
+static void mediaFecToggleCb(lv_event_t* e) {
+  const bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+  touchPrefsSetMediaFec(on);
+  VoxPhotos::setFec(on);
+}
 static void buildFastMediaMeshCard() {
   lv_obj_t* c = setCard("Fast MediaMesh");
   setSwitchRow(c, "Fast MediaMesh",
@@ -19612,6 +19624,15 @@ static void buildFastMediaMeshCard() {
                "Packets learn to go closer together while the farthest listeners lose almost none, and back off "
                "as soon as they lose more. Needs Fast MediaMesh. Switch off for the spacing as it was.",
                VoxPhotos::adaptive(), adaptiveSpacingToggleCb);
+  setSwitchRow(c, "Send queue",
+               "Photos and voice go out one at a time, voice first, and each packet waits for MediaMesh to go "
+               "quiet. Switch off if transfers seem slower than they should.",
+               VoxPhotos::queue(), mediaQueueToggleCb);
+  setSwitchRow(c, "Error correction",
+               "Extra packets after each transfer so listeners rebuild what they missed without asking again, and "
+               "(with Fast MediaMesh) repair packets that mend everyone's gaps at once. Switch off to ask again for "
+               "each missing packet instead.",
+               VoxPhotos::fec(), mediaFecToggleCb);
 }
 // Photos and voice on this standalone: fetched as they arrive and voice
 // played (VoxPhotos::setAuto), and on channels too.
@@ -93790,6 +93811,8 @@ void UITask::loop() {
         VoxPhotos::setStore(in);
         VoxPhotos::setFast(touchPrefsGetFastMediaMesh());   // Fast MediaMesh
         VoxPhotos::setAdaptive(touchPrefsGetAdaptiveSpacing());   // and its adaptive spacing
+        VoxPhotos::setQueue(touchPrefsGetMediaQueue());           // send queue
+        VoxPhotos::setFec(touchPrefsGetMediaFec());               // error correction
         VoxPhotos::setAuto(touchPrefsGetMediaAuto());               // fetched as they arrive
         VoxPhotos::setAutoChannels(touchPrefsGetMediaAutoChannels());   // and on channels
         // When internal storage is full (settings, chat history and OTP pads

@@ -595,6 +595,10 @@ bool    touchPrefsGetPublicMedia();
 void    touchPrefsSetPublicMedia(bool on);
 bool    touchPrefsGetFastMediaMesh();
 void    touchPrefsSetFastMediaMesh(bool on);
+bool    touchPrefsGetMediaQueue();        // "mm_queue", on by default
+void    touchPrefsSetMediaQueue(bool on);
+bool    touchPrefsGetMediaFec();          // "mm_fec", on by default
+void    touchPrefsSetMediaFec(bool on);
 bool    touchPrefsGetAdaptiveSpacing();   // "mm_adapt", on by default
 void    touchPrefsSetAdaptiveSpacing(bool on);
 bool    touchPrefsGetMediaAuto();            // "mm_auto", on by default

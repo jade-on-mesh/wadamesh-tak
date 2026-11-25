@@ -147,6 +147,10 @@ bool mediaSendable();
  *  heard on radio2 in the last `window_ms`: a MediaMesh is on the air nearby.
  *  RAM only, so a reboot starts dark. */
 bool radio2HeardWithin(uint32_t window_ms);
+// Listen before talk on radio2 (the send queue, Settings > MediaMesh): a
+// radio2 packet waits while radio2 was heard lately (lbtHold). On by default.
+void setLbt(bool on);
+bool lbt();
 
 /** Airtime in ms of a `payload_len`-byte packet on radio2 when photos and voice
  *  go out on radio2 alone (tx.media radio2, share off), for pacing a transfer;
