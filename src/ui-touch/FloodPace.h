@@ -107,6 +107,20 @@ struct Pace {
   bool ad_held = false;
   mutable Listener listeners[8] = {};
   int listener_next = 0;
+  // Each listener's latest loss on our answers (percent): its repair packets
+  // are sized for its own loss (lossFor), as the app's VoxFloodPace.lossFor.
+  struct LossRec { uint8_t key[6]; int pct; bool used; };
+  LossRec loss_by[8] = {};
+  int loss_next = 0;
+
+  // The loss to size `key`'s repair packets for: its own latest report, else
+  // the channel's, at most cap_pct (VoxFountain::kMaxLossPct).
+  int lossFor(const uint8_t* key, int cap_pct) const {
+    int pct = loss_pct;
+    for (const LossRec& r : loss_by)
+      if (key && r.used && memcmp(r.key, key, 6) == 0) pct = r.pct;
+    return pct > cap_pct ? cap_pct : pct;
+  }
 
   explicit Pace(uint32_t air_ms = 0, bool fast_ = false)
       : air(air_ms), gap(fast_ ? fastBaseGapMs(air_ms) : baseGapMs(air_ms)), extra(0), fast(fast_), loss_pct(0) {}
@@ -206,6 +220,15 @@ struct Pace {
     const bool moved = adaptiveOn() && adapt(a, lost, key);
     int pct = lost * 100 / a.n;
     if (pct > 40) pct = 40;
+    if (key) {
+      int slot = -1;
+      for (int i = 0; i < 8 && slot < 0; i++)
+        if (loss_by[i].used && memcmp(loss_by[i].key, key, 6) == 0) slot = i;
+      if (slot < 0) { slot = loss_next; loss_next = (loss_next + 1) % 8; }
+      memcpy(loss_by[slot].key, key, 6);
+      loss_by[slot].pct = pct;
+      loss_by[slot].used = true;
+    }
     if (pct > loss_pct) loss_pct = pct;
     else if (!a.loss_seen) loss_pct = (loss_pct * 3 + pct) / 4;
     a.loss_seen = true;
