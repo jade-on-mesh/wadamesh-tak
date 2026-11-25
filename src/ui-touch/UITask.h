@@ -58,6 +58,11 @@ public:
     DELIV_SENT      = 1,  // sendMessage returned SENT_*, ack not yet received
     DELIV_DELIVERED = 2,  // ack matched in MyMesh::processAck → onMessageAcked
     DELIV_FAILED    = 3,  // sendMessage returned FAILED
+    // A RECEIVED message its sender has since corrected (MessageEdit.h): the text is
+    // the corrected one and the bubble says "edited". Never set on our own messages,
+    // whose delivery states above it would hide; every reader of those checks
+    // m.outgoing first.
+    DELIV_EDITED    = 4,
   };
 
   // Per-message RX metadata. Populated from the LoRa packet at receive time
@@ -389,8 +394,15 @@ public:
    *  app keeps it. False for a slot with no message. */
   bool reactionPartsOfSlot(int msg_idx, uint32_t* ts, char* sender, size_t sender_cap,
                            bool* has_sender, char* text, size_t text_cap, bool* channel) const;
-  /** The app's hash of the message in ring slot `msg_idx` (Reactions.h). */
+  /** The app's hash of the message in ring slot `msg_idx` (Reactions.h). An edited
+   *  message keeps the hash of the text it was first sent with, while powered, as the
+   *  app does. */
   bool reactionHashOfSlot(int msg_idx, uint16_t* hash) const;
+  /** An incoming edit (MessageEdit.h) to a message in `thread`: applied in place when
+   *  it names one there from `sender` and fits its text. True when it was handled
+   *  (applied, or a repeat of one applied); false lets it show as a message. */
+  bool applyIncomingEdit(const char* thread, bool channel, const char* sender,
+                         const char* body, uint32_t edit_ts);
   /** Changes whenever a reaction is stored or chats are cleared: the open chat
    *  lays out again (its bubbles' heights change). */
   uint32_t reactionGen() const { return _react_gen; }

@@ -928,6 +928,7 @@ public:
    *  history replay carries old send-times; without this the UI stamps "now").
    *  Returns 0 when nothing was stashed -> the caller keeps the delivery time. */
   uint32_t uiConsumeLastSenderTs() { uint32_t t = _last_sender_ts; _last_sender_ts = 0; return t; }
+  uint32_t uiLastSenderTs() const { return _last_sender_ts; }
   /** Capture route + scope of a just-received flood for the Info popup. Call
    *  synchronously right before the newMsg* notification. */
   void uiStashRxMeta(mesh::Packet* pkt) {
