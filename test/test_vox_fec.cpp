@@ -154,6 +154,66 @@ int main(int argc, char** argv) {
     CHECK(n == 0, "rebuilt %d with 4 lost and 3 parity", n);
   }
   CHECK(VoxFec::totalParity(230, true) == 24, "230-packet photo");
+  // Extra parity: the same counts as Open TAK's voxFecParityCountAt and
+  // voxFecBlockCounts (test/vox/vox_fec_test.dart).
+  CHECK(VoxFec::parityCountAt(20, true, 0) == 2, "no loss: usual");
+  CHECK(VoxFec::parityCountAt(20, true, 5) == 3, "5%%");
+  CHECK(VoxFec::parityCountAt(20, true, 10) == 4, "10%%");
+  CHECK(VoxFec::parityCountAt(20, true, 20) == 7, "20%%");
+  CHECK(VoxFec::parityCountAt(20, true, 30) == 8, "30%%: at most 8");
+  CHECK(VoxFec::parityCountAt(11, false, 5) == 3, "never below the usual");
+  CHECK(VoxFec::parityCountAt(20, false, 90) == 8, "capped loss");
+  CHECK(VoxFec::parityCountAt(1, false, 30) == 0, "one packet: none");
+  CHECK(VoxFec::totalParity(230, true, 20) == 40, "40 a clip at most: %d", VoxFec::totalParity(230, true, 20));
+  CHECK(VoxFec::blockParity(230, true, 20, 0) == 7 && VoxFec::blockParity(230, true, 20, 2) == 7 &&
+            VoxFec::blockParity(230, true, 20, 3) == 3 && VoxFec::blockParity(230, true, 20, 4) == 2,
+        "budget by block");
+  CHECK(VoxFec::totalParity(40, true, 20) == 14, "small photo");
+  CHECK(VoxFec::hopLossPct(0) == 0 && VoxFec::hopLossPct(3) == 15 && VoxFec::hopLossPct(9) == 30, "hop loss");
+  {
+    // parityAt walks the sized counts, block by block.
+    int b = -1, j = -1;
+    CHECK(VoxFec::parityAt(40, true, 6, &b, &j, 20) && b == 0 && j == 6, "7th: block 0 #6");
+    CHECK(VoxFec::parityAt(40, true, 7, &b, &j, 20) && b == 1 && j == 0, "8th: block 1 #0");
+    CHECK(!VoxFec::parityAt(40, true, 14, &b, &j, 20), "past the last");
+  }
+  // Extra parity of a case rebuilds as many losses per block as it has.
+  for (const Case& c : cases) {
+    std::vector<std::vector<uint8_t>> pk;
+    for (int i = 0; i < c.n; i++) pk.push_back(lcg(c.sid + i, i < c.n - 1 ? c.size : c.last));
+    std::vector<uint8_t> flat((size_t)c.n * c.size, 0);
+    for (int i = 0; i < c.n; i++) memcpy(flat.data() + (size_t)i * c.size, pk[i].data(), pk[i].size());
+    std::vector<std::vector<uint8_t>> par;
+    for (int k = 0; k < VoxFec::totalParity(c.n, c.image, 20); k++) {
+      int b, j;
+      VoxFec::parityAt(c.n, c.image, k, &b, &j, 20);
+      uint8_t out[VoxFec::kMaxParityPacket];
+      const int n = VoxFec::encodeParity(c.sid, flat.data(), c.n, c.size, c.last, b, j, out, sizeof out);
+      par.push_back(std::vector<uint8_t>(out, out + n));
+    }
+    // Lose the most each block can take: its first ones.
+    std::vector<bool> lost(c.n, false);
+    for (int b = 0, lo = 0; lo < c.n; b++, lo += VoxFec::kBlock) {
+      const int k = c.n - lo < VoxFec::kBlock ? c.n - lo : VoxFec::kBlock;
+      int m = VoxFec::blockParity(c.n, c.image, 20, b);
+      if (m > k) m = k;
+      for (int i = 0; i < m; i++) lost[lo + i] = true;
+    }
+    std::vector<uint8_t> buf = flat;
+    for (int i = 0; i < c.n; i++)
+      if (lost[i]) memset(buf.data() + (size_t)i * c.size, 0, c.size);
+    std::vector<VoxFec::Parity> pv;
+    for (auto& p : par) pv.push_back(VoxFec::Parity{p[5], (uint8_t)(p.size() - 6), p.data() + 6});
+    int got = 0;
+    VoxFec::rebuild(c.n, c.size, buf.data(), [&](int i) { return !lost[i]; }, pv.data(), (int)pv.size(),
+                    [&](int i, const uint8_t* d, int len) {
+                      got++;
+                      CHECK(len == (int)pk[i].size() && !memcmp(d, pk[i].data(), (size_t)len), "packet %d", i);
+                    });
+    int want = 0;
+    for (bool l : lost) want += l;
+    CHECK(got == want, "case sid %08x: rebuilt %d of %d", c.sid, got, want);
+  }
   CHECK(VoxFec::paritySid(VoxFec::paritySid(0x12345678)) == 0x12345678, "xor");
 
   if (failures) { printf("%d failure(s)\n", failures); return 1; }

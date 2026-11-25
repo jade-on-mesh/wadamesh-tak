@@ -2788,6 +2788,8 @@ bool touchPrefsGetMediaQueue() { if (!s_begun) touchPrefsBegin(); return s_prefs
 void touchPrefsSetMediaQueue(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_queue", on ? 1 : 0); }
 bool touchPrefsGetMediaFec() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("mm_fec", 1) != 0; }
 void touchPrefsSetMediaFec(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_fec", on ? 1 : 0); }
+bool touchPrefsGetExtraParity() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("mm_xpar", 1) != 0; }
+void touchPrefsSetExtraParity(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_xpar", on ? 1 : 0); }
 bool touchPrefsGetAdaptiveSpacing() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("mm_adapt", 1) != 0; }
 void touchPrefsSetAdaptiveSpacing(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("mm_adapt", on ? 1 : 0); }
 // Photos and voice fetched as they arrive, voice played; and on channels too.

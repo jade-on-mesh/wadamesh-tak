@@ -360,9 +360,21 @@ bool VoxServe::start(Job& j) {
     return false;
   }
   if (fec_ && j.all && !j.repair_first) {
-    j.par_total = VoxFec::totalParity(j.total, j.mode == VoxWire::kImageModeId);
+    // Extra parity: a channel answer's sized for the loss its listeners
+    // report; a direct one's for its route's length, once that's known
+    // (sizeParity, again when the route comes).
+    j.par_loss = extra_ && j.channel >= 0 ? paceFor(j.channel).loss_pct : 0;
+    j.par_total = VoxFec::totalParity(j.total, j.mode == VoxWire::kImageModeId, j.par_loss);
   }
   return true;
+}
+
+// Extra parity on a direct answer: sized for its route's length (no loss
+// reports come back on one), before its first parity packet.
+void VoxServe::sizeDirectParity(Job& j) {
+  if (!fec_ || !extra_ || !j.all || j.repair_first || j.channel >= 0 || j.par_next > 0) return;
+  j.par_loss = VoxFec::hopLossPct(j.route_len);
+  j.par_total = VoxFec::totalParity(j.total, j.mode == VoxWire::kImageModeId, j.par_loss);
 }
 
 // The next parity packet of a whole-clip answer. False when there are none left.
@@ -370,7 +382,7 @@ bool VoxServe::sendParity(Job& j, uint32_t now) {
   if (j.par_next >= j.par_total) return false;
   const int pb = VoxWire::packetBytes(j.mode);
   int b = 0, k = 0;
-  if (!VoxFec::parityAt(j.total, j.mode == VoxWire::kImageModeId, j.par_next, &b, &k)) return false;
+  if (!VoxFec::parityAt(j.total, j.mode == VoxWire::kImageModeId, j.par_next, &b, &k, j.par_loss)) return false;
   // encodeParity reads whole packets: the last one is short in j.bits, so
   // the stride stays pb and its length is passed.
   const int last_len = (int)(j.len - (size_t)(j.total - 1) * (size_t)pb);
@@ -575,6 +587,7 @@ void VoxServe::tick() {
     }
   }
   if (!j.gap) {
+    sizeDirectParity(j);
     j.gap = j.channel >= 0 ? (zeroHop(j) ? zeroHopGap() : paceFor(j.channel).gapMs(j.max_hops)) : packetGap(false, j.route_len);
     j.next_at = now;
     logf("[VOX] serve %08lx: sending %d packets %s, %lu ms apart", (unsigned long)j.sid, packetCount(j),

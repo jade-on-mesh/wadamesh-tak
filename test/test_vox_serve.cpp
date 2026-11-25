@@ -983,6 +983,25 @@ void testVoiceFirst() {
   }
 }
 
+// Extra parity: a whole clip answered over a 5-hop route gets parity sized
+// for 25% loss (5 for its 10 voice packets, not 3); off, the usual 3.
+void testExtraParityDirect() {
+  for (int extra = 0; extra < 2; extra++) {
+    Sim sim;
+    VoxServe s(sim);
+    s.setExtra(extra != 0);
+    sim.clips[kSid] = {1, clip1200()};
+    const std::vector<uint8_t> path = {0x11, 0x22, 0x33, 0x44, 0x55};
+    const auto req = dartFetch(kSid, kKeyA, nullptr, true, &path);
+    s.onPayload(req.data(), req.size(), -1);
+    sim.run(s, 200000);
+    const size_t want = extra ? (size_t)VoxFec::totalParity(10, false, 25) : 3;
+    CHECK(want == (extra ? 5u : 3u), "sized %zu", want);
+    CHECK(sim.sent.size() == 10 && sim.parity.size() == want, "extra %d: %zu data, %zu parity", extra,
+          sim.sent.size(), sim.parity.size());
+  }
+}
+
 // Error correction off: no parity after a whole clip.
 void testFecOff() {
   Sim sim;
@@ -1092,6 +1111,7 @@ int main(int argc, char** argv) {
   testParityAfterWholeClip();
   testVoiceFirst();
   testFecOff();
+  testExtraParityDirect();
   testZeroHopHoldsBack();
   testIgnores();
   testSendRetry();

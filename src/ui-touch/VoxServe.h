@@ -118,6 +118,12 @@ class VoxServe {
   // get the packets they ask for.
   void setFec(bool on) { fec_ = on; }
   bool fec() const { return fec_; }
+  // Extra parity (with error correction): a whole clip answered direct gets
+  // parity sized for its route's length (VoxFec::hopLossPct), one answered
+  // on a channel without repair packets for the loss its listeners report.
+  // Off: the usual few parity packets.
+  void setExtra(bool on) { extra_ = on; }
+  bool extra() const { return extra_; }
 
   // For the UI and tests.
   bool busy() const { return active_ >= 0 || queued_ > 0; }
@@ -161,6 +167,7 @@ class VoxServe {
     // Parity (VoxFec.h) after the data, for a request for the whole clip.
     int par_total = 0;
     int par_next = 0;
+    int par_loss = 0;              // extra parity: the loss it's sized for
     floodpace::Answer answer;      // flooded data packets sent, for FloodPace
     bool mark_ok = false;          // everyone asking reads marked (0x58) packets
     uint32_t first_sent_ms = 0;    // when its first packet went (the log's timing)
@@ -213,6 +220,7 @@ class VoxServe {
   void logf(const char* fmt, ...);
   bool heardSince(uint32_t sid, int index, uint32_t t) const;
   bool sendParity(Job& j, uint32_t now);
+  void sizeDirectParity(Job& j);
   bool sendRepair(Job& j, uint32_t now);
   int  repairsDue(const Job& j) const;
   bool zeroHop(const Job& j) const;
@@ -225,6 +233,7 @@ class VoxServe {
   bool adaptive_ = false;   // VoxPhotos::setAdaptive, likewise
   bool queue_ = true;   // VoxPhotos::setQueue, likewise
   bool fec_ = true;     // VoxPhotos::setFec, likewise
+  bool extra_ = true;   // VoxPhotos::setExtraParity, likewise
   // Repair packets: Fast MediaMesh with error correction.
   bool fountain() const { return fast_ && fec_; }
   // The next repair seed for the clip last answered with repair packets, so

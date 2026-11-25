@@ -629,6 +629,21 @@ packets (`VoxFountain.h`): asked for, and sent.
 Off: neither is sent or asked for, and listeners get the packets they ask
 for. Parity and repair packets heard from others are still used either way.
 
+**Extra parity** (on by default, needs error correction; `mm_xpar`):
+- **Whole clip answered direct:** parity sized from the route's length,
+  since no loss reports come back on a direct route. The estimate is 5%
+  loss a hop, at most 30% (`VoxFec::hopLossPct`).
+- **Whole clip answered on a channel without repair packets:** parity
+  sized for the loss its listeners report.
+- **How much:** a block of 20 gets 1.3 times the packets it should lose,
+  plus one (`VoxFec::parityCountAt`). It never gets fewer than usual, at
+  most 8 a block and 40 a clip (what `VoxFetch` keeps).
+
+The extra packets are ordinary parity packets of the block, so every
+standalone and app with error correction already uses them. MeshCore Open
+TAK also ends its channel posts with repair packets sized for the reported
+loss; standalones don't post that way.
+
 ## Supported radios
 
 SX1262/SX1268 boards: T-Deck, T-Deck Pro/Max, Heltec V4, T-LoRa Pager (SX1262),

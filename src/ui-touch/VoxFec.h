@@ -47,17 +47,56 @@ inline int parityCount(int k, bool image) {
   return k >= 8 ? 3 : (k >= 4 ? 2 : 1);
 }
 
-inline int totalParity(int total, bool image) {
+// Extra parity: parity packets for a block of k expected to lose loss_pct%:
+// enough for 1.3 times the packets it should lose, and one more, never fewer
+// than parityCount, at most 8. No loss expected: the usual count. The app's
+// voxFecParityCountAt.
+inline int parityCountAt(int k, bool image, int loss_pct) {
+  const int base = parityCount(k, image);
+  if (k <= 1 || loss_pct <= 0) return base;
+  const int loss = loss_pct > 40 ? 40 : loss_pct;
+  const int sized = (k * loss * 13 + 999) / 1000 + 1;
+  const int m = sized > base ? sized : base;
+  return m > kMaxParityPerBlock ? kMaxParityPerBlock : m;
+}
+
+// With extra parity, a clip's parity stops at this many in all: what
+// VoxFetch keeps (kMaxParity). The app's voxFecMaxExtraClipParity.
+constexpr int kMaxExtraClipParity = 40;
+
+// Block b's parity count for a total-packet clip: parityCountAt, with what
+// goes beyond the usual counts kept within kMaxExtraClipParity for the whole
+// clip (earlier blocks first). The app's voxFecBlockCounts.
+inline int blockParity(int total, bool image, int loss_pct, int b) {
+  int base_total = 0;
+  for (int lo = 0; lo < total; lo += kBlock) base_total += parityCount(total - lo < kBlock ? total - lo : kBlock, image);
+  int budget = kMaxExtraClipParity - base_total;
+  for (int i = 0, lo = 0; lo < total; i++, lo += kBlock) {
+    const int k = total - lo < kBlock ? total - lo : kBlock;
+    const int base = parityCount(k, image);
+    int extra = parityCountAt(k, image, loss_pct) - base;
+    if (extra > budget) extra = budget < 0 ? 0 : budget;
+    budget -= extra;
+    if (i == b) return base + extra;
+  }
+  return 0;
+}
+
+inline int totalParity(int total, bool image, int loss_pct = 0) {
   int n = 0;
-  for (int lo = 0; lo < total; lo += kBlock) n += parityCount(total - lo < kBlock ? total - lo : kBlock, image);
+  for (int b = 0, lo = 0; lo < total; b++, lo += kBlock) n += blockParity(total, image, loss_pct, b);
   return n;
 }
 
+// Extra parity on a direct answer: the loss to size it for, from the route's
+// length: 5% a hop, at most 30%. The app's voxFecHopLossPct.
+inline int hopLossPct(int hops) { return hops <= 0 ? 0 : (hops * 5 > 30 ? 30 : hops * 5); }
+
 // The block and parity number of the k-th parity packet of a clip, in the
 // order they're sent (block by block). False past the last.
-inline bool parityAt(int total, bool image, int k, int* block, int* j) {
+inline bool parityAt(int total, bool image, int k, int* block, int* j, int loss_pct = 0) {
   for (int b = 0, lo = 0; lo < total; b++, lo += kBlock) {
-    const int m = parityCount(total - lo < kBlock ? total - lo : kBlock, image);
+    const int m = blockParity(total, image, loss_pct, b);
     if (k < m) { *block = b; *j = k; return true; }
     k -= m;
   }
