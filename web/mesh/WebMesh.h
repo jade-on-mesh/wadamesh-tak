@@ -102,6 +102,11 @@ public:
   mesh::LocalIdentity self_id;
   const uint8_t* getSelfPubKey() const { return self_id.pub_key; }
   NodePrefs* getNodePrefs() { return &_prefs; }
+#if defined(WADA_ZERO)
+  // Cardputer Zero's wadamesh-cli: a message it sent shows in the UI's history too.
+  void zeroRecordSentChannel(int idx, const char* text) { beOutgoingChannel(idx, text); }
+  void zeroRecordSentDirect(const uint8_t pub_key[32], const char* text, uint32_t ack) { beOutgoingDirect(pub_key, text, ack); }
+#endif
   bool savePrefs();
   bool setBLEPin(uint32_t pin);                         // the node's PIN (companion); demo: false
   uint32_t getOrphanedBlobs() const { return 0; }
@@ -199,6 +204,10 @@ public:
   const UiLoginInfo& uiLastLoginInfo() const { return _ui_last_login; }
   int sendTelemetryRequestWithGuestLoginForUI(ContactInfo& recipient);
   int uiSendRequestAfterGuestLogin(ContactInfo& recipient, UiReqKind kind);
+  // A DM "ping" to a repeater is answered by the node itself (src/MyMesh.cpp turns it into a
+  // status request and pushes the PONG line back), so the browser sends it as plain text.
+  static bool isRepeaterPingCmd(const char*) { return false; }
+  int uiSendRepeaterDmPing(ContactInfo&, uint32_t&, uint32_t&) { return MSG_SEND_FAILED; }
   int uiSendAdminLogin(ContactInfo& recipient, const char* password);       // backend login (demo: its repeater / room)
   int uiSendAdminCommand(ContactInfo& recipient, const char* text);         // backend CLI line
   int uiRoomRelogin(const uint8_t pub_key[32]);
@@ -229,7 +238,7 @@ public:
   void     discoverClear() {}
 
   // ---- RF monitor ring ------------------------------------------------------------------
-  static const int UI_RXLOG_PATH_MAX = 16;
+  static const int UI_RXLOG_PATH_MAX = 64;   // as MyMesh.h
   struct UiRxRec {
     uint32_t ms;
     int8_t   rssi;
@@ -242,6 +251,8 @@ public:
     uint8_t  org[4];
     uint8_t  path_bytes;
     uint8_t  path_hash_sz;
+    uint8_t  last_hop_sz;   // the repeater heard: the flood path's last hash (0 = none)
+    uint8_t  last_hop[4];
     uint8_t  path[UI_RXLOG_PATH_MAX];
   };
   static const int UI_RXLOG_MAX = 16;

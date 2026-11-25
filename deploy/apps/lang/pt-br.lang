@@ -1,9 +1,19 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: pt-br
-# ver: 34
+# ver: 35
 # name: Português (BR)
 # base: pt-br
+Connect to Wi-Fi to download the emoji pack.	Conecte-se ao Wi-Fi para baixar o pacote de emojis.
+Download emoji pack	Baixar pacote de emojis
+Download the emoji pack over Wi-Fi. A microSD card is required.	Baixe o pacote de emojis pelo Wi-Fi. É necessário um cartão microSD.
+Downloading emoji pack…	Baixando o pacote de emojis…
+Emoji pack	Pacote de emojis
+Emoji pack installed. Downloading another will replace it.	Um pacote de emojis está instalado. Baixar outro irá substituí-lo.
+Replace the installed emoji pack? A custom pack may be overwritten.	Substituir o pacote de emojis instalado? Um pacote personalizado pode ser sobrescrito.
+Replace	Substituir
+Emoji pack download failed	Falha ao baixar o pacote de emojis
+Emoji pack downloaded. It applies after a restart.	Pacote de emojis baixado. Aplica-se após reiniciar.
  (device behind)	 (dispositivo atrasado)
 #7A7F87 Wardrive: %d coverage pts · %lu logged to SD#	#7A7F87 Wardrive: %d pontos de cobertura · %lu salvos no SD#
 #7A7F87 Wardrive: waiting for GPS fix…#	#7A7F87 Wardrive: aguardando fixação de GPS…#
@@ -212,7 +222,9 @@ Connected - a browser is viewing this screen.	Conectado - um navegador está ven
 Connecting...	Conectando...
 Connecting…	Conectando…
 Console not available on this build	Console indisponível nesta versão
+Contact	Contato
 Contact added	Contato adicionado
+Could not add contact	Não foi possível adicionar o contato
 Contact deleted	Contato excluído
 Contact gone	Contato sumiu
 Contact missing	Contato ausente
@@ -992,6 +1004,7 @@ hold Backspace to unlock	segure Backspace para desbloquear
 double-press d-pad center to unlock	pressione duas vezes o centro do direcional para desbloquear
 hold the trackball to unlock	segure o trackball para desbloquear
 press the button to unlock	pressione o botão para desbloquear
+press the BOOT button to unlock	pressione o botão BOOT para desbloquear
 hold the wake button to unlock	segure o botão de ativação para desbloquear
 kHz	kHz
 keep holding	continue segurando
@@ -1670,7 +1683,9 @@ SF is the spreading factor, CR the coding rate, AF the airtime factor. A field a
 Save in the foreground after	Save in the foreground after
 Saved to the SD card when one is in, otherwise to internal storage.	Saved to the SD card when one is in, otherwise to internal storage.
 Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.	Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.
-Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.	Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.
+While the screen is on, asks nearby repeaters for a signal reading when none has been heard for a while. Neighbours only; nothing is repeated.	Com a tela ligada, pede uma leitura de sinal aos repetidores próximos quando nenhum foi ouvido há algum tempo. Só vizinhos; nada é repetido.
+Only when moving (GPS)	Só em movimento (GPS)
+With a GPS fix, asks again only after you move about 250 m, or once an hour.	Com posição GPS, só pergunta de novo depois de você se mover cerca de 250 m, ou uma vez por hora.
 Sends an extra copy of each ACK, so the sender is likelier to hear one.	Sends an extra copy of each ACK, so the sender is likelier to hear one.
 Serial speed	Serial speed
 Set the time	Set the time
@@ -2477,3 +2492,51 @@ Waiting for an answer on the device.	Aguardando uma resposta no aparelho.
 This app has no settings	Este app não tem ajustes
 Saved on the device for this app. The app reads them when it opens.	Salvo no aparelho para este app. O app os lê ao abrir.
 Could not save to the device storage	Não foi possível salvar no armazenamento do aparelho
+Access code	Código de acesso
+Fixed code	Código fixo
+Code	Código
+Fixed code saved	Código fixo salvo
+Type a 6-digit code	Digite um código de 6 dígitos
+New random code each session	Um novo código aleatório a cada sessão
+Too easy to guess. Pick another code.	Fácil demais de adivinhar. Escolha outro código.
+Off: a new random code each session. On: the same code every time. The code crosses your Wi-Fi unencrypted, so anyone there who sees or guesses it can connect. Wrong tries lock it for longer each time, up to an hour.	Desligado: um novo código aleatório a cada sessão. Ligado: sempre o mesmo código. O código passa sem criptografia pelo seu Wi-Fi, então quem o vir ou adivinhar pode se conectar. Tentativas erradas bloqueiam por mais tempo a cada vez, até uma hora.
+Spell suggestions	Sugestões de ortografia
+Spell suggestions: on	Sugestões de ortografia: ligadas
+Spell suggestions: off	Sugestões de ortografia: desligadas
+English only. Tap a correction above the message box.	Somente inglês. Toque em uma correção acima da caixa de mensagem.
+English only. Press Up to reach the corrections, Left or Right to pick one, then Enter.	Somente inglês. Pressione Cima para chegar às correções, Esquerda ou Direita para escolher uma e depois Enter.
+Phosphor	Fósforo
+Apply the new look? WADAMESH restarts to apply it.	Aplicar o novo visual? O WADAMESH reinicia.
+With cities.bin in /var/lib/wadamesh-zero, Home shows the city you are in instead of the node name.	Com o cities.bin em /var/lib/wadamesh-zero, o Início mostra a cidade onde você está em vez do nome do nó.
+
+# Chats unread chip: unreplied step (#901)
+A	T
+U | UR	N | SR
+All chats	Todas as conversas
+Unread + unreplied	Não lidas + sem resposta
+Dismiss	Dispensar
+Dismissed	Dispensado
+No unread or unreplied chats	Nenhuma conversa não lida ou sem resposta
+No unread or unreplied channels	Nenhum canal não lido ou sem resposta
+No unread or unreplied direct chats	Nenhuma conversa direta não lida ou sem resposta
+
+# Store search / sort (#863)
+Search apps	Buscar apps
+Updates	Atualizações
+A → Z	A → Z
+Z → A	Z → A
+No apps match "%s"	Nenhum app corresponde a "%s"
+
+# Ebook 2.0 (#890)
+No books. Add .epub or .txt files to /meshcomod/apps/ebook.d/ on the SD card.	Sem livros. Adicione arquivos .epub ou .txt em /meshcomod/apps/ebook.d/ no cartão SD.
+This book is too large for the app's memory. Try a .txt copy of it, or split it into parts.	Este livro é grande demais para a memória do app. Tente uma cópia .txt ou divida-o em partes.
+
+# Contacts shared in chat (#887)
+This is your own node	Este é o seu próprio nó
+Range	Alcance
+Nodes farther away are left out. Auto fits the farthest node.	Nós mais distantes ficam de fora. Auto se ajusta ao nó mais distante.
+Shows only the nodes you marked as favorite.	Mostra apenas os nós marcados como favoritos.
+Empty at	Vazia em
+The voltage that reads 0%. If the device shuts down while it still shows some charge, pick the voltage it stops at.	A tensão que marca 0%. Se o aparelho desliga enquanto ainda mostra carga, escolha a tensão em que ele para.
+Use the I2C bus and raw GPS data	Usar o barramento I2C e os dados brutos do GPS
+"%s" wants to use the hardware: read and write devices on the I2C bus, and read the GPS receiver's raw data.\n\nA wrong write can change how a connected sensor behaves until it is powered off. The device's own keyboard, touch and power chips stay off limits.	"%s" quer usar o hardware: ler e gravar dispositivos no barramento I2C e ler os dados brutos do receptor GPS.\n\nUma gravação errada pode mudar o comportamento de um sensor conectado até que ele seja desligado. O teclado, a tela de toque e os chips de energia do aparelho ficam fora de alcance.

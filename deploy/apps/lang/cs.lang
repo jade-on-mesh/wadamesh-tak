@@ -1,9 +1,19 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: cs
-# ver: 34
+# ver: 35
 # name: Čeština
 # base: cs
+Connect to Wi-Fi to download the emoji pack.	Připojte se k Wi-Fi a stáhněte balíček emoji.
+Download emoji pack	Stáhnout balíček emoji
+Download the emoji pack over Wi-Fi. A microSD card is required.	Stáhněte balíček emoji přes Wi-Fi. Je potřeba karta microSD.
+Downloading emoji pack…	Stahování balíčku emoji…
+Emoji pack	Balíček emoji
+Emoji pack installed. Downloading another will replace it.	Balíček emoji je nainstalován. Stažení jiného jej nahradí.
+Replace the installed emoji pack? A custom pack may be overwritten.	Nahradit nainstalovaný balíček emoji? Vlastní balíček může být přepsán.
+Replace	Nahradit
+Emoji pack download failed	Stažení balíčku emoji se nezdařilo
+Emoji pack downloaded. It applies after a restart.	Balíček emoji byl stažen. Použije se po restartu.
  (device behind)	 (zařízení za)
 #7A7F87 Wardrive: %d coverage pts · %lu logged to SD#	#7A7F87 Wardrive: %d bodů pokrytí · %lu uloženo na SD#
 #7A7F87 Wardrive: waiting for GPS fix…#	#7A7F87 Wardrive: čekání na GPS fix…#
@@ -210,7 +220,9 @@ Connected - a browser is viewing this screen.	Připojeno - prohlížeč zobrazuj
 Connecting...	Připojování…
 Connecting…	Připojování…
 Console not available on this build	Konzole není v tomto buildu dostupná
+Contact	Kontakt
 Contact added	Kontakt přidán
+Could not add contact	Kontakt se nepodařilo přidat
 Contact deleted	Kontakt odstraněn
 Contact gone	Kontakt zmizel
 Contact missing	Kontakt chybí
@@ -987,6 +999,7 @@ hold Backspace to unlock	podržením Backspace odemknete
 double-press d-pad center to unlock	dvojitým stiskem středu D-padu odemknete
 hold the trackball to unlock	podržením trackballu odemknete
 press the button to unlock	stisknutím tlačítka odemknete
+press the BOOT button to unlock	stisknutím tlačítka BOOT odemknete
 hold the wake button to unlock	podržením tlačítka probuzení odemknete
 kHz	kHz
 keep holding	stále držte
@@ -1688,7 +1701,9 @@ SF is the spreading factor, CR the coding rate, AF the airtime factor. A field a
 Save in the foreground after	Save in the foreground after
 Saved to the SD card when one is in, otherwise to internal storage.	Saved to the SD card when one is in, otherwise to internal storage.
 Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.	Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.
-Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.	Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.
+While the screen is on, asks nearby repeaters for a signal reading when none has been heard for a while. Neighbours only; nothing is repeated.	Při zapnuté obrazovce požádá blízké opakovače o měření signálu, když chvíli nebyl žádný slyšet. Jen sousedé; nic se nepřeposílá.
+Only when moving (GPS)	Jen při pohybu (GPS)
+With a GPS fix, asks again only after you move about 250 m, or once an hour.	S polohou z GPS se znovu ptá až po přesunu asi o 250 m, nebo jednou za hodinu.
 Sends an extra copy of each ACK, so the sender is likelier to hear one.	Sends an extra copy of each ACK, so the sender is likelier to hear one.
 Serial speed	Serial speed
 Set the time	Set the time
@@ -1721,10 +1736,10 @@ Turn on if your keyboard types the wrong letters. It turns off modifier latching
 Turn on only if your repeater re-floods just one region. Otherwise it can block logins and direct messages across regions.	Povolte pouze tehdy, pokud váš opakovač znovu šíří pouze jeden region. Jinak ponechte vypnuto — může blokovat přihlášení/DM mezi regiony.
 Typing	Typing
 Unreleased test firmware: newer features, less tested. The update check and Install update both follow it.	Přijímat nevydaný testovací firmware — novější funkce, ale méně otestované. Kontrola aktualizací i Instalovat aktualizaci používají beta kanál.
-Until	Until
-Up to date (beta_%d)	Up to date (beta_%d)
-Update available: beta_%d\nYou have beta_%d. Get it at flasher.wadamesh.com.	Update available: beta_%d\nYou have beta_%d. Get it at flasher.wadamesh.com.
-Update available: beta_%d\nYou have beta_%d. Install it below.	Update available: beta_%d\nYou have beta_%d. Install it below.
+Until	Až do
+Up to date (beta_%d)	Aktuální (beta_%d)
+Update available: beta_%d\nYou have beta_%d. Get it at flasher.wadamesh.com.	Dostupná aktualizace: beta_%d\nMáte beta_%d. Stáhněte ji na flasher.wadamesh.com.
+Update available: beta_%d\nYou have beta_%d. Install it below.	Dostupná aktualizace: beta_%d\nMáte beta_%d. Nainstalujte ji níže.
 Used only when the time zone is Custom (UTC offset).	Used only when the time zone is Custom (UTC offset).
 Wallpaper	Wallpaper
 When Contacts is full	When Contacts is full
@@ -1735,22 +1750,22 @@ The speed your GPS module talks at. Applies after a restart.	The speed your GPS 
 %d heard	%d heard
 %d m up	%d m up
 %d mentions	%d mentions
-%d new	%d new
-%d nodes	%d nodes
+%d new	%d nové
+%d nodes	%d uzlů
 %d sats, fix	%d sats, fix
 %d sats, no fix	%d sats, no fix
-%d unread	%d unread
+%d unread	%d nepřečtených
 %d.%d%% of %d%%	%d.%d%% of %d%%
 %lu d ago	%lu d ago
 %lu h ago	%lu h ago
 %lu min ago	%lu min ago
 %lu s ago	%lu s ago
 %s · about %s left	%s · about %s left
-%u new	%u new
+%u new	%u nová
 1 heard	1 heard
 1 mention	1 mention
-1 node	1 node
-1 unread	1 unread
+1 node	1 uzel
+1 unread	1 nepřečtená
 Add a widget	Add a widget
 Advert sent across the mesh	Advert sent across the mesh
 Adverts share it exactly	Adverts share it exactly
@@ -2204,7 +2219,7 @@ F11 on the keyboard steps through these too.	Klávesa F11 na klávesnici přepí
 Wi-Fi was switched off because the device crashed while it was on. Turn it on in Settings > Wi-Fi to try again.	Wi-Fi was switched off because the device crashed while it was on. Turn it on in Settings > Wi-Fi to try again.
 Auto	Auto
 Auto tries the common speeds until the GPS answers and keeps the one that works. Pick a speed only if Auto does not find it. Applies after a restart.	Auto tries the common speeds until the GPS answers and keeps the one that works. Pick a speed only if Auto does not find it. Applies after a restart.
-Rooms	Rooms
+Rooms	Místnosti
 Auto-delete: on	Automatické mazání: zapnuto
 Auto-delete: off	Automatické mazání: vypnuto
 Contact Management	Správa kontaktů
@@ -2276,7 +2291,7 @@ Lying face down, the screen goes off and the Pager stays silent (no sound, no vi
 Never below freezing. It resumes 3 °C above the limit.	Never below freezing. It resumes 3 °C above the limit.
 Once	Once
 Powering off… hold the power key to switch on	Powering off… hold the power key to switch on
-Quiet when face down	Quiet when face down
+Quiet when face down	Tichý obrazovkou dolů
 Set the battery to %u mAh?\nOnly if that is the pack fitted. The percentage and time left are recalculated and settle over the next full charge.	Set the battery to %u mAh?\nOnly if that is the pack fitted. The percentage and time left are recalculated and settle over the next full charge.
 Starting the motion sensor…	Starting the motion sensor…
 Stop charging above	Stop charging above
@@ -2304,7 +2319,7 @@ Darker with Night, lighter with Day, so the text on it stays readable.	S Nocí t
 Asking the time server	Asking the time server
 Auto-delete old contacts	Auto-delete old contacts
 Buzz for new messages, even with Sound off. Respects Do Not Disturb.	Buzz for new messages, even with Sound off. Respects Do Not Disturb.
-Connections	Connections
+Connections	Připojení
 Days	Days
 Deletes contacts not heard from in the number of days below. Favourites are never deleted.	Deletes contacts not heard from in the number of days below. Favourites are never deleted.
 Downloaded to this computer, and kept in this browser.	Downloaded to this computer, and kept in this browser.
@@ -2446,7 +2461,7 @@ Symbols	Symboly
 Flags	Vlajky
 Chars	Znaky
 Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.	Lifting the device off the table turns the screen on (a locked device shows its lock screen). Only after it lay still, so it stays dark in a bag or pocket.
-Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.	Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.
+Lying face down, the screen goes off and the device stays silent. Picking it up ends it. Keeps the motion sensor on, a little more power.	Při položení displejem dolů obrazovka zhasne a zařízení zůstane zticha. Zvednutím se ukončí. Pohybový senzor zůstane zapnutý, což spotřebuje o něco více energie.
 Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.	Warns at 20%, again at 10%, and enters deep sleep at 3% so the battery is never run flat.
 \n%d%%, about %lu s left	\n%d%%, zbývá asi %lu s
 \n%d%%, about %lu min left	\n%d%%, zbývá asi %lu min
@@ -2492,3 +2507,51 @@ Waiting for an answer on the device.	Čekám na odpověď na zařízení.
 This app has no settings	Tato aplikace nemá nastavení
 Saved on the device for this app. The app reads them when it opens.	Uloženo v zařízení pro tuto aplikaci. Aplikace je načte při otevření.
 Could not save to the device storage	Nelze uložit do úložiště zařízení
+Access code	Přístupový kód
+Fixed code	Pevný kód
+Code	Kód
+Fixed code saved	Pevný kód uložen
+Type a 6-digit code	Zadejte 6místný kód
+New random code each session	Pro každou relaci nový náhodný kód
+Too easy to guess. Pick another code.	Příliš snadno uhodnutelný. Zvolte jiný kód.
+Off: a new random code each session. On: the same code every time. The code crosses your Wi-Fi unencrypted, so anyone there who sees or guesses it can connect. Wrong tries lock it for longer each time, up to an hour.	Vypnuto: pro každou relaci nový náhodný kód. Zapnuto: vždy stejný kód. Kód jde přes vaši Wi-Fi nešifrovaně, takže kdo ho tam uvidí nebo uhodne, se může připojit. Chybné pokusy zamykají pokaždé déle, až na hodinu.
+Spell suggestions	Návrhy pravopisu
+Spell suggestions: on	Návrhy pravopisu: zapnuto
+Spell suggestions: off	Návrhy pravopisu: vypnuto
+English only. Tap a correction above the message box.	Jen angličtina. Klepněte na opravu nad polem zprávy.
+English only. Press Up to reach the corrections, Left or Right to pick one, then Enter.	Jen angličtina. Stiskněte Nahoru pro opravy, Vlevo nebo Vpravo pro výběr a pak Enter.
+Phosphor	Fosfor
+Apply the new look? WADAMESH restarts to apply it.	Použít nový vzhled? WADAMESH se restartuje.
+With cities.bin in /var/lib/wadamesh-zero, Home shows the city you are in instead of the node name.	S cities.bin v /var/lib/wadamesh-zero ukazuje domovská obrazovka město, ve kterém jste, místo názvu uzlu.
+
+# Chats unread chip: unreplied step (#901)
+A	V
+U | UR	N | NO
+All chats	Všechny chaty
+Unread + unreplied	Nepřečtené + nezodpovězené
+Dismiss	Skrýt
+Dismissed	Skryto
+No unread or unreplied chats	Žádné nepřečtené ani nezodpovězené chaty
+No unread or unreplied channels	Žádné nepřečtené ani nezodpovězené kanály
+No unread or unreplied direct chats	Žádné nepřečtené ani nezodpovězené přímé chaty
+
+# Store search / sort (#863)
+Search apps	Hledat aplikace
+Updates	Aktualizace
+A → Z	A → Z
+Z → A	Z → A
+No apps match "%s"	Žádná aplikace neodpovídá „%s“
+
+# Ebook 2.0 (#890)
+No books. Add .epub or .txt files to /meshcomod/apps/ebook.d/ on the SD card.	Žádné knihy. Přidej soubory .epub nebo .txt do /meshcomod/apps/ebook.d/ na SD kartě.
+This book is too large for the app's memory. Try a .txt copy of it, or split it into parts.	Kniha je pro paměť aplikace příliš velká. Zkus její kopii v .txt, nebo ji rozděl na části.
+
+# Contacts shared in chat (#887)
+This is your own node	Tohle je tvůj vlastní uzel
+Range	Dosah
+Nodes farther away are left out. Auto fits the farthest node.	Vzdálenější uzly se nezobrazí. Auto se přizpůsobí nejvzdálenějšímu uzlu.
+Shows only the nodes you marked as favorite.	Zobrazí jen uzly označené jako oblíbené.
+Empty at	Prázdná při
+The voltage that reads 0%. If the device shuts down while it still shows some charge, pick the voltage it stops at.	Napětí, které odpovídá 0 %. Pokud se zařízení vypne, i když ještě ukazuje nějaké nabití, zvolte napětí, při kterém se vypíná.
+Use the I2C bus and raw GPS data	Používat sběrnici I2C a surová data GPS
+"%s" wants to use the hardware: read and write devices on the I2C bus, and read the GPS receiver's raw data.\n\nA wrong write can change how a connected sensor behaves until it is powered off. The device's own keyboard, touch and power chips stay off limits.	"%s" chce používat hardware: číst a zapisovat zařízení na sběrnici I2C a číst surová data přijímače GPS.\n\nChybný zápis může změnit chování připojeného senzoru, dokud ho nevypnete. Vlastní klávesnice, dotyková vrstva a napájecí čipy zařízení zůstávají nedostupné.

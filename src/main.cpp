@@ -5,9 +5,6 @@
   #include <new>               // placement-new for the PSRAM-resident the_mesh
   #include "esp_heap_caps.h"   // heap_caps_malloc(MALLOC_CAP_SPIRAM)
   #include <esp_sntp.h>        // completion status for normal + cold-boot time sync
-#if defined(HAS_THINKNODE_M9)
-  #include <esp_task_wdt.h>    // WDT suspend around multi-second SPIFFS format on first boot
-#endif
   #include "helpers/esp32/SntpClockPush.h"   // every SNTP result -> the mesh clock (and its RTC chip)
 static SntpClockPush s_sntp_push;
 #endif
@@ -23,6 +20,7 @@ static SntpClockPush s_sntp_push;
                                              // (quoted: use wadamesh's src/ copy, not the lib's stale one)
 #include "helpers/esp32/BootTimeSync.h"      // opt-in cold-boot clock sync over saved Wi-Fi (#383)
 #include "helpers/WifiRejoinPolicy.h"         // when the loop rejoins a dropped/failed Wi-Fi link (#685)
+#include "helpers/WifiRoam.h"                 // which saved network that rejoin tries next
 #include "ui-touch/i18n.h"                    // translated Pager transport-state alerts
 #include "wadamesh_mark_rgb.h"               // anti-aliased mesh-mark (RGB565) for the pre-LVGL boot screen
 #include "ui-touch/TouchSleep.h"             // idle light-sleep controller (loopEnd called at end of loop())
@@ -291,6 +289,8 @@ extern volatile uint8_t g_wifi_last_disc_reason;
 #endif
 
 #include "esp_task_wdt.h"   // task-watchdog reconfigure — see setup() (GH #56)
+#include "helpers/esp32/WdtHeavyGuard.h"
+#include "helpers/esp32/TlsPsramAlloc.h"
 
 #if defined(HAS_TDECK_GT911) || defined(HAS_TDECK_PRO) || defined(HELTEC_LORA_V4_R8) || defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9) || defined(HAS_CROWPANEL_35)
 // ---- SPIFFS -> SD migration (fixes the beta_36 "lost my profile" upgrades) ----
@@ -809,6 +809,8 @@ void setup() {
   // genuinely needs internal/DMA memory asks for it by capability and is
   // unaffected. Tunable — raise it if something misbehaves.
   heap_caps_malloc_extmem_enable(256);
+  // TLS buffers to PSRAM too: the core's mbedtls takes them from internal DRAM (#870).
+  if (tlsUsePsram()) Serial.println("[BOOT] TLS allocations: PSRAM first");
 
   // Widen the task-watchdog grace period. The ~5 s default trips during a legitimate-but-slow flash
   // burst — a SPIFFS garbage-collect, or a bulk save (DataStore issues ~12 flash ops per contact,
@@ -1477,9 +1479,13 @@ void setup() {
     // M9-only: keep SPIFFS work/cache buffers in internal DRAM during format/mount,
     // and suspend the task watchdog around the blocking 3.375 MB SPIFFS format.
     heap_caps_malloc_extmem_enable(4096);
-    esp_task_wdt_delete(NULL);
-    spiffs_ok = SPIFFS.begin(true);
-    esp_task_wdt_add(NULL);
+    {
+      // Restores loopTask's prior TWDT state. A bare esp_task_wdt_add() subscribed
+      // loopTask, which Arduino never feeds (loopTaskWDTEnabled stays false), so the
+      // first boot after a flash erase reset ~20 s later.
+      LoopWdtGuard loop_wdt;
+      spiffs_ok = SPIFFS.begin(true);
+    }
     heap_caps_malloc_extmem_enable(256);
   }
 #else
@@ -1839,6 +1845,42 @@ void setup() {
   board.onBootComplete();
 }
 
+#if defined(MULTI_TRANSPORT_COMPANION) && defined(HAS_TOUCH_UI) && defined(ESP32)
+// Saved networks take turns while the active one is not on the air (WifiRoam.h). `slot` is the
+// saved-network slot the last rejoin went to (-1: the active network); fills ssid/pwd for the
+// next one. Reads only: nothing is written until a try joins (wifiRoamAdopt).
+static void wifiRoamPick(int8_t& slot, char* ssid, size_t ssid_cap, char* pwd, size_t pwd_cap) {
+  char active[WIFI_CONFIG_SSID_MAX];
+  wifiConfigGetSsid(active, sizeof active);
+  static TouchWifiNet nets[TOUCH_WIFI_NET_COUNT];   // static: ~800 B, off the loop stack
+  WifiRoam::Net view[TOUCH_WIFI_NET_COUNT];
+  for (int i = 0; i < TOUCH_WIFI_NET_COUNT; ++i) {
+    touchPrefsGetWifiNet(i, nets[i]);
+    view[i] = { nets[i].used, nets[i].auto_join, nets[i].ssid };
+  }
+  slot = (int8_t)WifiRoam::next(view, TOUCH_WIFI_NET_COUNT, active, slot, g_wifi_last_disc_reason);
+  if (slot >= 0) {
+    strlcpy(ssid, nets[slot].ssid, ssid_cap);
+    strlcpy(pwd, nets[slot].pwd, pwd_cap);
+  } else {
+    strlcpy(ssid, active, ssid_cap);
+    wifiConfigGetPwd(pwd, pwd_cap);
+  }
+}
+// A saved network the rejoin tried has joined: it becomes the active network, so the next
+// boot and every later rejoin start from it. Once per change of network, from the loop task.
+static void wifiRoamAdopt(int8_t& slot) {
+  if (slot < 0) return;
+  TouchWifiNet n;
+  if (touchPrefsGetWifiNet(slot, n) && n.used && n.ssid[0] && WiFi.SSID() == n.ssid) {
+    wifiConfigSetSsid(n.ssid);
+    wifiConfigSetPwd(n.pwd);
+    touchPrefsSaveWifiNet(n.ssid, n.pwd, n.auto_join);   // most recently used now
+  }
+  slot = -1;
+}
+#endif
+
 void loop() {
 #ifdef R8_DIAG_BATT
   // TEMP diagnostic (build with -DR8_DIAG_BATT, remove after): raw battery mV
@@ -1875,6 +1917,9 @@ void loop() {
   static bool wifi_radio_prev = true;
   static bool wifi_radio_inited = false;
   static WifiRejoinPolicy wifi_rejoin;   // retry timing: grace on link loss, back-off, wake kick
+#if defined(HAS_TOUCH_UI) && defined(ESP32)
+  static int8_t wifi_roam_slot = -1;     // saved network the last rejoin tried (-1: the active one)
+#endif
 #ifdef DISPLAY_CLASS
   static bool wifi_screen_was_off = false;
   {   // the screen coming back on asks for one prompt rejoin if the link is down (#685)
@@ -2011,6 +2056,9 @@ void loop() {
     }
     wifi_started = false;
     last_wifi_retry_ms = 0;
+#if defined(HAS_TOUCH_UI) && defined(ESP32)
+    wifi_roam_slot = -1;   // a network picked by hand (or the radio switched): start from it
+#endif
   }
   bool wifi_state_machine_active = wifi_radio_en;
 #if defined(TLORA_PAGER) && defined(BLE_PIN_CODE)
@@ -2116,8 +2164,13 @@ void loop() {
 #endif
         char ssid[WIFI_CONFIG_SSID_MAX];
         char pwd[WIFI_CONFIG_PWD_MAX];
+#if defined(HAS_TOUCH_UI) && defined(ESP32)
+        // The active network not on the air: the next saved Auto-Join network gets a turn.
+        wifiRoamPick(wifi_roam_slot, ssid, sizeof ssid, pwd, sizeof pwd);
+#else
         wifiConfigGetSsid(ssid, sizeof(ssid));
         wifiConfigGetPwd(pwd, sizeof(pwd));
+#endif
         if (strlen(ssid) > 0) {
           // A bare begin() on a supplicant wedged after a silent drop (AP reboot /
           // beacon loss) can be a no-op, so leave the BSS first to force a fresh
@@ -2135,6 +2188,9 @@ void loop() {
      * timestamps on messages are accurate and an RTC chip gets it too
      * (SntpClockPush.h has why "first result only" was not enough). */
     if (WiFi.status() == WL_CONNECTED) {
+#if defined(HAS_TOUCH_UI) && defined(ESP32)
+      wifiRoamAdopt(wifi_roam_slot);
+#endif
 #if defined(TLORA_PAGER) && defined(BLE_PIN_CODE)
       wifiConfigSetPagerWifiBlePhase(PagerWifiBlePhase::Connected);
       s_pager_wifi_ble_deadline_ms = 0;

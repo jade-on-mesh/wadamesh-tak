@@ -7,6 +7,7 @@
 
 #include "WifiRuntimeStore.h"
 
+#include "WebAuthCode.h"   // weakFixed(): the fixed browser code (#837)
 #include "SdNvsPrefs.h"   // NVS, or SD /meshcomod fallback when NVS is unusable (Launcher)
 
 #include <Preferences.h>
@@ -60,7 +61,10 @@ static const uint32_t DEFAULT_LOCK_COLOR       = 0xE6F2FFu;  // soft white
 static const uint32_t DEFAULT_ACCENT           = 0x15B6A6u;  // brand teal
 static const bool     DEFAULT_DC_SHOW          = true;
 static const uint8_t  DEFAULT_SIG_PROBE_EN     = 1;          // signal discover probe ON
-static const uint16_t DEFAULT_SIG_POLL_MIN     = 5;          // minutes between probes
+// 15, was 5: the reading is mostly the signal icon, passive RX from any direct neighbour keeps
+// it fresh in a live mesh, and a crowd of devices probing every 5 minutes adds up for the
+// repeaters that answer each one. New installs only: a saved value is never rewritten.
+static const uint16_t DEFAULT_SIG_POLL_MIN     = 15;         // minutes between probes
 #if defined(HAS_CROWPANEL_35)
 static const uint8_t  DEFAULT_UI_ROTATION      = 3;          // upright ILI9488 landscape
 #elif defined(HAS_CROWPANEL_50)
@@ -175,6 +179,7 @@ static void cfgSetDefaults(TouchCfg& c) {
   c.ct_purge_days     = TOUCH_CT_PURGE_DEFAULT_DAYS;
   c.chats_unread_only = 0;      // OFF: Chats lists every thread (v73, #824)
   c.report_done_n     = 0;      // no beta reported on yet
+  c.spell_check       = 1;      // ON: spell suggestions over the composer (v74)
   c.boot_advert       = 0;      // OFF: no automatic advert on boot — opt-in (#76)
   c.console_mode      = 0;      // OFF: boot into the graphical UI (CONSOLE_MODE.md)
   c.console_monitor   = 1;      // ON: the console shows messages as they arrive
@@ -339,6 +344,7 @@ static void cfgLoadOrMigrate() {
           s_cfg.ct_purge_days = TOUCH_CT_PURGE_DEFAULT_DAYS;
         }
         if (stored_version < 73) s_cfg.chats_unread_only = 0;   // v73 new trailing field: never stored before
+        if (stored_version < 74) s_cfg.spell_check = 1;   // v74 trailing field: suggestions on
         if (stored_version < 29 && s_cfg.ui_scale == 0) s_cfg.ui_scale = 1;   // bump old 100% default -> Large (150%)
         if (stored_version < 30) s_cfg.boot_advert = 0;   // #76 new trailing field: advert-on-boot off by default
         // v51 new trailing field. Anything older than 51 never stored it, so it
@@ -602,6 +608,11 @@ bool touchPrefsSetSigPollMins(uint16_t mins) {
   s_cfg.sig_poll_min = mins;
   return cfgFlush();
 }
+// "Only when moving (GPS)": with a GPS fix the automatic probe waits until we have moved,
+// see the scheduler in UITask::loop. Its own key, default ON, so no cfg blob change.
+static void prefsPutUChar(const char* key, uint8_t v);   // defined below
+bool touchPrefsGetSigProbeMoving() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("sig_mv", 1) != 0; }
+void touchPrefsSetSigProbeMoving(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("sig_mv", on ? 1 : 0); }
 
 uint8_t touchPrefsGetBrightness() {
   if (!s_begun) touchPrefsBegin();
@@ -902,6 +913,17 @@ bool touchPrefsSetAccentPopups(bool on) {
   return cfgFlush();
 }
 
+// Spell suggestions over the compose field (English). Default ON.
+bool touchPrefsGetSpellCheck() {
+  if (!s_begun) touchPrefsBegin();
+  return s_cfg.spell_check != 0;
+}
+bool touchPrefsSetSpellCheck(bool on) {
+  if (!s_begun) touchPrefsBegin();
+  s_cfg.spell_check = on ? 1 : 0;
+  return cfgFlush();
+}
+
 // Web control panel: mirror the live UI to a phone browser (Settings > Wi-Fi).
 bool touchPrefsGetWebMirror() {
   if (!s_begun) touchPrefsBegin();
@@ -961,6 +983,18 @@ bool touchPrefsSetWebTrust(const void* buf, size_t len) {
   s_prefs.end();
   s_begun = s_prefs.begin(TOUCH_NS, true);
   return ok;
+}
+
+static void prefsPutUInt(const char* key, uint32_t v);
+static const char* LK_WEB_FIXED_CODE = "web_fix_code";
+uint32_t touchPrefsGetWebFixedCode() {
+  if (!s_begun) touchPrefsBegin();
+  const uint32_t c = s_prefs.isKey(LK_WEB_FIXED_CODE) ? s_prefs.getUInt(LK_WEB_FIXED_CODE, 0) : 0;
+  return WebAuthCode::weakFixed(c) ? 0 : c;   // also 0 and out of range: a new random code each session
+}
+void touchPrefsSetWebFixedCode(uint32_t code) {
+  if (!s_begun) touchPrefsBegin();
+  prefsPutUInt(LK_WEB_FIXED_CODE, WebAuthCode::weakFixed(code) ? 0 : code);
 }
 
 bool touchPrefsGetMapTileDebug() {
@@ -1560,14 +1594,14 @@ bool touchPrefsSetContactPurgeDays(uint16_t days) {
   s_cfg.ct_purge_days = days;
   return cfgFlush();
 }
-// The Chats "U" (unread only) chip (v73, #824).
-bool touchPrefsGetChatsUnreadOnly() {
+// The Chats unread chip (v73, #824; the third "unreplied" step #901 reuses the byte).
+uint8_t touchPrefsGetChatsUnreadMode() {
   if (!s_begun) touchPrefsBegin();
-  return s_cfg.chats_unread_only != 0;
+  return s_cfg.chats_unread_only <= TOUCH_CHATS_UNREPLIED ? s_cfg.chats_unread_only : TOUCH_CHATS_ALL;
 }
-bool touchPrefsSetChatsUnreadOnly(bool on) {
+bool touchPrefsSetChatsUnreadMode(uint8_t mode) {
   if (!s_begun) touchPrefsBegin();
-  s_cfg.chats_unread_only = on ? 1 : 0;
+  s_cfg.chats_unread_only = mode <= TOUCH_CHATS_UNREPLIED ? mode : TOUCH_CHATS_ALL;
   return cfgFlush();
 }
 uint8_t touchPrefsGetNavPos() {
@@ -1871,6 +1905,13 @@ bool touchPrefsSetBattFullMv(uint16_t mv) {
   s_cfg.batt_full_mv = mv;
   return cfgFlush();
 }
+
+uint8_t touchPrefsGetBattEmptyStep() {
+  if (!s_begun) touchPrefsBegin();
+  const uint8_t v = s_prefs.getUChar("batt_empty", 0);
+  return v > 3 ? 0 : v;
+}
+void touchPrefsSetBattEmptyStep(uint8_t step) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("batt_empty", step > 3 ? 0 : step); }
 
 // Wi-Fi profile slots ----------------------------------------------------
 //
@@ -2579,6 +2620,14 @@ bool touchPrefsGetScreensaverAlwaysOnPower() { if (!s_begun) touchPrefsBegin(); 
 void touchPrefsSetScreensaverAlwaysOnPower(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("ssaver_pwr", on ? 1 : 0); }
 bool touchPrefsGetScreensaverNorthUp() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("ssaver_north", 0) != 0; }
 void touchPrefsSetScreensaverNorthUp(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("ssaver_north", on ? 1 : 0); }
+uint8_t touchPrefsGetScreensaverRange() {
+  if (!s_begun) touchPrefsBegin();
+  const uint8_t v = s_prefs.getUChar("ssaver_rng", 0);
+  return v > 3 ? 0 : v;
+}
+void touchPrefsSetScreensaverRange(uint8_t idx) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("ssaver_rng", idx > 3 ? 0 : idx); }
+bool touchPrefsGetScreensaverFavOnly() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("ssaver_fav", 0) != 0; }
+void touchPrefsSetScreensaverFavOnly(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("ssaver_fav", on ? 1 : 0); }
 bool touchPrefsGetLockPreviews() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("lock_prev", 1) != 0; }
 void touchPrefsSetLockPreviews(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("lock_prev", on ? 1 : 0); }
 bool touchPrefsGetGlanceWhenLocked() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("glance_lck", 0) != 0; }
@@ -2641,9 +2690,9 @@ void touchPrefsSetMoreColors(bool on) { if (!s_begun) touchPrefsBegin(); prefsPu
 uint8_t touchPrefsGetColorStyle() {
   if (!s_begun) touchPrefsBegin();
   const uint8_t v = s_prefs.getUChar("col_style", TOUCH_LOOK_REGULAR);
-  return v > TOUCH_LOOK_PASTEL ? TOUCH_LOOK_REGULAR : v;
+  return v > TOUCH_LOOK_MAX ? TOUCH_LOOK_REGULAR : v;
 }
-void touchPrefsSetColorStyle(uint8_t style) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("col_style", style > TOUCH_LOOK_PASTEL ? TOUCH_LOOK_REGULAR : style); }
+void touchPrefsSetColorStyle(uint8_t style) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("col_style", style > TOUCH_LOOK_MAX ? TOUCH_LOOK_REGULAR : style); }
 bool touchPrefsGetRainbow() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("col_rb", 0) != 0; }
 void touchPrefsSetRainbow(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("col_rb", on ? 1 : 0); }
 bool touchPrefsGetMuted() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("ui_mute", 0) != 0; }
@@ -2912,6 +2961,66 @@ bool touchPrefsSetChannelEmoji(const char* name, const char* utf8) {
   return true;
 }
 
+// ---- Dismissed "waiting for my reply" threads (#901) ----
+// Same keyed-blob pattern: 32-byte name + the 4-byte key of the message that was waiting.
+// Newest last; a full table drops its oldest entry. 48 x 36 B = 1728 B, under the cap.
+static const int   CRD_NAME  = TOUCH_CHMUTE_NAME;
+static const int   CRD_ENTRY = CRD_NAME + 4;
+static const int   CRD_MAX   = 48;
+static const char* KEY_CRD   = "chrdism";
+static uint8_t*    s_crd = (uint8_t*)tpPsAlloc(CRD_MAX * CRD_ENTRY);
+static int         s_crd_n = -1;   // -1 = not loaded yet
+static void crdLoad() {
+  if (s_crd_n >= 0) return;
+  s_crd_n = 0;
+  if (!s_begun) touchPrefsBegin();
+  if (!s_prefs.isKey(KEY_CRD)) return;
+  size_t n = s_prefs.getBytes(KEY_CRD, s_crd, (size_t)(CRD_MAX * CRD_ENTRY));
+  if (n == 0 || n > (size_t)(CRD_MAX * CRD_ENTRY)) { s_crd_n = 0; return; }
+  s_crd_n = (int)(n / CRD_ENTRY);
+}
+static int crdFind(const char* name) {
+  crdLoad();
+  for (int i = 0; i < s_crd_n; ++i)
+    if (strncmp((const char*)&s_crd[i * CRD_ENTRY], name, CRD_NAME) == 0) return i;
+  return -1;
+}
+uint32_t touchPrefsGetReplyDismiss(const char* name) {
+  if (!name || !name[0]) return 0;
+  const int i = crdFind(name);
+  if (i < 0) return 0;
+  uint32_t key;
+  memcpy(&key, &s_crd[i * CRD_ENTRY + CRD_NAME], sizeof key);
+  return key;
+}
+void touchPrefsSetReplyDismiss(const char* name, uint32_t key) {
+  if (!name || !name[0] || !s_crd) return;
+  int i = crdFind(name);
+  if (i >= 0) {   // drop the old entry; a set re-appends it as the newest
+    for (int j = i; j + 1 < s_crd_n; ++j) memcpy(&s_crd[j * CRD_ENTRY], &s_crd[(j + 1) * CRD_ENTRY], CRD_ENTRY);
+    --s_crd_n;
+  } else if (!key) {
+    return;
+  }
+  if (key) {
+    if (s_crd_n >= CRD_MAX) {
+      memmove(s_crd, s_crd + CRD_ENTRY, (size_t)((CRD_MAX - 1) * CRD_ENTRY));
+      s_crd_n = CRD_MAX - 1;
+    }
+    i = s_crd_n++;
+    memset(&s_crd[i * CRD_ENTRY], 0, CRD_ENTRY);
+    strncpy((char*)&s_crd[i * CRD_ENTRY], name, CRD_NAME - 1);
+    memcpy(&s_crd[i * CRD_ENTRY + CRD_NAME], &key, sizeof key);
+  }
+  s_prefs.end();
+  if (s_prefs.begin(TOUCH_NS, false)) {
+    if (s_crd_n == 0) s_prefs.remove(KEY_CRD);
+    else              s_prefs.putBytes(KEY_CRD, s_crd, (size_t)(s_crd_n * CRD_ENTRY));
+    s_prefs.end();
+  }
+  s_begun = s_prefs.begin(TOUCH_NS, true);
+}
+
 // Remembered repeater admin passwords --------------------------------------
 //
 // Layout: single NVS blob "rpw" of up to TOUCH_REPEATER_PW_MAX records,
@@ -3121,7 +3230,7 @@ static int backupKeys(BkKey* out, int cap) {
     "low_batt", "face_down", "pick_wake",                // low-battery warning and IMU motion quiet/wake modes
 #endif
     "chat_icons", "col_more", "col_style", "col_rb", "bg_kind", "gps_save", "gps_every",
-    "glass", "bg_dim", "lock_dim",   // NOT "ant_ext": a restore must never point a unit at an empty antenna socket
+    "glass", "bg_dim", "lock_dim", "sig_mv",   // NOT "ant_ext": a restore must never point a unit at an empty antenna socket
   };
   for (const char* k : k_u8) add(k, 'c');
   add("map_cap", 's');
