@@ -19,6 +19,10 @@ static uint32_t s_seen_state = 0;
 static uint32_t s_del_sid = 0;        // the photo a hold asked to delete
 // Pick mode (a direct chat's "Contact photo"): a tap crops the photo for this chat.
 static char s_pick_for[UITask::MAX_THREAD_NAME + 1] = "";
+// Send mode (a message's menu > Image): a tap sends the photo to this chat.
+static char s_send_to[UITask::MAX_THREAD_NAME + 1] = "";
+static bool s_send_to_channel = false;
+static void sendToPicked(uint32_t sid);
 
 static void pageBuild();
 static void pageClose();
@@ -92,6 +96,7 @@ static void openCb(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   const uint32_t sid = (uint32_t)(uintptr_t)lv_event_get_user_data(e);
   if (sid && s_pick_for[0]) { cphoto::cropOpen(sid, s_pick_for, pageClose); return; }
+  if (sid && s_send_to[0]) { sendToPicked(sid); return; }
   if (sid) voxShowStoredPhoto(sid, "photo.vi1");
 }
 
@@ -349,6 +354,8 @@ static void pageBuild() {
     char tipline[120];
     if (s_pick_for[0])
       snprintf(tipline, sizeof tipline, TR("Tap a photo to use it for %s."), senderShownName(s_pick_for));
+    else if (s_send_to[0])
+      snprintf(tipline, sizeof tipline, TR("Tap a photo to send it to %s."), senderShownName(s_send_to));
     else
       snprintf(tipline, sizeof tipline, "%s", TR("Tap a photo to view it. Hold it to send it to a chat or delete it."));
     lv_label_set_text(tip, tipline);
@@ -364,6 +371,7 @@ static void pageBuild() {
 
 static void pageClose() {
   s_pick_for[0] = 0;
+  s_send_to[0] = 0;
   if (s_timer) { lv_timer_del(s_timer); s_timer = nullptr; }
   s_body = nullptr;
   if (s_root) { lv_obj_t* r = s_root; s_root = nullptr; appPageDeleteRootAsync(r); }
@@ -390,6 +398,46 @@ static void pickFor(const char* name) {
   if (s_root) pageClose();
   pageOpen();
   snprintf(s_pick_for, sizeof s_pick_for, "%s", name);
+  pageBuild();   // the tip names the chat
+}
+
+// The chat a picked photo goes to (send mode): its index now, by name.
+static int sendToThreadIdx() {
+  if (!g_lv.task || !s_send_to[0]) return -1;
+  for (int i = 0; i < UITask::MAX_UI_THREADS; i++) {
+    bool ch = false; uint16_t unread = 0; uint32_t ts = 0; char name[UITask::MAX_THREAD_NAME + 1] = {0};
+    if (g_lv.task->getThreadInfo(i, ch, unread, ts, name, sizeof name) && ch == s_send_to_channel &&
+        strcmp(name, s_send_to) == 0)
+      return i;
+  }
+  return -1;
+}
+
+static void sendToPicked(uint32_t sid) {
+  char env[48];
+  char name[UITask::MAX_THREAD_NAME + 1];
+  snprintf(name, sizeof name, "%s", s_send_to);
+  const int tidx = sendToThreadIdx();
+  if (s_send_to_channel && publicMediaRefused(name)) return;   // off on Public / #public (PublicMedia.h)
+  if (tidx < 0 || !VoxPhotos::photoEnvelope(sid, env, sizeof env) || !sendToThread(tidx, env)) {
+    if (g_lv.task) g_lv.task->showAlert(TR("Couldn't send the photo"), 2000);
+    return;
+  }
+  pageClose();   // back to the chat, which shows the photo going out
+  char msg[80];
+  snprintf(msg, sizeof msg, TR("Photo sent to %s"), senderShownName(name));
+  if (g_lv.task) g_lv.task->showAlert(msg, 1800);
+  g_lv.dirty_threads = true;
+  g_lv.dirty_timeline = true;
+}
+
+// A message's menu > Image: Photos opens to pick one for `thread`.
+static void sendTo(const char* thread, bool channel) {
+  if (!thread || !*thread) return;
+  if (s_root) pageClose();
+  pageOpen();
+  snprintf(s_send_to, sizeof s_send_to, "%s", thread);
+  s_send_to_channel = channel;
   pageBuild();   // the tip names the chat
 }
 

@@ -64,6 +64,10 @@ public:
     // m.outgoing first.
     DELIV_EDITED    = 4,
   };
+  // Our own edited message: its rssi (never a reading -- our messages carry no
+  // reception data) says so, and in_scope (unused on them) keeps the hash of the
+  // text it was first sent with.
+  static constexpr int8_t kOwnEditedRssi = 1;
 
   // Per-message RX metadata. Populated from the LoRa packet at receive time
   // (in MyMesh::queueMessage / onChannelMessageRecv) and surfaced via the
@@ -184,6 +188,8 @@ private:
   unsigned long _alert_expiry;
   int _msgcount;
   uint32_t _react_gen = 0;   // reactionGen(): bumped when a reaction is stored
+  uint32_t _edit_seq = 0;    // the record (seq) the composer is editing; 0 = a new message
+  bool _store_none = false;  // the send keeps no copy (an edit: its message changes instead)
   /** Next UIMessage::seq to hand out. Seeded by the loader (max loaded seq + 1),
    *  strictly monotonic for the session. See UIMessage::seq. */
   uint32_t _ui_seq_next = 1;
@@ -314,6 +320,8 @@ private:
   void appendComposerText(const char* text);
   void backspaceComposerChar();
   bool sendComposerToActiveThread(const char* override_text);
+  bool sendEditFromComposer();
+  int findSlotBySeq(uint32_t seq) const;
   void markThreadsDirty(unsigned long delay_ms = 200);
   void markMsgsDirty(unsigned long delay_ms = 2000);
   void flushHistoryIfDue(unsigned long now);
@@ -403,6 +411,23 @@ public:
    *  (applied, or a repeat of one applied); false lets it show as a message. */
   bool applyIncomingEdit(const char* thread, bool channel, const char* sender,
                          const char* body, uint32_t edit_ts);
+  /** Whether `m` was corrected after it was sent: a received message by its
+   *  sender (DELIV_EDITED), one of ours here (kOwnEditedRssi on a message that
+   *  carries no reception data). */
+  static bool isEdited(const UIMessage& m) {
+    return m.outgoing ? (m.rssi == kOwnEditedRssi && !(m.meta_flags & MSG_META_HAS_RX))
+                      : m.deliv_state == DELIV_EDITED;
+  }
+  /** One of our plain-text messages in the open chat, sent under 15 minutes ago:
+   *  the message menu offers Edit. */
+  bool canEditSlot(int msg_idx) const;
+  /** The composer edits the message in ring slot `msg_idx`: its next send
+   *  corrects that message instead of sending a new one. False when it can't. */
+  bool beginEdit(int msg_idx);
+  void cancelEdit() { _edit_seq = 0; }
+  bool editing() const { return _edit_seq != 0; }
+  /** Seconds left to edit the message being edited; 0 when none or too late. */
+  int editSecondsLeft() const;
   /** Changes whenever a reaction is stored or chats are cleared: the open chat
    *  lays out again (its bubbles' heights change). */
   uint32_t reactionGen() const { return _react_gen; }

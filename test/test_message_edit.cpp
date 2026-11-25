@@ -40,6 +40,27 @@ static void testRoundTrip() {
   }
 }
 
+static void testEncode() {
+  // This radio's edits are byte-for-byte the app's.
+  for (const Vec& v : kVecs) {
+    char wire[200];
+    CHECK(msgedit::encode(0x3fa1, v.before, v.after, wire, sizeof wire));
+    CHECK_STR(wire, v.wire);
+  }
+  char wire[200];
+  CHECK(!msgedit::encode(0x3fa1, "same", "same", wire, sizeof wire));      // nothing changed
+  CHECK(!msgedit::encode(0x3fa1, "something", "  ", wire, sizeof wire));   // blanked
+  CHECK(!msgedit::encode(0x3fa1, "hello", "hello there", wire, 12));      // doesn't fit
+  // A chained edit made here applies over the first.
+  char w2[200], a[64], b[64];
+  CHECK(msgedit::encode(0x3fa1, "see you at 6 tonight", "see you at 6 tomorrow", w2, sizeof w2));
+  msgedit::Edit e1, e2;
+  CHECK(msgedit::parse(kVecs[0].wire, &e1) && msgedit::parse(w2, &e2));
+  CHECK(msgedit::applyTo(e1, "see you at 5 tonight", a, sizeof a));
+  CHECK(msgedit::applyTo(e2, a, b, sizeof b));
+  CHECK_STR(b, "see you at 6 tomorrow");
+}
+
 static void testChained() {
   // A second edit applies on top of the first, and refuses the text without it.
   msgedit::Edit e1, e2;
@@ -101,6 +122,7 @@ static void testWindow() {
 
 int main() {
   testRoundTrip();
+  testEncode();
   testChained();
   testNotEdits();
   testBounds();
