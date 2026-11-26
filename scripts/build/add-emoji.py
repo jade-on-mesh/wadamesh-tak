@@ -188,3 +188,11 @@ print("added {} glyphs -> {} total ({} lookup rows incl zero-width)".format(
 # Wadamesh-tak: the firmware compiles the packed table: regenerate it from the raw one.
 import subprocess
 subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pack-emoji.py")], check=True)
+
+# The e-paper boards' black-and-white twin copies this file's glyph set and tables
+# (#902): regenerate it too, or their builds stop with a drift error.
+import subprocess
+mono = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gen-emoji-mono.py")
+if subprocess.run([sys.executable, mono]).returncode:
+    print("NOTE: emoji_data_mono.c was not regenerated (needs Pillow and fontTools): "
+          "run python3 scripts/build/gen-emoji-mono.py before building the T-Deck Pro or Max")

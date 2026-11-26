@@ -1,9 +1,19 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: nl
-# ver: 34
+# ver: 35
 # name: Nederlands
 # base: nl
+Connect to Wi-Fi to download the emoji pack.	Maak verbinding met wifi om het emoji-pakket te downloaden.
+Download emoji pack	Emoji-pakket downloaden
+Download the emoji pack over Wi-Fi. A microSD card is required.	Download het emoji-pakket via wifi. Een microSD-kaart is vereist.
+Downloading emoji pack…	Emoji-pakket downloaden…
+Emoji pack	Emoji-pakket
+Emoji pack installed. Downloading another will replace it.	Er is een emoji-pakket geïnstalleerd. Een nieuwe download vervangt het.
+Replace the installed emoji pack? A custom pack may be overwritten.	Het geïnstalleerde emoji-pakket vervangen? Een aangepast pakket kan worden overschreven.
+Replace	Vervangen
+Emoji pack download failed	Downloaden van emoji-pakket mislukt
+Emoji pack downloaded. It applies after a restart.	Emoji-pakket gedownload. Actief na herstart.
  (device behind)	(apparaat loopt achter)
 #7A7F87 Wardrive: %d coverage pts · %lu logged to SD#	#7A7F87 Wardrive: %d dekkingspunten · %lu opgeslagen op SD#
 #7A7F87 Wardrive: waiting for GPS fix…#	#7A7F87 Wardrive: wachten op GPS-fix…#
@@ -212,7 +222,9 @@ Connected - a browser is viewing this screen.	Verbonden - een browser bekijkt di
 Connecting...	Verbinden...
 Connecting…	Verbinden…
 Console not available on this build	Console niet beschikbaar in deze build
+Contact	Contact
 Contact added	Contact toegevoegd
+Could not add contact	Contact toevoegen is mislukt
 Contact deleted	Contact verwijderd
 Contact gone	Contact weg
 Contact missing	Contact ontbreekt
@@ -990,6 +1002,7 @@ hold Backspace to unlock	houd Backspace vast om te ontgrendelen
 double-press d-pad center to unlock	druk tweemaal op het midden van de d-pad om te ontgrendelen
 hold the trackball to unlock	houd de trackball vast om te ontgrendelen
 press the button to unlock	druk op de knop om te ontgrendelen
+press the BOOT button to unlock	druk op de BOOT-knop om te ontgrendelen
 hold the wake button to unlock	houd de wekknop vast om te ontgrendelen
 kHz	kHz
 keep holding	blijf vasthouden
@@ -1668,7 +1681,9 @@ SF is the spreading factor, CR the coding rate, AF the airtime factor. A field a
 Save in the foreground after	Save in the foreground after
 Saved to the SD card when one is in, otherwise to internal storage.	Saved to the SD card when one is in, otherwise to internal storage.
 Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.	Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.
-Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.	Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.
+While the screen is on, asks nearby repeaters for a signal reading when none has been heard for a while. Neighbours only; nothing is repeated.	Vraagt bij een aan scherm repeaters in de buurt om een signaalmeting als er een tijd niets gehoord is. Alleen buren; niets wordt herhaald.
+Only when moving (GPS)	Alleen bij verplaatsing (GPS)
+With a GPS fix, asks again only after you move about 250 m, or once an hour.	Met een GPS-fix wordt pas opnieuw gevraagd na ongeveer 250 m verplaatsing, of eens per uur.
 Sends an extra copy of each ACK, so the sender is likelier to hear one.	Sends an extra copy of each ACK, so the sender is likelier to hear one.
 Serial speed	Serial speed
 Set the time	Set the time
@@ -2475,3 +2490,51 @@ Waiting for an answer on the device.	Wachten op een antwoord op het toestel.
 This app has no settings	Deze app heeft geen instellingen
 Saved on the device for this app. The app reads them when it opens.	Op het toestel bewaard voor deze app. De app leest ze bij het openen.
 Could not save to the device storage	Kon niet opslaan in de opslag van het toestel
+Access code	Toegangscode
+Fixed code	Vaste code
+Code	Code
+Fixed code saved	Vaste code opgeslagen
+Type a 6-digit code	Typ een 6-cijferige code
+New random code each session	Elke sessie een nieuwe willekeurige code
+Too easy to guess. Pick another code.	Te makkelijk te raden. Kies een andere code.
+Off: a new random code each session. On: the same code every time. The code crosses your Wi-Fi unencrypted, so anyone there who sees or guesses it can connect. Wrong tries lock it for longer each time, up to an hour.	Uit: elke sessie een nieuwe willekeurige code. Aan: altijd dezelfde code. De code gaat onversleuteld over je wifi, dus wie hem daar ziet of raadt, kan verbinden. Foute pogingen blokkeren telkens langer, tot een uur.
+Spell suggestions	Spellingsuggesties
+Spell suggestions: on	Spellingsuggesties: aan
+Spell suggestions: off	Spellingsuggesties: uit
+English only. Tap a correction above the message box.	Alleen Engels. Tik op een correctie boven het berichtvak.
+English only. Press Up to reach the corrections, Left or Right to pick one, then Enter.	Alleen Engels. Druk op Omhoog voor de correcties, Links of Rechts om er een te kiezen, dan Enter.
+Phosphor	Fosfor
+Apply the new look? WADAMESH restarts to apply it.	Nieuwe look toepassen? WADAMESH herstart.
+With cities.bin in /var/lib/wadamesh-zero, Home shows the city you are in instead of the node name.	Met cities.bin in /var/lib/wadamesh-zero toont Home de stad waar je bent in plaats van de nodenaam.
+
+# Chats unread chip: unreplied step (#901)
+A	A
+U | UR	O | OB
+All chats	Alle chats
+Unread + unreplied	Ongelezen + onbeantwoord
+Dismiss	Negeren
+Dismissed	Genegeerd
+No unread or unreplied chats	Geen ongelezen of onbeantwoorde chats
+No unread or unreplied channels	Geen ongelezen of onbeantwoorde kanalen
+No unread or unreplied direct chats	Geen ongelezen of onbeantwoorde directe chats
+
+# Store search / sort (#863)
+Search apps	Apps zoeken
+Updates	Updates
+A → Z	A → Z
+Z → A	Z → A
+No apps match "%s"	Geen apps gevonden voor "%s"
+
+# Ebook 2.0 (#890)
+No books. Add .epub or .txt files to /meshcomod/apps/ebook.d/ on the SD card.	Geen boeken. Zet .epub- of .txt-bestanden in /meshcomod/apps/ebook.d/ op de SD-kaart.
+This book is too large for the app's memory. Try a .txt copy of it, or split it into parts.	Dit boek is te groot voor het geheugen van de app. Probeer een .txt-kopie of splits het in delen.
+
+# Contacts shared in chat (#887)
+This is your own node	Dit is je eigen node
+Range	Bereik
+Nodes farther away are left out. Auto fits the farthest node.	Verdere nodes worden weggelaten. Auto past zich aan de verste node aan.
+Shows only the nodes you marked as favorite.	Toont alleen de nodes die je als favoriet hebt gemarkeerd.
+Empty at	Leeg bij
+The voltage that reads 0%. If the device shuts down while it still shows some charge, pick the voltage it stops at.	De spanning die 0% aangeeft. Schakelt het toestel uit terwijl het nog lading toont, kies dan de spanning waarbij het stopt.
+Use the I2C bus and raw GPS data	De I2C-bus en ruwe GPS-gegevens gebruiken
+"%s" wants to use the hardware: read and write devices on the I2C bus, and read the GPS receiver's raw data.\n\nA wrong write can change how a connected sensor behaves until it is powered off. The device's own keyboard, touch and power chips stay off limits.	"%s" wil de hardware gebruiken: apparaten op de I2C-bus lezen en beschrijven, en de ruwe gegevens van de GPS-ontvanger lezen.\n\nEen verkeerde schrijfactie kan het gedrag van een aangesloten sensor veranderen tot die uitgeschakeld wordt. Het eigen toetsenbord, touchscherm en de voedingschips van het toestel blijven verboden terrein.
