@@ -51127,6 +51127,9 @@ static void msgMenuImageCb(lv_event_t* e) {
   lv_indev_t* a = lv_indev_get_act();
   if (a) lv_indev_wait_release(a);
   closeMsgActionMenu();
+  // Public and #public: refused before Photos opens unless the emergency switch
+  // allows photos there, with the same alert as any other photo or voice send.
+  if (s_msg_menu_channel && publicMediaRefused(s_msg_menu_thread)) return;
   photosui::sendTo(s_msg_menu_thread, s_msg_menu_channel);
 }
 #endif
