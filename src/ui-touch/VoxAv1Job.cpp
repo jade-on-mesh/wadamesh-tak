@@ -24,6 +24,12 @@ constexpr uint32_t kWorkerStackBytes = 16 * 1024;
 // Our own task only while this much is free in one block, so a decode never
 // takes the last of what Wi-Fi and BLE need.
 constexpr uint32_t kOwnTaskFreeBlock = kStackBytes + 8 * 1024;
+// When neither fits nor the worker is free: our own task on a stack the size of
+// the worker's (~11 KB used at worst), while one block holds it with a little to
+// spare. A busy T-Deck after beta_108 had 22 KB and no free worker, and every
+// photo failed with "Not enough internal RAM to start the decoder".
+constexpr uint32_t kSmallStackBytes = kWorkerStackBytes;
+constexpr uint32_t kSmallTaskFreeBlock = kSmallStackBytes + 4 * 1024;
 
 std::atomic<uint8_t> g_state{kIdle};
 uint8_t* g_payload = nullptr;
@@ -76,9 +82,9 @@ void decodeOnWorker(void*) {
   vTaskPrioritySet(nullptr, prio);
 }
 
-bool startOwnTask() {
-  g_stack_bytes = kStackBytes;
-  return xTaskCreatePinnedToCore(decodeTask, "vox_av1", kStackBytes, nullptr, tskIDLE_PRIORITY, nullptr, 0) ==
+bool startOwnTask(uint32_t stack = kStackBytes) {
+  g_stack_bytes = stack;
+  return xTaskCreatePinnedToCore(decodeTask, "vox_av1", stack, nullptr, tskIDLE_PRIORITY, nullptr, 0) ==
          pdPASS;
 }
 
@@ -113,6 +119,15 @@ bool start(const uint8_t* payload, size_t len, int max_side) {
   bool started = g_stats.internal_largest >= kOwnTaskFreeBlock && startOwnTask();
   if (!started) started = startOnWorker();
   if (!started) started = startOwnTask();
+  // Short of a 24 KB block and the worker busy (a clip, an update, the Reader):
+  // a 16 KB stack of our own, which is all the worker gives a decode anyway.
+  if (!started && g_stats.internal_largest >= kSmallTaskFreeBlock) started = startOwnTask(kSmallStackBytes);
+  // Still nothing: wait for the worker, first in line. The photo opens when what
+  // it's doing ends, rather than failing now.
+  if (!started && VoxAudioTask::exists()) {
+    g_stack_bytes = kWorkerStackBytes;
+    started = VoxAudioTask::runNext(decodeOnWorker, nullptr);
+  }
   g_stats.stack_size = g_stack_bytes;
   if (!started) {
     // Not enough internal RAM for the decode stack right now, and the worker is busy.
