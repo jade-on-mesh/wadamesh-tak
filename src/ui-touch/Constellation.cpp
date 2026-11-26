@@ -112,6 +112,7 @@ bool       s_portrait = false;
 constexpr uint32_t kTurnStepMs = 5000;
 constexpr uint32_t kTurnSteps  = 720;      // half a degree a step
 float      s_rot = 0.0f;                   // how far the mesh is turned, degrees clockwise
+int        s_heading = -1;                 // the way the device faces (cstSetHeading); -1 = none
 uint32_t   s_turn_step = 0xFFFFFFFFu;      // the step last drawn
 lv_coord_t s_cx0 = 0, s_cy0 = 0;           // the centre before the drift
 lv_obj_t*  s_core = nullptr;               // you: the core, its glow and its ring, all pulsing
@@ -298,6 +299,9 @@ void applyTurn(uint32_t now) {
 #if CAP_SSAVER_NORTH_LOCK
   if (s_th.north_lock) s_rot = 0.0f;   // north stays up (#706); the drift below still moves
 #endif
+  // Facing a known way (a compass, or GPS while moving): the map turns so what is
+  // ahead is at the top, as a real radar or a compass card; the N shows north.
+  if (s_heading >= 0) s_rot = (float)((360 - s_heading) % 360);
   const float t = (float)(now % 1380000u) * (6.2831853f / 1380000.0f);   // across: 23 minutes
   const float u = (float)(now % 1020000u) * (6.2831853f / 1020000.0f);   // up and down: 17 minutes
   s_cx = s_cx0 + (lv_coord_t)lroundf((float)K(5) * sinf(t));
@@ -1414,6 +1418,7 @@ void cstHide() {
   s_sonar_t0 = 0;
   s_sonar_r = -1;
   if (s_ring_dot) { lv_mem_free(s_ring_dot); s_ring_dot = nullptr; s_ring_n = 0; }
+  s_heading = -1;   // the next show starts from what the device says then
   if (s_qang) { lv_mem_free(s_qang); s_qang = nullptr; }
   // Forget every pointer first: from here on nothing may touch these objects,
   // and the delete itself is deferred (this can be reached from code that runs
@@ -1623,6 +1628,25 @@ void cstPingFar() {
   const float a = (float)(seed % 360u) * 0.017453292f;
   pingAt((lv_coord_t)lroundf((float)s_cx + (float)s_R * sinf(a)),
          (lv_coord_t)lroundf((float)s_cy - (float)s_R * cosf(a)), s_th.glow);
+}
+
+void cstSetHeading(int deg) {
+  if (deg >= 0) deg %= 360;
+  else deg = -1;
+  if (deg == s_heading) return;
+  // A few degrees of jitter don't redraw the whole still image.
+  if (deg >= 0 && s_heading >= 0) {
+    int d = deg - s_heading;
+    if (d < 0) d = -d;
+    if (d > 180) d = 360 - d;
+    if (d < 4) return;
+  }
+  s_heading = deg;
+  if (!s_root || s_th.calm) return;
+  applyTurn(lv_tick_get());
+  ringsBuild();
+  if (s_self_ring) lv_obj_set_pos(s_self_ring, s_cx - K(15) / 2, s_cy - K(15) / 2);
+  rebuildScene();
 }
 
 void cstTick(uint32_t now_ms) {

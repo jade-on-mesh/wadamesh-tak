@@ -88,4 +88,8 @@ void cstSetStatus(const CstStatus& s);              // touches only what changed
 void cstPing(uint32_t key);           // a packet arrived from this node
 void cstPingSelf();                   // we transmitted
 void cstPingFar();                    // heard something we cannot place
+// The way the device faces, degrees from true north (a compass, or the GPS course
+// while moving): the map turns so that way is at the top. -1 = unknown: north up
+// (with north_lock) or the slow burn-in turn. Small changes are ignored.
+void cstSetHeading(int deg);
 void cstTick(uint32_t now_ms);        // the turn, the drift, the status corners; call every loop

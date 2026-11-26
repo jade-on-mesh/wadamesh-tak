@@ -92310,9 +92310,58 @@ static uint8_t ssaverLevel(uint32_t now_epoch, uint32_t lastmod) {
   return 0;
 }
 
-// The nodes worth drawing: the most recently heard, placed by true bearing and a
-// log-scaled distance when both we and they have a position, otherwise at a
-// stable hashed bearing with the hop count standing in for distance. Links come
+// What one range ring stands for (the outer ring is three), in km or mi as the
+// distance setting reads; 0 when the nodes aren't placed by position.
+static double s_ssaver_ring_units = 0.0;
+
+// Distances in miles (Settings > Distance in miles), whatever the filter caps.
+static bool ssaverMapMiles() {
+#if defined(ESP32)
+  return touchPrefsGetUseMiles();
+#else
+  return false;
+#endif
+}
+
+// Your own position, when you have one (GPS, or one set by hand).
+static bool ssaverHaveMyPosition() {
+  if (!g_lv.task) return false;
+  return g_lv.task->getNodeLat() != 0.0 || g_lv.task->getNodeLon() != 0.0;
+}
+
+// The way the device faces, degrees from true north, or -1: the magnetometer
+// (calibrated with the GPS Compass app) where there is one, else the GPS course
+// while moving fast enough for it to mean something. A course is kept once the
+// device stops, until the screensaver ends, so the map doesn't spin back to north
+// at every red light.
+static int s_ssaver_gps_heading = -1;
+static int ssaverHeading() {
+#if defined(HW_HAVE_COMPASS)
+  hwCompassCalLoad();
+  if (s_hw_cal.ok) {
+    const int h = hwCompassHeading();
+    if (h >= 0) return h;
+  }
+#endif
+#if defined(HAS_GPS_MOTION)
+  float spd = NAN, crs = NAN;
+  if (wadaGpsMotion(&spd, &crs) && !isnan(spd) && !isnan(crs) && spd >= 3.0f)
+    s_ssaver_gps_heading = ((int)lroundf(crs) % 360 + 360) % 360;
+#endif
+  return s_ssaver_gps_heading;
+}
+
+// A node farther than this is a bad position (a 0,0 that isn't, a typo), not a
+// neighbour: left off the map rather than shrinking everyone else into the middle.
+static constexpr double kSsaverMaxKm = 500.0;
+
+// The nodes worth drawing. With a position of your own, the radar is a map: north
+// up, and only the nodes that have a position, each at its true bearing and a
+// distance to scale (linear, three rings of a round step, the outer one just past
+// the farthest node or at the range you set). A node with no position isn't drawn
+// there, since any spot would be made up. Without a position of your own, or with
+// no placed node, it falls back to a stable hashed bearing with the hop count
+// standing in for distance. Links come
 // from real routes only: the path the node's last advert took to reach us (the
 // freshest), else the path we learned for messages. A node is linked to its own
 // neighbour on that route when that repeater is on screen, to us when it is a
@@ -92335,9 +92384,27 @@ static int ssaverBuildNodes(CstNode* out, bool& north_up) {
 #else
   const double range_km = 0.0;
 #endif
+  // A map only when there's something to put on it: a position of ours, and at
+  // least one node with a position that isn't implausibly far.
+  bool map_mode = false;
+  if (have_me) {
+    for (int i = 0; i < total && !map_mode; ++i) {
+      if (!the_mesh.getContactByIdx((uint32_t)i, c) || c.type == ADV_TYPE_NONE) continue;
+#if CAP_SSAVER_FILTERS
+      if (s_ssaver_fav_only && !(c.flags & 1)) continue;
+#endif
+      if (c.gps_lat == 0 && c.gps_lon == 0) continue;
+      const double d = contactDistanceKm(my_lat, my_lon, c.gps_lat / 1e6, c.gps_lon / 1e6);
+      if (d <= kSsaverMaxKm && (range_km <= 0.0 || d <= range_km)) map_mode = true;
+    }
+  }
   for (int i = 0; i < total; ++i) {
     if (!the_mesh.getContactByIdx((uint32_t)i, c)) continue;
     if (c.type == ADV_TYPE_NONE) continue;
+    if (map_mode) {   // the map: placed nodes only, and none from a bad position
+      if (c.gps_lat == 0 && c.gps_lon == 0) continue;
+      if (contactDistanceKm(my_lat, my_lon, c.gps_lat / 1e6, c.gps_lon / 1e6) > kSsaverMaxKm) continue;
+    }
 #if CAP_SSAVER_FILTERS
     if (s_ssaver_fav_only && !(c.flags & 1)) continue;
     if (range_km > 0.0 && have_me && (c.gps_lat != 0 || c.gps_lon != 0) &&
@@ -92391,7 +92458,7 @@ static int ssaverBuildNodes(CstNode* out, bool& north_up) {
         if (hops > 0 && hsz <= 3) memcpy(nbr[k], &c.out_path[(hops - 1) * hsz], hsz);
       }
     }
-    geo[k] = have_me && (c.gps_lat != 0 || c.gps_lon != 0);
+    geo[k] = map_mode && (c.gps_lat != 0 || c.gps_lon != 0);
     if (geo[k]) {
       const double lat = c.gps_lat / 1e6, lon = c.gps_lon / 1e6;
       km[k] = contactDistanceKm(my_lat, my_lon, lat, lon);
@@ -92414,14 +92481,29 @@ static int ssaverBuildNodes(CstNode* out, bool& north_up) {
     // A few names, for the freshest nodes; the drawing drops any that would collide.
     if (k < 5 && n.level >= 2) ssaverCopyName(n.label, sizeof n.label, contactShownName(c.id.pub_key, c.name));
   }
-  // Pass 2: the log scale, now that the farthest node is known. Nothing sits on
-  // top of you, and the farthest node you can place lands on the outer ring (or,
-  // with a range set, a node at that distance does).
-  if (range_km > 0.0) dmax = range_km;
-  const double lmax = log1p(dmax);
-  for (int k = 0; k < np; ++k) {
-    if (!geo[k]) continue;
-    out[k].dist = (uint16_t)(150 + 850 * (log1p(km[k]) / lmax));
+  // Pass 2: the scale, now that the farthest node is known. Linear, so the map is
+  // true: three rings of a round step, the outer one just past the farthest node,
+  // or exactly the range you set.
+  s_ssaver_ring_units = 0.0;
+  if (north_up) {
+    const double per_km = ssaverMapMiles() ? 0.621371 : 1.0;   // display units per km
+    double outer_units;
+    if (range_km > 0.0) {
+      outer_units = range_km * per_km;
+    } else {
+      static const double kSteps[] = { 0.1, 0.2, 0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 25, 50, 75, 100, 150, 200 };
+      const double far_units = dmax * per_km;
+      double step = kSteps[sizeof kSteps / sizeof kSteps[0] - 1];
+      for (double st : kSteps) if (3.0 * st >= far_units * 1.05) { step = st; break; }
+      outer_units = 3.0 * step;
+    }
+    s_ssaver_ring_units = outer_units / 3.0;
+    const double outer_km = outer_units / per_km;
+    for (int k = 0; k < np; ++k) {
+      if (!geo[k]) continue;
+      const double f = km[k] / outer_km;
+      out[k].dist = (uint16_t)lround(1000.0 * (f > 1.0 ? 1.0 : f));
+    }
   }
   // Pass 3: links. A direct neighbour connects to you; a node reached through a
   // repeater connects to that repeater when it is on screen.
@@ -92484,6 +92566,14 @@ static void ssaverBuildStatus(CstStatus& s, bool north_up) {
     snprintf(heard, sizeof heard, TR("heard %s ago"), ago);
     snprintf(s.info, sizeof s.info, "%s \xC2\xB7 %s", nodes, heard);
   }
+  // On the map, what a ring stands for: "rings 2 km".
+  if (north_up && s_ssaver_ring_units > 0.0) {
+    const double r = s_ssaver_ring_units;
+    char ring[24];
+    snprintf(ring, sizeof ring, TR("rings %.3g %s"), r, ssaverMapMiles() ? "mi" : "km");   // 0.5, 2, 1.67
+    const size_t l = strlen(s.info);
+    snprintf(s.info + l, sizeof s.info - l, "%s%s", l ? " \xC2\xB7 " : "", ring);
+  }
   const uint16_t mv = batteryMvSmoothed();
   s.charging = mv && batteryIsCharging(mv);
   s.batt = mv ? batteryPercentFromMv(mv) : -1;
@@ -92531,6 +92621,9 @@ static void ssaverStart(uint32_t now, bool preview) {
 #if CAP_SSAVER_NORTH_LOCK
   th.north_lock = s_ssaver_north_lock;
 #endif
+  // With a position of your own the radar is a map of where the nodes really are:
+  // north stays at the top (the drift and the moving status still spare the pixels).
+  if (ssaverHaveMyPosition()) th.north_lock = true;
   th.calm = s_ui_muted;
   if (s_look_rainbow) {   // every node in its own hue, in the look's strength (as lookRainbow)
     th.node_sat = lookNeon() ? 100 : lookPastel() ? 36 : s_theme_day ? 80 : 72;
@@ -92562,6 +92655,7 @@ static void ssaverTeardown(bool lit) {
   if (!s_ssaver_on) return;
   showUnder(s_ssaver_under);
   cstHide();
+  s_ssaver_gps_heading = -1;
   s_ssaver_on = false;
   s_ssaver_is_preview = false;
 #if defined(HAS_CC_BRIGHTNESS)
@@ -92599,6 +92693,8 @@ static bool ssaverTick(uint32_t now) {
   if (!s_ssaver_poll_ms || (uint32_t)(now - s_ssaver_poll_ms) >= 250) {
     s_ssaver_poll_ms = now ? now : 1;
     ssaverPoll(now);
+    // On the map, a device that knows which way it faces turns it to match.
+    cstSetHeading(s_north ? ssaverHeading() : -1);
   }
   if (!s_ssaver_status_ms || (uint32_t)(now - s_ssaver_status_ms) >= 1000) {
     s_ssaver_status_ms = now ? now : 1;
