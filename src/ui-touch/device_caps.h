@@ -1143,12 +1143,12 @@
 
 // Settings > Keyboard > Emoji pack: download the SD emoji pack over Wi-Fi (#831).
 // The download goes through the app store's file helper on the tile worker.
+// Off in this fork: EmojiPackUI.inc already gets the pack over Wi-Fi (from this
+// firmware's own release) and keeps it on internal storage, so boards without an SD
+// card have it too. Upstream's SD-only download would be a second way, in flash
+// the full app slots don't have, and doesn't build without an SD card.
 #ifndef CAP_EMOJI_PACK_DOWNLOAD
-  #if CAP_EMOJI_PACK && CAP_LUA_APPS && defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION)
-    #define CAP_EMOJI_PACK_DOWNLOAD 1
-  #else
-    #define CAP_EMOJI_PACK_DOWNLOAD 0
-  #endif
+  #define CAP_EMOJI_PACK_DOWNLOAD 0
 #endif
 
 // English spell suggestions over the chat composer (spell.h, #578). The word list
@@ -1158,8 +1158,11 @@
 // the plain Heltec V4 (its app slot is shared with the built-in translations and
 // every other change of a release) and on the T-LoRa Pager (its slot is full).
 // The V4-R8 keeps it. Define this 0 in a board's block if another outgrows its slot.
+// This fork: off wherever its predictive text is on (PREDICTIVE_TEXT.md), which
+// already fixes a word that isn't one, in the same row over the composer; the two
+// together outgrew the T-Deck's, M9's and V4-R8's app slots by ~100 KB.
 #ifndef CAP_SPELLCHECK
-  #if (defined(HELTEC_LORA_V4_TFT) && !defined(HELTEC_LORA_V4_R8)) || defined(TLORA_PAGER)
+  #if (defined(HELTEC_LORA_V4_TFT) && !defined(HELTEC_LORA_V4_R8)) || defined(TLORA_PAGER) || CAP_PREDICT_TEXT
     #define CAP_SPELLCHECK 0
   #else
     #define CAP_SPELLCHECK 1
