@@ -88,6 +88,8 @@ bool     touchPrefsSetEnabledLayouts(uint16_t mask);
  *  has accented variants pops up a tap-to-pick box; OFF means plain typing. */
 bool touchPrefsGetAccentPopups();
 bool touchPrefsSetAccentPopups(bool on);
+bool touchPrefsGetSpellCheck();
+bool touchPrefsSetSpellCheck(bool on);
 
 /** Web control panel: serve the live UI to a phone browser over the WebSocket
  *  server and inject taps back (remote control). Opt-in, default OFF. */
@@ -106,6 +108,9 @@ bool touchPrefsGetRemoteLandscape();
 bool touchPrefsSetRemoteLandscape(bool on);
 bool touchPrefsGetWebTerminal();
 bool touchPrefsSetWebTerminal(bool on);
+/** Fixed browser code for the web features (#837): 0 = a new random code each session. */
+uint32_t touchPrefsGetWebFixedCode();
+void     touchPrefsSetWebFixedCode(uint32_t code);
 
 /** Web console "Always allow" browsers: an opaque blob (identity-tagged WebTrustedEntry
  *  records, see webTrustSave in UITask.cpp). Get returns the bytes read (0 = none); Set
@@ -338,10 +343,15 @@ bool     touchPrefsSetContactPurge(bool on);
 uint16_t touchPrefsGetContactPurgeDays();
 bool     touchPrefsSetContactPurgeDays(uint16_t days);
 
-// The Chats "U" (unread only) chip (#824): while on, the inbox lists only threads with unread
-// messages, within the active All / Channels / Direct chip. Default off.
-bool     touchPrefsGetChatsUnreadOnly();
-bool     touchPrefsSetChatsUnreadOnly(bool on);
+// The Chats unread chip (#824, #901), stepping A -> U -> U | UR: every thread, only threads with
+// unread messages, or unread plus threads waiting on my reply. Within the active
+// All / Channels / Direct chip. Stored in the v73 chats_unread_only byte (0/1 kept their
+// meaning, so no schema change). Default all.
+constexpr uint8_t TOUCH_CHATS_ALL       = 0;
+constexpr uint8_t TOUCH_CHATS_UNREAD    = 1;
+constexpr uint8_t TOUCH_CHATS_UNREPLIED = 2;
+uint8_t  touchPrefsGetChatsUnreadMode();
+bool     touchPrefsSetChatsUnreadMode(uint8_t mode);
 /** Where the navigation bar sits (Settings > Display > Navigation bar). Stored in the
  *  v66 condense_nav byte, so no schema change: 0 bottom (the default) and 1 right (the
  *  old Condense Nav rail) keep their meaning; 2 top and 3 left are new. Read once when
@@ -441,6 +451,10 @@ void    touchPrefsSyncBootUiRotation();
  *  default Li-ion full point). Lets custom batteries / builds read 100%. */
 uint16_t touchPrefsGetBattFullMv();
 bool     touchPrefsSetBattFullMv(uint16_t mv);
+/** The voltage the battery curve calls 0%, as a step: 0..3 = 3.3 / 3.4 / 3.5 / 3.6 V.
+ *  Standalone key, default 0 (3.3 V). For packs that shut down above 3.3 V. */
+uint8_t  touchPrefsGetBattEmptyStep();
+void     touchPrefsSetBattEmptyStep(uint8_t step);
 
 /** Saved Wi-Fi profile slots. The "active" credentials still live in the
  *  meshcomod NVS namespace (WifiRuntimeStore.cpp) and are what
@@ -688,6 +702,12 @@ void    touchPrefsSetScreensaverAlwaysOnPower(bool on);
 // Keep north up (#706): the Constellation does not turn. Standalone key, default off.
 bool    touchPrefsGetScreensaverNorthUp();
 void    touchPrefsSetScreensaverNorthUp(bool on);
+// The Constellation's range (0 = Auto, fits the farthest node; 1..3 = 5 / 20 / 50 in
+// the distance unit) and "Favorites only". Standalone keys, default Auto / off.
+uint8_t touchPrefsGetScreensaverRange();
+void    touchPrefsSetScreensaverRange(uint8_t idx);
+bool    touchPrefsGetScreensaverFavOnly();
+void    touchPrefsSetScreensaverFavOnly(bool on);
 bool    touchPrefsGetLockPreviews();           // message text on the lock screen's unread cards (default true)
 void    touchPrefsSetLockPreviews(bool on);
 bool    touchPrefsGetGlanceWhenLocked();       // "at a glance" also fires while manually/idle locked, not just unlocked+dimmed (default false)
@@ -742,6 +762,11 @@ uint8_t touchPrefsGetChannelMute(const char* name);
 void    touchPrefsSetChannelMute(const char* name, uint8_t flags);
 bool    touchPrefsGetChannelEmoji(const char* name, char* out, size_t cap);  // a conversation's avatar emoji (channel or chat); false/empty = its glyph
 bool    touchPrefsSetChannelEmoji(const char* name, const char* utf8);       // empty/null clears back to the glyph; false when the table is full
+/** "Dismiss" on a thread waiting for my reply (#901): remembers which message was waiting
+ *  (its key, UITask::threadAwaitingReply), so the thread leaves the U | UR filter until a newer
+ *  message is waiting. Name-keyed NVS blob; the oldest entry gives way when it is full. */
+uint32_t touchPrefsGetReplyDismiss(const char* name);                        // 0 = none
+void     touchPrefsSetReplyDismiss(const char* name, uint32_t key);          // 0 clears
 
 /** Generic NVS blob (key/value). Used to persist the discovered-nodes list so
  *  it survives a reboot. getBlob returns the byte count copied (0 if absent). */
@@ -824,7 +849,15 @@ constexpr uint8_t TOUCH_LOOK_BW        = 6;
 constexpr uint8_t TOUCH_LOOK_ACID      = 7;
 constexpr uint8_t TOUCH_LOOK_OTP_FIRST = TOUCH_LOOK_CYBERPUNK;
 constexpr uint8_t TOUCH_LOOK_LAST      = TOUCH_LOOK_ACID;
-constexpr uint8_t TOUCH_LOOK_COUNT     = TOUCH_LOOK_LAST + 1;
+// Cardputer Zero's green-on-black terminal look (upstream's, after this fork's
+// looks): offered on that build only.
+constexpr uint8_t TOUCH_LOOK_PHOSPHOR = TOUCH_LOOK_LAST + 1;
+#if defined(WADA_ZERO)
+constexpr uint8_t TOUCH_LOOK_MAX = TOUCH_LOOK_PHOSPHOR;
+#else
+constexpr uint8_t TOUCH_LOOK_MAX = TOUCH_LOOK_LAST;
+#endif
+constexpr uint8_t TOUCH_LOOK_COUNT     = TOUCH_LOOK_MAX + 1;
 uint8_t touchPrefsGetChatIcons();
 void    touchPrefsSetChatIcons(uint8_t style);
 bool    touchPrefsGetMoreColors();
@@ -933,15 +966,18 @@ bool     touchPrefsGpsBaudChosen();
  *  start opens the UART at the right speed. Written only when it changes. */
 void     touchPrefsSetGpsBaudFound(uint32_t baud);
 
-/** Mesh signal auto-discover probe. When ON (default), the firmware periodically
- *  sends a flood advert so nearby repeaters re-broadcast it and we can measure
- *  the echo's SNR — what drives the top-bar signal bars and the home-graph
- *  readout. The poll interval is in whole minutes, clamped 1..1440 (1 min =
- *  60 s minimum, no higher than a day). Both are exposed in the home-graph
- *  "Signal & traffic" popup (tap the graph). */
+/** Mesh signal auto-discover probe. When ON (default), the firmware sends a ZERO-HOP
+ *  node-discover request (never repeated) while the screen is on and no direct neighbour
+ *  has been heard for the poll interval; each neighbouring repeater answers and the reply
+ *  drives the top-bar signal bars and the home-graph readout. The poll interval is in
+ *  whole minutes, clamped 1..1440. "Moving" (default ON): with a GPS fix, probe only after
+ *  moving ~250 m, or hourly as a keep-alive. Exposed in the home-graph "Signal & traffic"
+ *  popup (tap the graph) and Radio & Mesh > Signal probe. */
 bool     touchPrefsGetSigProbeEnabled();
 bool     touchPrefsSetSigProbeEnabled(bool on);
 uint16_t touchPrefsGetSigPollMins();
+bool     touchPrefsGetSigProbeMoving();
+void     touchPrefsSetSigProbeMoving(bool on);
 
 /* Boards with a switchable LoRa antenna (CAP_ANTENNA_SELECT, the T-Display P4): "Always use the
  * external antenna". OFF by default, and then every boot comes up on the on-board antenna and the

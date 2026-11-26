@@ -6,6 +6,7 @@
 #include <helpers/MeshTouchTxTrace.h>
 #include "helpers/UiRequestSlot.h"
 #include "AbstractUITask.h"
+#include "ui-touch/RepeaterAdminProto.h"   // isPingCmd / formatPongStatus (DM "ping" to a repeater)
 
 // Node-discovery control packet (standard MeshCore — matches examples/simple_repeater
 // + simple_sensor): a zero-hop CTL_TYPE_NODE_DISCOVER_REQ that neighbouring repeaters
@@ -491,6 +492,35 @@ public:
     return r;
   }
 
+  /** A DM that is just "ping" (case-insensitive, trailing ?/! allowed) to a repeater. */
+  static bool isRepeaterPingCmd(const char* text) { return RepeaterAdminProto::isPingCmd(text); }
+
+  /** "ping" typed in a repeater's DM thread (touch composer, terminal or the companion
+   *  app). A repeater reads a text DM as an admin CLI line and answers "Unknown command",
+   *  so send a status request instead and post its answer as a PONG line in the thread
+   *  (onContactResponse). It goes the way every UI status request goes: straight over
+   *  the learned path first, and only when that gets no reply the flooded guest login,
+   *  which re-learns the route (uiSendRequestAfterGuestLogin, #683). The PONG only
+   *  posts for a reply to this request chain, within UI_DM_PING_WINDOW_MS. */
+  static constexpr uint32_t UI_DM_PING_WINDOW_MS = 45000;
+  int uiSendRepeaterDmPing(ContactInfo& recipient, uint32_t& out_ack_tag, uint32_t& out_est_timeout) {
+    _ui_dm_ping_active = false;
+    int r = uiSendRequestAfterGuestLogin(recipient, UiReqKind::Status);
+    out_ack_tag = (_ui_pending_tag != 0) ? _ui_pending_tag : getRTCClock()->getCurrentTimeUnique();
+    out_est_timeout = 30000u;
+    if (r == MSG_SEND_SENT_FLOOD || r == MSG_SEND_SENT_DIRECT) {
+      _ui_dm_ping_active  = true;
+      _ui_dm_ping_ack     = out_ack_tag;
+      _ui_dm_ping_sent_ms = millis();
+      memcpy(_ui_dm_ping_pub, recipient.id.pub_key, PUB_KEY_SIZE);
+    }
+    return r;
+  }
+  bool uiDmPingLive(const uint8_t* pub_key) const {
+    return _ui_dm_ping_active && (uint32_t)(millis() - _ui_dm_ping_sent_ms) < UI_DM_PING_WINDOW_MS &&
+           memcmp(_ui_dm_ping_pub, pub_key, PUB_KEY_SIZE) == 0;
+  }
+
   /** Does a blank-password LOGIN mean anything to this contact?
    *
    *  Only to a node that keeps an ACL: repeaters, room servers and sensors.
@@ -690,6 +720,7 @@ public:
   }
   /** Cancel UI ping pending state (used by timeout). */
   void cancelUIPingPending() {
+    _ui_dm_ping_active = false;
     _ui_pending_status = 0;
     _ui_pending_kind   = UiReqKind::None;
     _ui_pending_tag    = 0;
@@ -698,6 +729,7 @@ public:
    *  so a late LOGIN-OK can't fire a REQ after the UI gave up. Kept separate from
    *  cancelUIPingPending() so a ping timeout never disarms a telemetry request. */
   void cancelUIDeferredLogin() {
+    _ui_dm_ping_active  = false;
     _ui_login_then      = 0;
     _ui_login_then_kind = UiReqKind::None;
     _ui_fallback_at     = 0;
@@ -824,7 +856,10 @@ public:
   // / hop count / length + signal, so the Monitor page can show a live "what am
   // I hearing" feed without a core hook. Newest-first via uiRxLogGet (i=0 = most
   // recent). Board-independent — populated on every board, not just touch.
-  static const int UI_RXLOG_PATH_MAX = 16;
+  // 64 bytes keeps a whole 32-hop path at 2-byte hashes (21 at 3 bytes); 16 cut
+  // most 2- and 3-byte paths short. The ring is part of the_mesh, which main.cpp
+  // places in PSRAM (makeTheMesh), so the larger records cost no internal DRAM.
+  static const int UI_RXLOG_PATH_MAX = 64;
   struct UiRxRec {
     uint32_t ms;        // millis() at RX
     int8_t   rssi;      // dBm
@@ -848,6 +883,11 @@ public:
     // direct frame's path is the route still ahead of it, so it is not kept.
     uint8_t  path_bytes;
     uint8_t  path_hash_sz;
+    // The repeater our radio actually heard: the LAST hash of a flood's path
+    // (kept even when `path` is capped), path_hash_sz bytes. last_hop_sz 0 =
+    // none (a direct frame, or a flood heard straight from its origin).
+    uint8_t  last_hop_sz;
+    uint8_t  last_hop[4];
     uint8_t  path[UI_RXLOG_PATH_MAX];
   };
   static const int UI_RXLOG_MAX = 16;
@@ -872,6 +912,10 @@ public:
     r.org_kind = org ? org_kind : 0;
     if (r.org_kind) memcpy(r.org, org, 4); else memset(r.org, 0, 4);
     if (!path || path_hash_sz == 0 || path_hash_sz > 4) path_bytes = 0;
+    // The last whole hop of the FULL path, before the cap below trims it.
+    r.last_hop_sz = (path_bytes >= path_hash_sz) ? path_hash_sz : 0;
+    memset(r.last_hop, 0, sizeof r.last_hop);
+    if (r.last_hop_sz) memcpy(r.last_hop, path + (path_bytes / path_hash_sz - 1) * path_hash_sz, path_hash_sz);
     if (path_bytes > UI_RXLOG_PATH_MAX)
       path_bytes = (uint8_t)(UI_RXLOG_PATH_MAX / path_hash_sz * path_hash_sz);
     r.path_bytes = path_bytes;
@@ -1726,6 +1770,11 @@ private:
   uint8_t   _ui_deferred_key[PUB_KEY_SIZE] = {0};
   UiReqKind _ui_deferred_kind = UiReqKind::None;
   uint32_t  _ui_deferred_at = 0;
+  bool      _queue_local = false;   // queueMessage() for a PONG we made ourselves: not peer time
+  bool      _ui_dm_ping_active = false;
+  uint32_t  _ui_dm_ping_ack = 0;
+  uint32_t  _ui_dm_ping_sent_ms = 0;
+  uint8_t   _ui_dm_ping_pub[PUB_KEY_SIZE] = {0};
   BaseSerialInterface *_serial;
   AbstractUITask* _ui;
 

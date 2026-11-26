@@ -1,9 +1,19 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: el
-# ver: 34
+# ver: 35
 # name: Ελληνικά
 # base: el
+Connect to Wi-Fi to download the emoji pack.	Συνδεθείτε σε Wi-Fi για λήψη του πακέτου emoji.
+Download emoji pack	Λήψη πακέτου emoji
+Download the emoji pack over Wi-Fi. A microSD card is required.	Κατεβάστε το πακέτο emoji μέσω Wi-Fi. Απαιτείται κάρτα microSD.
+Downloading emoji pack…	Λήψη πακέτου emoji…
+Emoji pack	Πακέτο emoji
+Emoji pack installed. Downloading another will replace it.	Υπάρχει εγκατεστημένο πακέτο emoji. Η λήψη άλλου θα το αντικαταστήσει.
+Replace the installed emoji pack? A custom pack may be overwritten.	Αντικατάσταση του πακέτου emoji; Ένα προσαρμοσμένο πακέτο μπορεί να αντικατασταθεί.
+Replace	Αντικατάσταση
+Emoji pack download failed	Αποτυχία λήψης πακέτου emoji
+Emoji pack downloaded. It applies after a restart.	Το πακέτο emoji λήφθηκε. Ισχύει μετά την επανεκκίνηση.
  (device behind)	 (συσκευή πίσω)
 #7A7F87 Wardrive: %d coverage pts · %lu logged to SD#	#7A7F87 Wardrive: %d σημεία κάλυψης · %lu στην SD#
 #7A7F87 Wardrive: waiting for GPS fix…#	#7A7F87 Wardrive: αναμονή στίγματος GPS…#
@@ -212,7 +222,9 @@ Connected - a browser is viewing this screen.	Συνδέθηκε - ένα πρό
 Connecting...	Σύνδεση...
 Connecting…	Σύνδεση…
 Console not available on this build	Η κονσόλα δεν είναι διαθέσιμη σε αυτό το build
+Contact	Επαφή
 Contact added	Η επαφή προστέθηκε
+Could not add contact	Δεν ήταν δυνατή η προσθήκη της επαφής
 Contact deleted	Η επαφή διαγράφηκε
 Contact gone	Η επαφή χάθηκε
 Contact missing	Η επαφή λείπει
@@ -993,6 +1005,7 @@ hold Backspace to unlock	κρατήστε Backspace για ξεκλείδωμα
 double-press d-pad center to unlock	πατήστε δύο φορές το κέντρο του d-pad για ξεκλείδωμα
 hold the trackball to unlock	κρατήστε το trackball για ξεκλείδωμα
 press the button to unlock	πατήστε το κουμπί για ξεκλείδωμα
+press the BOOT button to unlock	πατήστε το κουμπί BOOT για ξεκλείδωμα
 hold the wake button to unlock	κρατήστε το κουμπί αφύπνισης για ξεκλείδωμα
 kHz	kHz
 keep holding	κρατήστε πατημένο
@@ -1671,7 +1684,9 @@ SF is the spreading factor, CR the coding rate, AF the airtime factor. A field a
 Save in the foreground after	Save in the foreground after
 Saved to the SD card when one is in, otherwise to internal storage.	Saved to the SD card when one is in, otherwise to internal storage.
 Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.	Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.
-Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.	Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.
+While the screen is on, asks nearby repeaters for a signal reading when none has been heard for a while. Neighbours only; nothing is repeated.	Με την οθόνη αναμμένη, ζητά από κοντινούς αναμεταδότες μια μέτρηση σήματος όταν δεν έχει ακουστεί κανείς για λίγο. Μόνο γείτονες· τίποτα δεν αναμεταδίδεται.
+Only when moving (GPS)	Μόνο σε κίνηση (GPS)
+With a GPS fix, asks again only after you move about 250 m, or once an hour.	Με θέση GPS, ρωτά ξανά μόνο αφού μετακινηθείτε περίπου 250 m ή μία φορά την ώρα.
 Sends an extra copy of each ACK, so the sender is likelier to hear one.	Sends an extra copy of each ACK, so the sender is likelier to hear one.
 Serial speed	Serial speed
 Set the time	Set the time
@@ -2477,3 +2492,51 @@ Waiting for an answer on the device.	Αναμονή απάντησης στη σ
 This app has no settings	Αυτή η εφαρμογή δεν έχει ρυθμίσεις
 Saved on the device for this app. The app reads them when it opens.	Αποθηκεύτηκαν στη συσκευή για αυτή την εφαρμογή. Η εφαρμογή τις διαβάζει όταν ανοίγει.
 Could not save to the device storage	Δεν ήταν δυνατή η αποθήκευση στη μνήμη της συσκευής
+Access code	Κωδικός πρόσβασης
+Fixed code	Σταθερός κωδικός
+Code	Κωδικός
+Fixed code saved	Ο σταθερός κωδικός αποθηκεύτηκε
+Type a 6-digit code	Πληκτρολογήστε 6ψήφιο κωδικό
+New random code each session	Νέος τυχαίος κωδικός σε κάθε συνεδρία
+Too easy to guess. Pick another code.	Πολύ εύκολο να μαντευτεί. Διαλέξτε άλλον κωδικό.
+Off: a new random code each session. On: the same code every time. The code crosses your Wi-Fi unencrypted, so anyone there who sees or guesses it can connect. Wrong tries lock it for longer each time, up to an hour.	Ανενεργό: νέος τυχαίος κωδικός σε κάθε συνεδρία. Ενεργό: πάντα ο ίδιος κωδικός. Ο κωδικός περνά από το Wi-Fi σας χωρίς κρυπτογράφηση, οπότε όποιος τον δει ή τον μαντέψει εκεί μπορεί να συνδεθεί. Οι λάθος προσπάθειες κλειδώνουν κάθε φορά για περισσότερο, έως μία ώρα.
+Spell suggestions	Προτάσεις ορθογραφίας
+Spell suggestions: on	Προτάσεις ορθογραφίας: ναι
+Spell suggestions: off	Προτάσεις ορθογραφίας: όχι
+English only. Tap a correction above the message box.	Μόνο αγγλικά. Πατήστε μια διόρθωση πάνω από το πεδίο μηνύματος.
+English only. Press Up to reach the corrections, Left or Right to pick one, then Enter.	Μόνο αγγλικά. Πατήστε Πάνω για τις διορθώσεις, Αριστερά ή Δεξιά για επιλογή και μετά Enter.
+Phosphor	Φώσφορος
+Apply the new look? WADAMESH restarts to apply it.	Εφαρμογή της νέας εμφάνισης; Το WADAMESH θα επανεκκινήσει.
+With cities.bin in /var/lib/wadamesh-zero, Home shows the city you are in instead of the node name.	Με το cities.bin στο /var/lib/wadamesh-zero, η Αρχική δείχνει την πόλη όπου βρίσκεστε αντί για το όνομα του κόμβου.
+
+# Chats unread chip: unreplied step (#901)
+A	Ο
+U | UR	Α | ΑΠ
+All chats	Όλες οι συνομιλίες
+Unread + unreplied	Αδιάβαστα + αναπάντητα
+Dismiss	Απόκρυψη
+Dismissed	Αποκρύφτηκε
+No unread or unreplied chats	Καμία αδιάβαστη ή αναπάντητη συνομιλία
+No unread or unreplied channels	Κανένα αδιάβαστο ή αναπάντητο κανάλι
+No unread or unreplied direct chats	Καμία αδιάβαστη ή αναπάντητη άμεση συνομιλία
+
+# Store search / sort (#863)
+Search apps	Αναζήτηση εφαρμογών
+Updates	Ενημερώσεις
+A → Z	A → Z
+Z → A	Z → A
+No apps match "%s"	Καμία εφαρμογή για «%s»
+
+# Ebook 2.0 (#890)
+No books. Add .epub or .txt files to /meshcomod/apps/ebook.d/ on the SD card.	Κανένα βιβλίο. Προσθέστε αρχεία .epub ή .txt στο /meshcomod/apps/ebook.d/ της κάρτας SD.
+This book is too large for the app's memory. Try a .txt copy of it, or split it into parts.	Το βιβλίο είναι πολύ μεγάλο για τη μνήμη της εφαρμογής. Δοκιμάστε ένα αντίγραφο .txt ή χωρίστε το σε μέρη.
+
+# Contacts shared in chat (#887)
+This is your own node	Αυτός είναι ο δικός σας κόμβος
+Range	Εμβέλεια
+Nodes farther away are left out. Auto fits the farthest node.	Οι πιο μακρινοί κόμβοι παραλείπονται. Το Αυτόματα χωράει τον πιο μακρινό κόμβο.
+Shows only the nodes you marked as favorite.	Εμφανίζει μόνο τους κόμβους που σημειώσατε ως αγαπημένους.
+Empty at	Άδεια στα
+The voltage that reads 0%. If the device shuts down while it still shows some charge, pick the voltage it stops at.	Η τάση που αντιστοιχεί στο 0%. Αν η συσκευή σβήνει ενώ δείχνει ακόμη φορτίο, επιλέξτε την τάση στην οποία σταματά.
+Use the I2C bus and raw GPS data	Χρήση του διαύλου I2C και ακατέργαστων δεδομένων GPS
+"%s" wants to use the hardware: read and write devices on the I2C bus, and read the GPS receiver's raw data.\n\nA wrong write can change how a connected sensor behaves until it is powered off. The device's own keyboard, touch and power chips stay off limits.	Η εφαρμογή "%s" θέλει πρόσβαση στο υλικό: ανάγνωση και εγγραφή συσκευών στον δίαυλο I2C και ανάγνωση των ακατέργαστων δεδομένων του δέκτη GPS.\n\nΜια λάθος εγγραφή μπορεί να αλλάξει τη συμπεριφορά ενός συνδεδεμένου αισθητήρα μέχρι να απενεργοποιηθεί. Το πληκτρολόγιο, η οθόνη αφής και τα κυκλώματα τροφοδοσίας της συσκευής μένουν εκτός ορίων.

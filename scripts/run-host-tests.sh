@@ -31,6 +31,8 @@ extra_flags() {
     test_c6_link_health) echo "-I tdisplay_p4/components/c6_at" ;;
     # The T-LoRa Pager chip drivers, compiled from variants/ against fake chips.
     test_pager_power|test_pager_haptics|test_pager_imu) echo "-I test/pager_hw_fakes" ;;
+    test_pager_radio_probe) echo "-I variants/lilygo_tlora_pager" ;;   # #884 unified Pager radio detection
+    test_pager_radio_spi_probe) echo "-I test/pager_radio_fakes -I variants/lilygo_tlora_pager" ;;
     test_indicator_expander|test_indicator_dio1) echo "-I variants/sensecap_indicator" ;;
     test_vox_brighten) echo "src/ui-touch/VoxBrighten.cpp" ;;
     # The reader is a .cpp of its own; tinfl comes from the web build's miniz.
@@ -48,6 +50,7 @@ extra_flags() {
     test_gps_baud_probe) echo "-DESP32 -I test/gps_probe_fakes" ;;
     # Same provider; a receiver that reports the true UTC time (its own MicroNMEA/RTClib/UART).
     test_gps_time_sync) echo "-DESP32 -I test/gps_time_fakes -I test/gps_probe_fakes" ;;
+    test_spell) echo "src/ui-touch/spell.cpp" ;;
     *) echo "" ;;
   esac
 }

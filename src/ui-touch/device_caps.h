@@ -20,7 +20,8 @@
 //
 //  The board -D macros (HAS_TDECK_GT911, HAS_TANMATSU, HELTEC_LORA_V4_TFT, …) come
 //  from platformio.ini / the Tanmatsu CMakeLists and are available everywhere, so
-//  this header has no include dependencies. Only ui-touch/UITask.cpp includes it,
+//  this header has no include dependencies. Only ui-touch/UITask.cpp (and
+//  spell_en.cpp, for CAP_SPELLCHECK) include it,
 //  so the #else branch is always "the Heltec V4 TFT touch board".
 // =============================================================================
 
@@ -196,6 +197,16 @@
   #define CAP_OTA          1
   #define CAP_LOCK_SCREEN  1
 
+#elif defined(HAS_TWATCH_S3)          // ===== LilyGo T-Watch S3 (ESP32-S3) =====
+  #define CAP_TOUCH        1   // FT6x36 capacitive touch
+  #define CAP_ROTATABLE    0   // fixed square 240x240 portrait
+  #define CAP_LARGE_SCREEN 0
+  #define CAP_SD           0   // no card slot on the watch
+  #define CAP_FILESYSTEM   1   // SPIFFS + tiles LittleFS
+  #define CAP_GPS          0   // set 1 for the S3 Plus (GNSS fitted)
+  #define CAP_OTA          1
+  #define CAP_LOCK_SCREEN  1
+
 #elif defined(HELTEC_LORA_V4_R8)      // ===== Heltec WiFi LoRa 32 V4-R8 (ESP32-S3R8, 8 MB PSRAM) =====
   // Same board family + panel as the V4 TFT (the build also defines
   // HELTEC_LORA_V4_TFT to reuse all its UI code); the deltas are 8 MB octal
@@ -357,7 +368,8 @@
 
 // "Now in <city>" (CITY_LOCATOR.md): the GPS fix looked up in a boundary file from the
 // SD card, held in PSRAM. Not the T-LoRa Pager: its app slot is full.
-#if CAP_SD && CAP_GPS && defined(BOARD_HAS_PSRAM) && defined(ESP32) && !defined(TLORA_PAGER)
+#if (CAP_SD && CAP_GPS && defined(BOARD_HAS_PSRAM) && defined(ESP32) && !defined(TLORA_PAGER)) || \
+    defined(WADA_ZERO)   // Cardputer Zero: Linux, cities.bin from the data folder (web/zero)
   #define CAP_CITY_LOCATOR 1
 #else
   #define CAP_CITY_LOCATOR 0
@@ -558,6 +570,36 @@
     #define CAP_MAP_PULSES 0
   #else
     #define CAP_MAP_PULSES 1
+  #endif
+#endif
+
+// A fixed browser code for Remote access (#837, Settings > Remote access > Access code).
+// A convenience over the random per-session code, about 3 KB, so not on the T-LoRa
+// Pager, whose app slot is the tightest: it keeps the random code.
+#ifndef CAP_WEB_FIXED_CODE
+  #if defined(TLORA_PAGER)
+    #define CAP_WEB_FIXED_CODE 0
+  #else
+    #define CAP_WEB_FIXED_CODE 1
+  #endif
+#endif
+
+// Store > Apps search field and sort button (#913), and contact cards for a
+// <key:type:name> contact shared in chat (#887). Off on the T-LoRa Pager, whose app
+// slot is the tightest: there the Apps list keeps catalog order and a shared contact
+// shows as its text.
+#ifndef CAP_STORE_SEARCH
+  #if defined(TLORA_PAGER)
+    #define CAP_STORE_SEARCH 0
+  #else
+    #define CAP_STORE_SEARCH 1
+  #endif
+#endif
+#ifndef CAP_CHAT_CONTACT_CARDS
+  #if defined(TLORA_PAGER)
+    #define CAP_CHAT_CONTACT_CARDS 0
+  #else
+    #define CAP_CHAT_CONTACT_CARDS 1
   #endif
 #endif
 
@@ -910,6 +952,18 @@
   #endif
 #endif
 
+// wada.i2c (scan, read, write on the board's main I2C bus) and wada.gps.nmea (the
+// receiver's raw sentences), #896. Behind their own app permission. Arduino Wire
+// builds only (not the ESP-IDF P4 / Tanmatsu builds), not on the Pager (app slot).
+#ifndef CAP_LUA_HW
+  #if CAP_LUA_SDK_EXT && defined(ESP32) && !defined(WADA_WEB) && !defined(TLORA_PAGER) && \
+      !defined(HAS_TANMATSU) && !defined(HAS_TDISPLAY_P4) && !defined(HAS_CROWPANEL_P4_101)
+    #define CAP_LUA_HW 1
+  #else
+    #define CAP_LUA_HW 0
+  #endif
+#endif
+
 // wada.ui.image: an app draws a PNG / JPEG / BMP from one of its own files. Needs
 // wada.fs (the extended SDK) and the firmware's image decoders, which only ESP32
 // builds carry. Not on the T-LoRa Pager: its app slot has no room left for it.
@@ -1050,7 +1104,67 @@
   #endif
 #endif
 
+// Settings > Display > Screensaver > Range and "Favorites only": how far the
+// Constellation reaches, and whether it shows only favourite nodes. Off the Pager
+// (app slot).
+#ifndef CAP_SSAVER_FILTERS
+  #if CAP_SCREENSAVER && !defined(TLORA_PAGER)
+    #define CAP_SSAVER_FILTERS 1
+  #else
+    #define CAP_SSAVER_FILTERS 0
+  #endif
+#endif
+
+// Settings > Battery > "Empty at": the voltage the battery curve calls 0% (3.3 to
+// 3.6 V), for packs that brown out early. Not where a fuel gauge gives the charge
+// (the Pager, the T-Display P4).
+#ifndef CAP_BATT_EMPTY_PICK
+  #if CAP_BATTERY && !defined(TLORA_PAGER) && !defined(HAS_TDISPLAY_P4)
+    #define CAP_BATT_EMPTY_PICK 1
+  #else
+    #define CAP_BATT_EMPTY_PICK 0
+  #endif
+#endif
+
 // Backups listed by their date, or "Default", instead of the file name (#739).
 #ifndef CAP_BACKUP_DATE_LABELS
   #define CAP_BACKUP_DATE_LABELS 1
+#endif
+
+// A one-line quote above a channel or room message that answers someone with a
+// leading "@[Name] " (#641). Not the T-LoRa Pager: its app slot is full.
+#ifndef CAP_REPLY_QUOTE
+  #if defined(TLORA_PAGER)
+    #define CAP_REPLY_QUOTE 0
+  #else
+    #define CAP_REPLY_QUOTE 1
+  #endif
+#endif
+
+// Settings > Keyboard > Emoji pack: download the SD emoji pack over Wi-Fi (#831).
+// The download goes through the app store's file helper on the tile worker.
+// Off in this fork: EmojiPackUI.inc already gets the pack over Wi-Fi (from this
+// firmware's own release) and keeps it on internal storage, so boards without an SD
+// card have it too. Upstream's SD-only download would be a second way, in flash
+// the full app slots don't have, and doesn't build without an SD card.
+#ifndef CAP_EMOJI_PACK_DOWNLOAD
+  #define CAP_EMOJI_PACK_DOWNLOAD 0
+#endif
+
+// English spell suggestions over the chat composer (spell.h, #578). The word list
+// is ~66 KB of flash, deflated, and inflated into PSRAM (~115 KB) the first time a
+// word is checked. Touch boards tap a suggestion, and the Tanmatsu and ThinkNode M9
+// step into the row with their navigation keys (UITask.cpp, SPELL_KEY_NAV). Off on
+// the plain Heltec V4 (its app slot is shared with the built-in translations and
+// every other change of a release) and on the T-LoRa Pager (its slot is full).
+// The V4-R8 keeps it. Define this 0 in a board's block if another outgrows its slot.
+// This fork: off wherever its predictive text is on (PREDICTIVE_TEXT.md), which
+// already fixes a word that isn't one, in the same row over the composer; the two
+// together outgrew the T-Deck's, M9's and V4-R8's app slots by ~100 KB.
+#ifndef CAP_SPELLCHECK
+  #if (defined(HELTEC_LORA_V4_TFT) && !defined(HELTEC_LORA_V4_R8)) || defined(TLORA_PAGER) || CAP_PREDICT_TEXT
+    #define CAP_SPELLCHECK 0
+  #else
+    #define CAP_SPELLCHECK 1
+  #endif
 #endif
