@@ -22,7 +22,7 @@ per-board status.
 
 **One USB install on the T-Deck (Plus), ThinkNode M9, T-LoRa Pager, Heltec V4, Wio Tracker L2 and CrowPanel Advance 3.5 / 5.0.** In this
 fork their app slots are 4.375 MB (the T-LoRa Pager's 4.875 MB; the T-Deck's,
-Heltec V4's and ThinkNode M9's 4.5 MB, a second USB install for one already on 4.375 MB), the extra taken from the map tile cache. A
+Heltec V4's, V4-R8's and ThinkNode M9's 4.625 MB since beta_108, one more USB install for one on 4.5 MB), the extra taken from the map tile cache. A
 standalone moves to the new layout only with the full merged image over USB
 (the web flasher). Its user data (settings, contacts, channels, chats) is kept;
 cached map tiles are cleared and fill again. Until then, an update over Wi-Fi

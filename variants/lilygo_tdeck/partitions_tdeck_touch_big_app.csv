@@ -36,11 +36,22 @@
 #   0xC90000–0xFF0000  spiffs        (3.375 MB)                       [unchanged]
 #   0xFF0000–0x1000000 coredump      (64 KB)
 
+#
+# beta_107/108 (Wadamesh-tak): 4.625 MB slots. The sync put the T-Deck 19 KB and
+# the Heltec V4 14 KB over 4.5 MB (the M9 and V4-R8 within 9 KB), so each slot
+# grows by 128 KB from the tile partition (3.5 -> 3.25 MB). spiffs keeps its
+# offset and size. One more USB install of the merged image to adopt; until then
+# an update stops cleanly ("too big for this radio's slots").
+#
+#   0x010000-0x4B0000  app0    4.625 MB  (ota_0)
+#   0x4B0000-0x950000  app1    4.625 MB  (ota_1)
+#   0x950000-0xC90000  tiles   3.25 MB   (LittleFS, 0x83)
+#   0xC90000-0xFF0000  spiffs  3.375 MB  [unchanged]
 # Name,   Type, SubType,  Offset,   Size,     Flags
 nvs,      data, nvs,      0x9000,   0x5000,
 otadata,  data, ota,      0xe000,   0x2000,
-app0,     app,  ota_0,    0x10000,  0x480000,
-app1,     app,  ota_1,    0x490000, 0x480000,
-tiles,    data, 0x83,     0x910000, 0x380000,
+app0,     app,  ota_0,    0x10000,  0x4A0000,
+app1,     app,  ota_1,    0x4B0000, 0x4A0000,
+tiles,    data, 0x83,     0x950000, 0x340000,
 spiffs,   data, spiffs,   0xC90000, 0x360000,
 coredump, data, coredump, 0xFF0000, 0x10000,
