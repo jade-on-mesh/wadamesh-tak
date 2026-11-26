@@ -23,7 +23,7 @@ The pack shares the tiles partition with the map's tile cache. While the pack is
 
 An update that moves the tiles partition (to make the app slots bigger, as beta_103, beta_106 and beta_108 did) wipes the tiles and the pack kept there. After such an update the standalone says once that map tiles and the full emoji set download again on Wi-Fi; until the pack is back, only the built-in emoji show.
 
-**About** shows `Full emoji set:` followed by the emoji count and where it came from, or what it's waiting for. It needs about 2.5 MB of free PSRAM, so it's on the boards with 8 MB or more: not the 2 MB Heltec V4.
+**About** shows `Full emoji set:` followed by the emoji count and where it came from, or what it's waiting for. Downloading it needs about 2.3 MB of free PSRAM (1.8 MB after **Download now**), and loading it about 1.8 MB, so it's on the boards with 8 MB or more: not the 2 MB Heltec V4. When there isn't that much free, the card says how much there is and how much it needs, and tries again every 10 minutes; restarting frees the most.
 
 An earlier build's full set, `emoji.wep`, is a different format. It's deleted from internal storage on the first start, which gives its space back.
 
