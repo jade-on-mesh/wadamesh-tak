@@ -198,6 +198,117 @@ inline bool alreadyIn(const Edit& e, const char* current) {
   return strlen(current + at) >= wn && memcmp(current + at, w, wn) == 0;
 }
 
+// ---- sending: the edit that turns one text into another (MessageEdit.between) ----
+
+// How long after sending our own message can still be edited (seconds), as the
+// app's messageEditWindow.
+static constexpr uint32_t kEditWindowS = 15 * 60;
+
+namespace detail {
+static constexpr size_t kMaxUnits = 512;
+
+// UTF-8 to UTF-16 units, as Dart holds a String. False when it doesn't fit.
+inline bool toUnits(const char* s, uint16_t* out, size_t cap, size_t* n) {
+  size_t k = 0;
+  const char* p = s;
+  while (*p) {
+    const uint32_t cp = ReactionCodec::nextCodePoint(p);
+    if (cp >= 0x10000) {
+      if (k + 2 > cap) return false;
+      const uint32_t v = cp - 0x10000;
+      out[k++] = (uint16_t)(0xD800 + (v >> 10));
+      out[k++] = (uint16_t)(0xDC00 + (v & 0x3FF));
+    } else {
+      if (k + 1 > cap) return false;
+      out[k++] = (uint16_t)cp;
+    }
+  }
+  *n = k;
+  return true;
+}
+
+// UTF-16 units back to UTF-8, appended at out[*len]. False when it doesn't fit.
+inline bool appendUtf8(const uint16_t* u, size_t n, char* out, size_t cap, size_t* len) {
+  for (size_t i = 0; i < n; ++i) {
+    uint32_t cp = u[i];
+    if (cp >= 0xD800 && cp < 0xDC00 && i + 1 < n && u[i + 1] >= 0xDC00 && u[i + 1] < 0xE000) {
+      cp = 0x10000 + ((cp - 0xD800) << 10) + (u[i + 1] - 0xDC00);
+      ++i;
+    }
+    char b[4];
+    size_t m;
+    if (cp < 0x80) { b[0] = (char)cp; m = 1; }
+    else if (cp < 0x800) { b[0] = (char)(0xC0 | (cp >> 6)); b[1] = (char)(0x80 | (cp & 0x3F)); m = 2; }
+    else if (cp < 0x10000) {
+      b[0] = (char)(0xE0 | (cp >> 12)); b[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
+      b[2] = (char)(0x80 | (cp & 0x3F)); m = 3;
+    } else {
+      b[0] = (char)(0xF0 | (cp >> 18)); b[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
+      b[2] = (char)(0x80 | ((cp >> 6) & 0x3F)); b[3] = (char)(0x80 | (cp & 0x3F)); m = 4;
+    }
+    if (*len + m + 1 > cap) return false;
+    memcpy(out + *len, b, m);
+    *len += m;
+  }
+  out[*len] = '\0';
+  return true;
+}
+
+inline bool isSpace(uint16_t u) { return u == 0x20 || u == 0x0A || u == 0x09 || u == 0x0D; }
+}  // namespace detail
+
+// The wire text of the edit turning `before` into `after` for the message whose
+// reaction hash is `target_hash`, into out[cap], exactly as the app's
+// MessageEdit.between(...).encode(before.length): the changed span widened to
+// whole words plus one word each side. False when nothing changed, `after` is
+// blank, or it doesn't fit.
+inline bool encode(uint16_t target_hash, const char* before, const char* after, char* out, size_t cap) {
+  if (!before || !after || !out || cap < 2) return false;
+  static uint16_t b[detail::kMaxUnits], a[detail::kMaxUnits];   // one edit at a time, on the UI task
+  size_t nb = 0, na = 0;
+  if (!detail::toUnits(before, b, detail::kMaxUnits, &nb) || !detail::toUnits(after, a, detail::kMaxUnits, &na))
+    return false;
+  bool blank = true;
+  for (size_t i = 0; i < na && blank; ++i) blank = detail::isSpace(a[i]);
+  if (blank) return false;
+  if (nb == na && memcmp(a, b, nb * sizeof(uint16_t)) == 0) return false;
+  size_t start = 0;
+  const size_t max_prefix = nb < na ? nb : na;
+  while (start < max_prefix && b[start] == a[start]) ++start;
+  size_t suffix = 0;
+  while (suffix < nb - start && suffix < na - start && b[nb - 1 - suffix] == a[na - 1 - suffix]) ++suffix;
+  // To whole words, then one more word each side (the text around the change is
+  // the same in both, so one walk over `before` suits both).
+  while (start > 0 && !detail::isSpace(b[start - 1])) --start;
+  while (suffix > 0 && !detail::isSpace(b[nb - suffix])) --suffix;
+  while (start > 0 && detail::isSpace(b[start - 1])) --start;
+  while (start > 0 && !detail::isSpace(b[start - 1])) --start;
+  while (suffix > 0 && detail::isSpace(b[nb - suffix])) --suffix;
+  while (suffix > 0 && !detail::isSpace(b[nb - suffix])) --suffix;
+  const size_t del = nb - suffix - start;
+  size_t len = 0;
+  if (kMarkLen + 1 > cap) return false;
+  memcpy(out, kMark, kMarkLen);
+  len = kMarkLen;
+  out[len] = '\0';
+  auto put = [&](const char* s, size_t n) {
+    if (len + n + 1 > cap) return false;
+    memcpy(out + len, s, n);
+    len += n;
+    out[len] = '\0';
+    return true;
+  };
+  if (start > 0 && !put(kEllipsis, kEllipsisLen)) return false;
+  if (!detail::appendUtf8(a + start, na - suffix - start, out, cap, &len)) return false;
+  if (start + del < nb && !put(kEllipsis, kEllipsisLen)) return false;
+  char tag[32];
+  const int tn = snprintf(tag, sizeof tag, "\ne:%04x:%02x:%u:%u", (unsigned)target_hash,
+                          (unsigned)checkOf(before), (unsigned)start, (unsigned)del);
+  if (tn <= 0 || (size_t)tn >= sizeof tag) return false;
+  if ((unsigned)start > 9999 || (unsigned)del > 9999) return false;
+  return put(tag, (size_t)tn);
+}
+
 // By the sender's clock, the edit (sent at edit_ts) is within the accept window of
 // its message (sent at msg_ts). Unknown times (0) don't count against it.
 inline bool arrivedInTime(uint32_t msg_ts, uint32_t edit_ts) {

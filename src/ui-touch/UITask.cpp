@@ -51990,6 +51990,145 @@ static void msgMenuReactCb(lv_event_t* e) {
   reactPickerOpen(slot);
 }
 
+// ---- Edit (our own message, MessageEdit.h) and Image (a photo from Photos) -------
+// Edit loads the message into the composer under an "Editing" bar; the composer's
+// next send corrects it (UITask::sendEditFromComposer). Whatever was half-typed
+// there comes back afterwards.
+static lv_obj_t*    s_edit_bar     = nullptr;
+static lv_obj_t*    s_edit_bar_lbl = nullptr;
+static LvChatPanel* s_edit_panel   = nullptr;
+static lv_timer_t*  s_edit_timer   = nullptr;
+static char         s_edit_draft[UITask::MAX_MSG_TEXT + 1] = "";
+
+static void editBarClose(bool restore_draft) {
+  if (s_edit_timer) { lv_timer_del(s_edit_timer); s_edit_timer = nullptr; }
+  if (s_edit_bar) { lv_obj_add_flag(s_edit_bar, LV_OBJ_FLAG_HIDDEN); lv_obj_del_async(s_edit_bar); }
+  s_edit_bar = nullptr;
+  s_edit_bar_lbl = nullptr;
+  if (restore_draft && s_edit_panel && s_edit_panel->composer_ta) {
+    lv_textarea_set_text(s_edit_panel->composer_ta, s_edit_draft);
+    lv_textarea_set_cursor_pos(s_edit_panel->composer_ta, LV_TEXTAREA_CURSOR_LAST);
+  }
+  s_edit_draft[0] = '\0';
+  s_edit_panel = nullptr;
+}
+
+static void editCancelCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  if (g_lv.task) g_lv.task->cancelEdit();
+  editBarClose(true);
+}
+
+// Keeps the bar on the composer (which grows and rides the keyboard) and its
+// countdown current; ends the edit when it's sent, the chat closes or time's up.
+static void editBarTick(lv_timer_t*) {
+  LvChatPanel* p = s_edit_panel;
+  if (!g_lv.task || !p || !p->detail_open || !p->composer_row) {
+    if (g_lv.task) g_lv.task->cancelEdit();
+    editBarClose(false);
+    return;
+  }
+  if (!g_lv.task->editing()) {   // sent: the composer is empty again, the draft comes back
+    editBarClose(true);
+    return;
+  }
+  const int left = g_lv.task->editSecondsLeft();
+  if (left <= 0) {
+    g_lv.task->cancelEdit();
+    editBarClose(true);
+    g_lv.task->showAlert(TR("The time to edit that message is up"), 2000);
+    return;
+  }
+  if (s_edit_bar_lbl) {
+    char line[64];
+    const int mins = (left + 59) / 60;
+    snprintf(line, sizeof line, mins == 1 ? TR("Editing \xC2\xB7 1 min left") : TR("Editing \xC2\xB7 %d min left"), mins);
+    lv_label_set_text(s_edit_bar_lbl, line);
+  }
+  if (s_edit_bar) {
+    lv_obj_set_width(s_edit_bar, lv_obj_get_width(p->composer_row));
+    lv_obj_align_to(s_edit_bar, p->composer_row, LV_ALIGN_OUT_TOP_MID, 0, -SC(2));
+    lv_obj_move_foreground(s_edit_bar);
+  }
+}
+
+static void editBarOpen(LvChatPanel& p) {
+  editBarClose(false);
+  if (!p.overlay || !p.composer_row) return;
+  s_edit_panel = &p;
+  lv_obj_t* bar = lv_obj_create(p.overlay);
+  s_edit_bar = bar;
+  lv_obj_remove_style_all(bar);
+  lv_obj_set_size(bar, lv_obj_get_width(p.composer_row), SC(24));
+  lv_obj_set_style_bg_color(bar, lv_color_hex(COLOR_PANEL), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_color(bar, lv_color_hex(COLOR_ACCENT), LV_PART_MAIN);
+  lv_obj_set_style_border_width(bar, 1, LV_PART_MAIN);
+  lv_obj_set_style_radius(bar, SC(6), LV_PART_MAIN);
+  lv_obj_set_style_pad_hor(bar, SC(8), LV_PART_MAIN);
+  lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_t* l = lv_label_create(bar);
+  s_edit_bar_lbl = l;
+  lv_label_set_text(l, TR("Editing"));
+  lv_obj_set_style_text_font(l, &g_font_12, LV_PART_MAIN);
+  lv_obj_set_style_text_color(l, lv_color_hex(COLOR_TEXT), LV_PART_MAIN);
+  lv_obj_align(l, LV_ALIGN_LEFT_MID, 0, 0);
+  lv_obj_t* cancel = lv_btn_create(bar);
+  lv_obj_remove_style_all(cancel);
+  lv_obj_set_height(cancel, LV_PCT(100));
+  lv_obj_set_width(cancel, LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_hor(cancel, SC(4), LV_PART_MAIN);
+  lv_obj_align(cancel, LV_ALIGN_RIGHT_MID, SC(4), 0);
+  lv_obj_add_event_cb(cancel, editCancelCb, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t* cl = lv_label_create(cancel);
+  lv_label_set_text(cl, TR("Cancel"));
+  lv_obj_set_style_text_font(cl, &g_font_12, LV_PART_MAIN);
+  lv_obj_set_style_text_color(cl, lv_color_hex(COLOR_SUB), LV_PART_MAIN);
+  lv_obj_center(cl);
+  s_edit_timer = lv_timer_create(editBarTick, 250, nullptr);
+  editBarTick(nullptr);
+}
+
+static void msgMenuEditCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED || !g_lv.task) return;
+  lv_indev_t* a = lv_indev_get_act();
+  if (a) lv_indev_wait_release(a);
+  const int idx = s_msg_menu_idx;
+  closeMsgActionMenu();
+  UITask::UIMessage m;
+  if (!g_lv.task->getMessageByIndex(idx, m) || !g_lv.task->beginEdit(idx)) {
+    g_lv.task->showAlert(TR("That message can't be edited now"), 1800);
+    return;
+  }
+  LvChatPanel& p = m.channel ? g_lv.ch : g_lv.dm;
+  if (!p.composer_ta) { g_lv.task->cancelEdit(); return; }
+  // Whatever was half-typed comes back once the edit is sent or cancelled.
+  char draft[UITask::MAX_MSG_TEXT + 1];
+  const char* typed = lv_textarea_get_text(p.composer_ta);
+  snprintf(draft, sizeof draft, "%s", typed ? typed : "");
+  editBarOpen(p);   // (clears any earlier bar and its stash first)
+  snprintf(s_edit_draft, sizeof s_edit_draft, "%s", draft);
+  lv_textarea_set_text(p.composer_ta, m.text);
+  lv_textarea_set_cursor_pos(p.composer_ta, LV_TEXTAREA_CURSOR_LAST);
+  showKb(&p);
+  composerFocusAfterMenu(p);
+}
+
+#if VOX_AV1_AVAILABLE
+namespace photosui { static void sendTo(const char* thread, bool channel); }   // PhotosUI.inc
+static char s_msg_menu_thread[UITask::MAX_THREAD_NAME + 1] = "";
+static void msgMenuImageCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  lv_indev_t* a = lv_indev_get_act();
+  if (a) lv_indev_wait_release(a);
+  closeMsgActionMenu();
+  // Public and #public: refused before Photos opens unless the emergency switch
+  // allows photos there, with the same alert as any other photo or voice send.
+  if (s_msg_menu_channel && publicMediaRefused(s_msg_menu_thread)) return;
+  photosui::sendTo(s_msg_menu_thread, s_msg_menu_channel);
+}
+#endif
+
 static void openMessageActionMenu(int msg_idx) {
   if (!g_lv.task) return;
   UITask::UIMessage m;
@@ -52005,6 +52144,9 @@ static void openMessageActionMenu(int msg_idx) {
   // Pre-compose the ack line now (RX metadata is on `m` here; the ring may rotate
   // before the button is tapped). s_msg_menu_channel picks the composer to fill.
   s_msg_menu_channel = m.channel;
+#if VOX_AV1_AVAILABLE
+  snprintf(s_msg_menu_thread, sizeof s_msg_menu_thread, "%s", m.thread);
+#endif
   buildAckText(m, s_msg_menu_ack, sizeof s_msg_menu_ack);
   s_msg_menu_has_coords = chatFirstCoord(s_msg_menu_text, &s_msg_menu_lat, &s_msg_menu_lon);
   // A photo that's here (sent, or downloaded), or a linked picture: Copy photo.
@@ -52032,6 +52174,8 @@ static void openMessageActionMenu(int msg_idx) {
   const bool can_channel = messageMenuLinkCount(s_msg_menu_text, CHAT_LINK_HASHTAG) > 0;
   const bool can_map = messageMenuLinkCount(s_msg_menu_text, CHAT_LINK_COORD) > 0;
   const bool can_contact = CAP_CHAT_CONTACT_CARDS && messageMenuLinkCount(s_msg_menu_text, CHAT_LINK_CONTACT) > 0;
+  const bool can_edit = g_lv.task->canEditSlot(msg_idx);   // ours, plain text, under 15 min old
+  const bool can_image = VOX_AV1_AVAILABLE != 0;            // send a photo from Photos to this chat
 
   lv_coord_t sw = lv_disp_get_hor_res(nullptr);
   lv_coord_t sh = lv_disp_get_ver_res(nullptr);
@@ -52071,8 +52215,12 @@ static void openMessageActionMenu(int msg_idx) {
   // Header row reserves space for the close-X badge so it doesn't sit on a button.
   const int hdr_h  = 24;
 #endif
-  const int nbtn   = (can_ack ? 1 : 0) + (can_mention ? 1 : 0) + (can_web ? 1 : 0) + (can_channel ? 1 : 0) + (can_map ? 1 : 0) + (can_contact ? 1 : 0) + (can_copy_photo ? 1 : 0) + (CAP_TOUCH ? 5 : 4) /*React+Copy+Select (touch)+Info+Delete*/ + (can_block ? 1 : 0) + (can_resend ? 1 : 0);
-  const int nrows  = (nbtn + 1) / 2;
+  const int nbtn   = (can_ack ? 1 : 0) + (can_mention ? 1 : 0) + (can_web ? 1 : 0) + (can_channel ? 1 : 0) + (can_map ? 1 : 0) + (can_contact ? 1 : 0) + (can_copy_photo ? 1 : 0) + (CAP_TOUCH ? 5 : 4) /*React+Copy+Select (touch)+Info+Delete*/ + (can_block ? 1 : 0) + (can_resend ? 1 : 0) + (can_image ? 1 : 0) + (can_edit ? 1 : 0);
+  // Edit sits on the last row, left of Delete: when the buttons before it are odd
+  // in number, the cell beside the one before it stays empty.
+  const int before_edit = nbtn - 2;
+  const bool edit_gap = can_edit && (before_edit % 2) != 0;
+  const int nrows  = (nbtn + (edit_gap ? 1 : 0) + 1) / 2;
   int card_h = hdr_h + nrows * btn_h + (nrows - 1) * gap + 2 * pad;
   // Never exceed the visible area under the status bar; scroll if it ever would
   // (e.g. an even taller menu, or a shorter display). The close-X floats, so it
@@ -52164,6 +52312,11 @@ static void openMessageActionMenu(int msg_idx) {
   mk_btn(LV_SYMBOL_LIST, TR(LV_SYMBOL_LIST "  Info"), msgMenuInfoCb);
   if (can_block)  mk_btn(LV_SYMBOL_CLOSE, TR(LV_SYMBOL_CLOSE "  Block"), msgMenuBlockCb);
   if (can_resend) mk_btn(LV_SYMBOL_REFRESH, TR(LV_SYMBOL_REFRESH "  Resend"), msgMenuResendCb);
+#if VOX_AV1_AVAILABLE
+  if (can_image) mk_btn(LV_SYMBOL_IMAGE, TR(LV_SYMBOL_IMAGE "  Image"), msgMenuImageCb);
+#endif
+  if (edit_gap) ++bi;
+  if (can_edit) mk_btn(LV_SYMBOL_EDIT, TR(LV_SYMBOL_EDIT "  Edit"), msgMenuEditCb);
   mk_btn(LV_SYMBOL_TRASH, TR(LV_SYMBOL_TRASH "  Delete"), msgMenuDeleteCb);
 }
 
@@ -53808,7 +53961,19 @@ struct ChatFoot {
   bool     own;    // your message: lit chain that starts at you
 };
 
+static void chatBuildFootBase(const UITask::UIMessage& m, bool channel_mode, ChatFoot& f);
+
+// The foot, then "edited" when the message was corrected after it was sent
+// (MessageEdit.h): by its sender, or by us.
 static void chatBuildFoot(const UITask::UIMessage& m, bool channel_mode, ChatFoot& f) {
+  chatBuildFootBase(m, channel_mode, f);
+  if (!UITask::isEdited(m)) return;
+  const size_t l = strlen(f.text);
+  if (l + 1 < sizeof f.text)
+    snprintf(f.text + l, sizeof f.text - l, "%s%s", l ? " \xC2\xB7 " : "", TR("edited"));
+}
+
+static void chatBuildFootBase(const UITask::UIMessage& m, bool channel_mode, ChatFoot& f) {
   f.text[0] = '\0';
   f.fg = COLOR_TERTIARY;
   f.dots = 0;
@@ -53836,11 +54001,6 @@ static void chatBuildFoot(const UITask::UIMessage& m, bool channel_mode, ChatFoo
       snprintf(t, tn, "%s%s%s", TR("routed"), sep, ts);
     } else {
       snprintf(t, tn, "%s", ts);
-    }
-    if (m.deliv_state == UITask::DELIV_EDITED) {   // its sender corrected it (MessageEdit.h)
-      const size_t l = strlen(f.text);
-      if (l + 1 < sizeof f.text)
-        snprintf(f.text + l, sizeof f.text - l, "%s%s", l ? " \xC2\xB7 " : "", TR("edited"));
     }
     return;
   }
@@ -88904,6 +89064,10 @@ bool UITask::reactionHashOfSlot(int msg_idx, uint16_t* hash) const {
       if (hash) *hash = (uint16_t)(m.sent_fp & 0xFFFF);
       return true;
     }
+    if (m.outgoing && isEdited(m) && m.thread[0]) {   // ours, edited here: its first text's hash
+      if (hash) *hash = m.in_scope;
+      return true;
+    }
   }
   uint32_t ts = 0;
   bool named = false, ch = false;
@@ -88961,6 +89125,121 @@ bool UITask::applyIncomingEdit(const char* thread, bool channel, const char* sen
     return true;
   }
   return false;
+}
+
+// ---- Editing our own messages (MessageEdit.h) ------------------------------------
+// The message menu's Edit loads one of our recent plain-text messages into the
+// composer; its next send goes out as an edit (only the changed words, as MeshCore
+// Open TAK sends them) and corrects our copy in place, instead of a new message.
+
+int UITask::findSlotBySeq(uint32_t seq) const {
+  if (!_ui_msgs || !seq) return -1;
+  for (int i = 0; i < _ui_msg_count; ++i) {
+    const int idx = (_ui_msg_head - 1 - i + _ui_msg_cap) % _ui_msg_cap;
+    if (_ui_msgs[idx].seq == seq && _ui_msgs[idx].thread[0]) return idx;
+  }
+  return -1;
+}
+
+static uint32_t editNow() { return the_mesh.getRTCClock()->getCurrentTime(); }
+
+bool UITask::canEditSlot(int msg_idx) const {
+  if (!_ui_msgs || msg_idx < 0 || msg_idx >= _ui_msg_cap || _active_thread_idx < 0) return false;
+  const UIMessage& m = _ui_msgs[msg_idx];
+  if (!m.outgoing || !m.thread[0] || !m.text[0]) return false;
+  const UIThread& th = _ui_threads[_active_thread_idx];
+  if (m.channel != th.channel || strncmp(m.thread, th.name, MAX_THREAD_NAME) != 0) return false;
+  if (!m.channel) {
+    if (m.deliv_state != DELIV_SENT && m.deliv_state != DELIV_DELIVERED) return false;   // not sent yet
+    ContactInfo* c = the_mesh.lookupContactByPubKey(th.mesh_contact_pub, PUB_KEY_SIZE);
+    if (c && c->type != ADV_TYPE_CHAT) return false;   // rooms aren't edited, as in the app
+  }
+  // Plain words only: not a reaction, an edit, a photo or voice clip, an app's
+  // machine text or an OTP control message.
+  if (reactions::isReaction(m.text) || msgedit::looks(m.text) || PublicMedia::isMediaText(m.text) ||
+      taktext::classify(m.text, !m.channel) != taktext::kNone || msgIsOtpControl(m.text))
+    return false;
+  // Within the window by the clock its send time came from. A board whose clock
+  // isn't set can't tell, so it doesn't offer it.
+  const uint32_t now = editNow();
+  if (m.ts < 1700000000 || now < m.ts) return false;
+  return now - m.ts <= msgedit::kEditWindowS;
+}
+
+bool UITask::beginEdit(int msg_idx) {
+  if (!canEditSlot(msg_idx)) return false;
+  _edit_seq = _ui_msgs[msg_idx].seq;
+  return true;
+}
+
+int UITask::editSecondsLeft() const {
+  const int idx = findSlotBySeq(_edit_seq);
+  if (idx < 0 || !canEditSlot(idx)) return 0;
+  const uint32_t gone = editNow() - _ui_msgs[idx].ts;
+  return gone >= msgedit::kEditWindowS ? 0 : (int)(msgedit::kEditWindowS - gone);
+}
+
+// The composer's draft as an edit of the message being edited.
+bool UITask::sendEditFromComposer() {
+  const int idx = findSlotBySeq(_edit_seq);
+  if (idx < 0 || !canEditSlot(idx)) {
+    _edit_seq = 0;
+    showAlert(TR("It's too late to edit that message"), 2000);
+    return false;
+  }
+  UIMessage& m = _ui_msgs[idx];
+  // The text as the app holds it: a channel reply without its "@[name] ", which
+  // the draft has to keep as it was.
+  const char* before = m.channel ? reactions::replyBody(m.text) : m.text;
+  const size_t keep = (size_t)(before - m.text);
+  char draft[MAX_MSG_TEXT + 1];
+  arabicUnshape(_compose_buf, draft, sizeof draft);   // as a send would put it on the air
+  if (keep && strncmp(draft, m.text, keep) != 0) {
+    showAlert(TR("Keep the @name at the start"), 1800);
+    return false;
+  }
+  const char* after = draft + keep;
+  if (strcmp(after, before) == 0) {   // nothing changed: done
+    _edit_seq = 0;
+    resetComposer();
+    return true;
+  }
+  uint16_t hash = 0;
+  if (!reactionHashOfSlot(idx, &hash)) return false;
+  // One message: the channel line carries "name: " ahead of it, and a DM leaves
+  // room for the attempt byte, as the app counts.
+  const char* me = (_node_prefs && _node_prefs->node_name[0]) ? _node_prefs->node_name : "me";
+  const size_t max_wire = m.channel ? (size_t)MAX_TEXT_LEN - strlen(me) - 2 : (size_t)MAX_TEXT_LEN - 2;
+  char wire[MAX_TEXT_LEN + 1];
+  if (!msgedit::encode(hash, before, after, wire, sizeof wire) || strlen(wire) > max_wire) {
+    showAlert(TR("That change is too long to send as an edit"), 2200);
+    return false;
+  }
+  const uint32_t seq = m.seq;
+  _store_none = true;
+  const bool sent = sendComposerToActiveThread(wire);
+  _store_none = false;
+  if (!sent) return false;
+  const int now_idx = findSlotBySeq(seq);   // the send appended nothing, but be sure
+  if (now_idx >= 0) {
+    UIMessage& mm = _ui_msgs[now_idx];
+    if (!isEdited(mm)) {
+      mm.in_scope = hash;          // its first text's hash, for later edits and reactions
+      mm.rssi = kOwnEditedRssi;
+    }
+    snprintf(mm.text + keep, sizeof mm.text - keep, "%s", after);
+    ++_react_gen;                  // its bubble's height changes: lay the chat out again
+    segMarkSeqDirty(mm.seq);
+    _msgs_dirty = true;
+    markMsgsDirty();
+#if !defined(HAS_TANMATSU)
+    s_web_rx_nudge = true;
+#endif
+  }
+  _edit_seq = 0;
+  resetComposer();
+  showAlert(TR("Edited"), 900);
+  return true;
 }
 
 void UITask::setActiveThread(int idx, bool channel_mode) {
@@ -89056,6 +89335,9 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
   static uint32_t s_last_ui_tx_ts = 0;
   static uint8_t s_ui_tx_attempt = 4;
   if (_active_thread_idx < 0) return false;
+  // The composer is editing one of our messages (Edit in its menu): this send
+  // corrects it rather than sending a new one.
+  if (_edit_seq && !override_text) return sendEditFromComposer();
   // Resend (message action menu) passes the original message text; a normal send uses
   // the composer draft. On a resend we must NOT clear the composer (a half-typed draft).
   const char* text = (override_text && override_text[0]) ? override_text : _compose_buf;
@@ -89117,7 +89399,7 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
       return false;
     }
     mapPulse(nullptr, MAP_PULSE_OUT);
-    {
+    if (!_store_none) {
       const int slot = _ui_msg_head;   // appendMessage writes _ui_msgs[head]
       if (appendMessage(_ui_threads[_active_thread_idx].name, sender, _store_as ? _store_as : truncated, true, true, false,
                         0, DELIV_NONE, 0, 0, 0, 0, nullptr, 0, the_mesh.uiLastSentFp()) >= 0)
@@ -89211,15 +89493,16 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
   }
   if (r == MSG_SEND_FAILED) {
     showAlert(TR("Send failed"), 1200);
-    appendMessage(_ui_threads[_active_thread_idx].name, sender, _store_as ? _store_as : truncated, false, true, false,
-                  expected_ack, DELIV_FAILED);
+    if (!_store_none)
+      appendMessage(_ui_threads[_active_thread_idx].name, sender, _store_as ? _store_as : truncated, false, true, false,
+                    expected_ack, DELIV_FAILED);
     return false;
   }
   // Register the ACK hash so when the recipient acks the DM, processAck
   // matches it and fires UITask::onMessageAcked → bubble flips to ✓✓.
   the_mesh.uiRegisterExpectedAck(expected_ack, recipient.id.pub_key);
   mapPulse(recipient.id.pub_key, MAP_PULSE_OUT);
-  {
+  if (!_store_none) {
     const int slot = _ui_msg_head;   // appendMessage writes _ui_msgs[head]
     if (appendMessage(_ui_threads[_active_thread_idx].name, sender, _store_as ? _store_as : truncated, false, true, false,
                       expected_ack, DELIV_SENT, 0, 0, 0, 0, nullptr, 0, the_mesh.uiLastSentFp()) >= 0)
