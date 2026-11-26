@@ -210,6 +210,13 @@ private:
   mutable uint16_t _thread_msgs[MAX_UI_THREADS] = { 0 };
   mutable bool     _thread_hist_dirty = true;
   void rebuildThreadHistoryFlags() const;
+  // threadAwaitingReply's cache (#901): one ring pass answers it for every thread. Rebuilt
+  // when an append moves the ring (seq/head/count), _reply_gen is bumped by an edit that
+  // does not (delete, clear, trim, thread freed), or my node name changes.
+  mutable uint32_t _reply_key[MAX_UI_THREADS] = { 0 };   // 0 = not waiting
+  mutable uint32_t _reply_cache_sig = 0;
+  uint32_t         _reply_gen = 0;
+  void rebuildReplyState() const;
   /** Time of a thread's newest message in the ring (0 when it has none). */
   uint32_t newestThreadMessageTs(const char* name, bool channel) const;
   /** Drop this thread's oldest stored messages until it is back within the per-chat cap
@@ -374,6 +381,10 @@ public:
   void markActiveThreadRead();    // clear the currently-open thread's unread (viewing == read)
   void markAllThreadsRead();      // clear every thread's unread count
   bool threadHasMention(int idx) const;   // unread @mention of me in this thread
+  /** The thread waits on my reply (#901): a direct chat whose newest message is theirs, or
+   *  a channel with an @mention of me newer than my last post there. `key` (never 0)
+   *  identifies the waiting message, so a Dismiss lasts until a newer one waits. */
+  bool threadAwaitingReply(int idx, uint32_t* key = nullptr) const;
   // A direct chat's contact key (first 6 bytes), for its nickname; nullptr for a channel
   // or a chat not tied to a known contact.
   const uint8_t* threadContactKey6(int idx) const;
@@ -385,6 +396,11 @@ public:
   bool getThreadInfo(int idx, bool& channel, uint16_t& unread, uint32_t& ts, char* name, size_t name_len) const;
   int  getActiveThreadMessageCount(int out_indexes[], int max_out, bool newest_first) const;
   bool getMessageByIndex(int msg_idx, UIMessage& out) const;
+  // The slot itself, no copy (UI thread only; nullptr when out of range). For scans
+  // that read a field or two of many messages, where a 300-byte copy each adds up.
+  const UIMessage* messageAt(int msg_idx) const {
+    return (_ui_msgs && msg_idx >= 0 && msg_idx < _ui_msg_cap) ? &_ui_msgs[msg_idx] : nullptr;
+  }
   int  getThreadMessageIndexes(int thread_idx, int out_indexes[], int max_out, bool newest_first) const;   // read any thread's message ring slots (no active-thread side effect); reactions left out
   /** Reactions (Reactions.h). Reactions are stored as messages of their own
    *  ("r:HASH:II"), which getThreadMessageIndexes leaves out: this reads them. */

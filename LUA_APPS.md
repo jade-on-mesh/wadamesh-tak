@@ -44,9 +44,17 @@ We do NOT bind LVGL wholesale. We bind a stable, versioned surface we own
   trackball dirs. (Snake's swipe steering maps here; the existing
   SnakeGame gesture path shows the shape.)
 - `wada.mesh` (READ-ONLY v1) — `contacts()` snapshot (name/type/last_seen/
-  rssi), `rx_log()` ring (the RF Monitor feed), `stats()` (airtime used,
+  rssi), `rx_log()` ring (the RF Monitor feed; floods carry `path`, up to
+  64 bytes, and `last_hop`, the repeater the radio heard), `stats()` (airtime used,
   duty budget, tx/rx counters, noise floor, current rssi), `self()` (name,
   lat/lon, battery_mv). No TX of any kind in v1 — mesh safety line.
+- `wada.i2c` / `wada.gps` (#896, `caps().i2c`) — `i2c.scan()`, `i2c.read(addr, reg, n)`,
+  `i2c.write(addr, bytes)`, `i2c.reserved(addr)` on the board's main bus (Wire),
+  and `gps.nmea()`, the last 8 raw sentences. Behind the "hardware" app
+  permission (LUA_PERM_HW). Bounded calls on the UI thread (32 bytes, Wire's
+  50 ms timeout, a 150 ms scan budget); Wire's own lock keeps each transaction
+  whole against the keyboard/touch/sensor polls. The board's own chips are
+  refused (luaHostI2cReserved in UITask.cpp). No GPS config writes.
 - `wada.net` — `http_get(url, cb, max_bytes)` async on the existing tile-fetch
   worker; plain HTTP (V4 cannot TLS); response size capped (64 KB default).
 - `wada.store` — per-app KV: `get/set(key, value)` under an `app.<id>.` prefix
@@ -75,6 +83,13 @@ catalog is the third.
   immutable per-version paths, mutable index. Device store page = fetch
   index → list → install (download 2 files) → appears in the drawer.
   Uninstall = delete 2 files. Update = version compare against the index.
+- Each catalog row carries `"released": "YYYY-MM-DD"`, the date its current
+  `ver` was published; bump it with the version. The Store's Apps tab sorts by
+  it (Newest) and `scripts/deploy-apps.sh` refuses a row without a valid one.
+  Older firmware ignores the field. The Apps tab also has a search field
+  (name, id and description) and a sort button (A → Z, Z → A, Newest); apps
+  with an update are pinned on top in every mode. Match and order logic:
+  `src/ui-touch/StoreFilter.h`, host test `test/test_store_filter.cpp`.
 - The Store page also lists the **built-in removable apps** (Snake, Airtime,
   RF Monitor, later more) with the same install/uninstall verbs — for
   built-ins that just toggles drawer visibility + services (MQTT bridge gets

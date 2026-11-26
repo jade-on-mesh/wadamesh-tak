@@ -1,9 +1,19 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: ru
-# ver: 34
+# ver: 35
 # name: Русский
 # base: ru
+Connect to Wi-Fi to download the emoji pack.	Подключитесь к Wi-Fi, чтобы загрузить пакет эмодзи.
+Download emoji pack	Загрузить пакет эмодзи
+Download the emoji pack over Wi-Fi. A microSD card is required.	Загрузите пакет эмодзи по Wi-Fi. Требуется карта microSD.
+Downloading emoji pack…	Загрузка пакета эмодзи…
+Emoji pack	Пакет эмодзи
+Emoji pack installed. Downloading another will replace it.	Пакет эмодзи установлен. Загрузка другого заменит его.
+Replace the installed emoji pack? A custom pack may be overwritten.	Заменить установленный пакет эмодзи? Пользовательский пакет может быть перезаписан.
+Replace	Заменить
+Emoji pack download failed	Не удалось загрузить пакет эмодзи
+Emoji pack downloaded. It applies after a restart.	Пакет эмодзи загружен. Применяется после перезапуска.
  (device behind)	 (устройство отстаёт)
 #7A7F87 Wardrive: %d coverage pts · %lu logged to SD#	#7A7F87 Wardrive: %d точек покрытия · %lu записано на SD#
 #7A7F87 Wardrive: waiting for GPS fix…#	#7A7F87 Wardrive: ожидание GPS…#
@@ -212,7 +222,9 @@ Connected - a browser is viewing this screen.	Подключено - брауз�
 Connecting...	Подключение...
 Connecting…	Подключение…
 Console not available on this build	Консоль недоступна в этой сборке
+Contact	Контакт
 Contact added	Контакт добавлен
+Could not add contact	Не удалось добавить контакт
 Contact deleted	Контакт удалён
 Contact gone	Контакт пропал
 Contact missing	Контакт отсутствует
@@ -993,6 +1005,7 @@ hold Backspace to unlock	удерживайте Backspace для разблок�
 double-press d-pad center to unlock	дважды нажмите центр d-pad для разблокировки
 hold the trackball to unlock	удерживайте трекбол для разблокировки
 press the button to unlock	нажмите кнопку для разблокировки
+press the BOOT button to unlock	нажмите кнопку BOOT для разблокировки
 hold the wake button to unlock	удерживайте кнопку пробуждения для разблокировки
 kHz	kHz
 keep holding	удерживайте
@@ -1671,7 +1684,9 @@ SF is the spreading factor, CR the coding rate, AF the airtime factor. A field a
 Save in the foreground after	Save in the foreground after
 Saved to the SD card when one is in, otherwise to internal storage.	Saved to the SD card when one is in, otherwise to internal storage.
 Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.	Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.
-Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.	Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.
+While the screen is on, asks nearby repeaters for a signal reading when none has been heard for a while. Neighbours only; nothing is repeated.	При включённом экране запрашивает у ближайших ретрансляторов замер сигнала, если какое-то время никого не было слышно. Только соседи; ничего не ретранслируется.
+Only when moving (GPS)	Только в движении (GPS)
+With a GPS fix, asks again only after you move about 250 m, or once an hour.	С GPS-позицией запрашивает снова только после перемещения примерно на 250 м или раз в час.
 Sends an extra copy of each ACK, so the sender is likelier to hear one.	Sends an extra copy of each ACK, so the sender is likelier to hear one.
 Serial speed	Serial speed
 Set the time	Set the time
@@ -2477,3 +2492,51 @@ Waiting for an answer on the device.	Ожидание ответа на устр
 This app has no settings	У этого приложения нет настроек
 Saved on the device for this app. The app reads them when it opens.	Сохранено на устройстве для этого приложения. Приложение читает их при открытии.
 Could not save to the device storage	Не удалось сохранить в памяти устройства
+Access code	Код доступа
+Fixed code	Постоянный код
+Code	Код
+Fixed code saved	Постоянный код сохранён
+Type a 6-digit code	Введите 6-значный код
+New random code each session	Новый случайный код в каждой сессии
+Too easy to guess. Pick another code.	Слишком легко угадать. Выберите другой код.
+Off: a new random code each session. On: the same code every time. The code crosses your Wi-Fi unencrypted, so anyone there who sees or guesses it can connect. Wrong tries lock it for longer each time, up to an hour.	Выкл.: новый случайный код в каждой сессии. Вкл.: всегда один и тот же код. Код передаётся по вашему Wi-Fi без шифрования, поэтому любой, кто его там увидит или угадает, сможет подключиться. Неверные попытки блокируют каждый раз дольше, до часа.
+Spell suggestions	Подсказки правописания
+Spell suggestions: on	Подсказки правописания: вкл
+Spell suggestions: off	Подсказки правописания: выкл
+English only. Tap a correction above the message box.	Только английский. Нажмите на исправление над полем сообщения.
+English only. Press Up to reach the corrections, Left or Right to pick one, then Enter.	Только английский. Нажмите Вверх, чтобы перейти к исправлениям, Влево или Вправо, чтобы выбрать, затем Enter.
+Phosphor	Фосфор
+Apply the new look? WADAMESH restarts to apply it.	Применить новый вид? WADAMESH перезапустится.
+With cities.bin in /var/lib/wadamesh-zero, Home shows the city you are in instead of the node name.	С cities.bin в /var/lib/wadamesh-zero главный экран показывает город, в котором вы находитесь, вместо имени узла.
+
+# Chats unread chip: unreplied step (#901)
+A	В
+U | UR	Н | БО
+All chats	Все чаты
+Unread + unreplied	Непрочитанные + без ответа
+Dismiss	Скрыть
+Dismissed	Скрыто
+No unread or unreplied chats	Нет непрочитанных чатов или чатов без ответа
+No unread or unreplied channels	Нет непрочитанных каналов или каналов без ответа
+No unread or unreplied direct chats	Нет непрочитанных личных чатов или чатов без ответа
+
+# Store search / sort (#863)
+Search apps	Поиск приложений
+Updates	Обновления
+A → Z	A → Z
+Z → A	Z → A
+No apps match "%s"	Нет приложений по запросу «%s»
+
+# Ebook 2.0 (#890)
+No books. Add .epub or .txt files to /meshcomod/apps/ebook.d/ on the SD card.	Нет книг. Добавьте файлы .epub или .txt в /meshcomod/apps/ebook.d/ на SD-карте.
+This book is too large for the app's memory. Try a .txt copy of it, or split it into parts.	Книга слишком велика для памяти приложения. Попробуйте копию в .txt или разделите её на части.
+
+# Contacts shared in chat (#887)
+This is your own node	Это ваш собственный узел
+Range	Радиус
+Nodes farther away are left out. Auto fits the farthest node.	Более дальние узлы не показываются. Авто подстраивается под самый дальний узел.
+Shows only the nodes you marked as favorite.	Показывает только узлы, отмеченные как избранные.
+Empty at	Пустая при
+The voltage that reads 0%. If the device shuts down while it still shows some charge, pick the voltage it stops at.	Напряжение, которое считается 0%. Если устройство выключается, пока ещё показывает заряд, выберите напряжение, при котором оно отключается.
+Use the I2C bus and raw GPS data	Доступ к шине I2C и сырым данным GPS
+"%s" wants to use the hardware: read and write devices on the I2C bus, and read the GPS receiver's raw data.\n\nA wrong write can change how a connected sensor behaves until it is powered off. The device's own keyboard, touch and power chips stay off limits.	"%s" запрашивает доступ к оборудованию: чтение и запись устройств на шине I2C и чтение сырых данных GPS-приёмника.\n\nНеверная запись может изменить работу подключённого датчика до его выключения. Клавиатура, сенсорный экран и микросхемы питания устройства остаются недоступными.

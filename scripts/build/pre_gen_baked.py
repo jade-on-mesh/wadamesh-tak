@@ -61,6 +61,17 @@ try:
 except NameError:
     pass
 
+# The e-paper boards compile emoji_data_mono.c, a black-and-white copy of
+# emoji_data.c's glyph set and lookup tables (#902). add-emoji.py changes the
+# colour file; fail these builds rather than ship a mono set that lacks the new emoji.
+try:
+    Import("env")   # noqa: F821
+    if any("WADA_EMOJI_MONO" in f for f in env.GetProjectOption("build_flags", [])):   # noqa: F821
+        if subprocess.run([sys.executable, os.path.join(HERE, "gen-emoji-mono.py"), "--check"], cwd=ROOT).returncode:
+            env.Exit(1)   # noqa: F821
+except NameError:
+    pass
+
 lua_src = glob.glob(os.path.join(ROOT, "deploy", "apps", "*", "*", "*.lua"))
 lua_src += [os.path.join(ROOT, "deploy", "apps", "apps.json")]
 if _stale(LUAH, [f for f in lua_src if os.path.exists(f)]):
@@ -74,3 +85,9 @@ wc_src = glob.glob(os.path.join(ROOT, "web", "console", "*")) + [WCG]
 if _stale(WCH, wc_src):
     print("web console: a page changed, regenerating WebConsoleAssets.h")
     subprocess.run([sys.executable, WCG], cwd=ROOT, check=True)
+
+SPELLH = os.path.join(ROOT, "src", "ui-touch", "spell_dict_en.h")
+SPELLG = os.path.join(HERE, "gen_spell_dict.py")
+if _stale(SPELLH, [os.path.join(ROOT, "dict", "en.txt"), SPELLG]):
+    print("spell: dict/en.txt or its generator changed, regenerating spell_dict_en.h")
+    subprocess.run([sys.executable, SPELLG], cwd=ROOT, check=True)

@@ -1,9 +1,19 @@
 # wadamesh language file
 # canonical source - translators: edit this file and PR it
 # code: sr
-# ver: 34
+# ver: 35
 # name: Српски
 # base: sr
+Connect to Wi-Fi to download the emoji pack.	Повежите се на Wi-Fi да бисте преузели пакет емоџија.
+Download emoji pack	Преузми пакет емоџија
+Download the emoji pack over Wi-Fi. A microSD card is required.	Преузмите пакет емоџија преко Wi-Fi-ја. Потребна је microSD картица.
+Downloading emoji pack…	Преузимање пакета емоџија…
+Emoji pack	Пакет емоџија
+Emoji pack installed. Downloading another will replace it.	Пакет емоџија је инсталиран. Преузимање другог ће га заменити.
+Replace the installed emoji pack? A custom pack may be overwritten.	Заменити инсталирани пакет емоџија? Прилагођени пакет може бити преписан.
+Replace	Замени
+Emoji pack download failed	Преузимање пакета емоџија није успело
+Emoji pack downloaded. It applies after a restart.	Пакет емоџија је преузет. Важи након рестарта.
  (device behind)	 (уређај касни)
 #7A7F87 Wardrive: %d coverage pts · %lu logged to SD#	#7A7F87 Wardrive: %d тачака покривености · %lu уписано на SD#
 #7A7F87 Wardrive: waiting for GPS fix…#	#7A7F87 Wardrive: чекање GPS-а…#
@@ -212,7 +222,9 @@ Connected - a browser is viewing this screen.	Повезано - преглед�
 Connecting...	Повезивање...
 Connecting…	Повезивање…
 Console not available on this build	Конзола није доступна у овој верзији
+Contact	Контакт
 Contact added	Контакт додат
+Could not add contact	Није успело додавање контакта
 Contact deleted	Контакт обрисан
 Contact gone	Контакт нестао
 Contact missing	Контакт недостаје
@@ -993,6 +1005,7 @@ hold Backspace to unlock	држи Backspace за откључавање
 double-press d-pad center to unlock	притисните средину d-pad-а два пута за откључавање
 hold the trackball to unlock	држите куглицу да откључате
 press the button to unlock	притисните дугме да откључате
+press the BOOT button to unlock	притисните дугме BOOT да откључате
 hold the wake button to unlock	држите дугме за буђење да откључате
 kHz	kHz
 keep holding	држите
@@ -1671,7 +1684,9 @@ SF is the spreading factor, CR the coding rate, AF the airtime factor. A field a
 Save in the foreground after	Save in the foreground after
 Saved to the SD card when one is in, otherwise to internal storage.	Saved to the SD card when one is in, otherwise to internal storage.
 Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.	Scroll moves the screen, Cursor points and clicks, Navigate (experimental) moves a selection. Hold the trackball to switch between Scroll and Cursor.
-Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.	Sends a zero-hop advert when no neighbour has been heard for a while, so the signal reading stays fresh. Neighbours only; nothing is repeated.
+While the screen is on, asks nearby repeaters for a signal reading when none has been heard for a while. Neighbours only; nothing is repeated.	Док је екран укључен, тражи од оближњих репетитора мерење сигнала када неко време ниједан није чут. Само суседи; ништа се не прослеђује.
+Only when moving (GPS)	Само у покрету (GPS)
+With a GPS fix, asks again only after you move about 250 m, or once an hour.	Са GPS позицијом поново пита тек након померања од око 250 м, или једном на сат.
 Sends an extra copy of each ACK, so the sender is likelier to hear one.	Sends an extra copy of each ACK, so the sender is likelier to hear one.
 Serial speed	Serial speed
 Set the time	Set the time
@@ -2477,3 +2492,51 @@ Waiting for an answer on the device.	Чека се одговор на уређ�
 This app has no settings	Ова апликација нема подешавања
 Saved on the device for this app. The app reads them when it opens.	Сачувано на уређају за ову апликацију. Апликација их чита при отварању.
 Could not save to the device storage	Чување у меморију уређаја није успело
+Access code	Приступни код
+Fixed code	Стални код
+Code	Код
+Fixed code saved	Стални код сачуван
+Type a 6-digit code	Унесите шестоцифрени код
+New random code each session	Нови насумични код за сваку сесију
+Too easy to guess. Pick another code.	Превише лако за погађање. Изаберите други код.
+Off: a new random code each session. On: the same code every time. The code crosses your Wi-Fi unencrypted, so anyone there who sees or guesses it can connect. Wrong tries lock it for longer each time, up to an hour.	Искључено: нови насумични код за сваку сесију. Укључено: увек исти код. Код пролази кроз ваш Wi-Fi нешифрован, па свако ко га тамо види или погоди може да се повеже. Погрешни покушаји закључавају сваки пут дуже, до једног сата.
+Spell suggestions	Предлози правописа
+Spell suggestions: on	Предлози правописа: укљ
+Spell suggestions: off	Предлози правописа: искљ
+English only. Tap a correction above the message box.	Само енглески. Додирните исправку изнад поља за поруку.
+English only. Press Up to reach the corrections, Left or Right to pick one, then Enter.	Само енглески. Притисните Горе за исправке, Лево или Десно за избор, па Enter.
+Phosphor	Фосфор
+Apply the new look? WADAMESH restarts to apply it.	Применити нови изглед? WADAMESH се рестартује.
+With cities.bin in /var/lib/wadamesh-zero, Home shows the city you are in instead of the node name.	Са cities.bin у /var/lib/wadamesh-zero почетни екран приказује град у којем сте уместо имена чвора.
+
+# Chats unread chip: unreplied step (#901)
+A	С
+U | UR	Н | БО
+All chats	Сва ћаскања
+Unread + unreplied	Непрочитано + без одговора
+Dismiss	Сакриј
+Dismissed	Сакривено
+No unread or unreplied chats	Нема непрочитаних ни неодговорених ћаскања
+No unread or unreplied channels	Нема непрочитаних ни неодговорених канала
+No unread or unreplied direct chats	Нема непрочитаних ни неодговорених директних ћаскања
+
+# Store search / sort (#863)
+Search apps	Претрага апликација
+Updates	Ажурирања
+A → Z	A → Z
+Z → A	Z → A
+No apps match "%s"	Нема апликација за „%s“
+
+# Ebook 2.0 (#890)
+No books. Add .epub or .txt files to /meshcomod/apps/ebook.d/ on the SD card.	Нема књига. Додај .epub или .txt датотеке у /meshcomod/apps/ebook.d/ на SD картици.
+This book is too large for the app's memory. Try a .txt copy of it, or split it into parts.	Књига је превелика за меморију апликације. Пробај .txt копију или је подели на делове.
+
+# Contacts shared in chat (#887)
+This is your own node	Ово је твој сопствени чвор
+Range	Домет
+Nodes farther away are left out. Auto fits the farthest node.	Удаљенији чворови се изостављају. Ауто се прилагођава најудаљенијем чвору.
+Shows only the nodes you marked as favorite.	Приказује само чворове означене као омиљене.
+Empty at	Празна на
+The voltage that reads 0%. If the device shuts down while it still shows some charge, pick the voltage it stops at.	Напон који значи 0%. Ако се уређај гаси док још показује пуњење, изаберите напон на ком се гаси.
+Use the I2C bus and raw GPS data	Коришћење I2C магистрале и сирових GPS података
+"%s" wants to use the hardware: read and write devices on the I2C bus, and read the GPS receiver's raw data.\n\nA wrong write can change how a connected sensor behaves until it is powered off. The device's own keyboard, touch and power chips stay off limits.	"%s" жели да користи хардвер: читање и упис уређаја на I2C магистрали и читање сирових података GPS пријемника.\n\nПогрешан упис може да промени понашање повезаног сензора док се не искључи. Тастатура, екран на додир и чипови за напајање уређаја остају недоступни.

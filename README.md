@@ -42,6 +42,8 @@ stops with "too big for this radio's slots: install once over USB".
 - Elecrow CrowPanel Advance 3.5: env `crowpanel_35_companion_radio_touch` (beta, hardware validation pending; requires an SX1262 in the expansion slot)
 - Elecrow CrowPanel Advance 5.0: env `crowpanel_50_companion_radio_touch` (beta, hardware validation pending; requires an SX1262 in the wireless slot and the DIP switch set to it)
 - Elecrow CrowPanel Advance 7.0: env `crowpanel_70_companion_radio_touch` (experimental, untested on hardware; the 5.0 build at 7 inches, with the same SX1262 slot and DIP switch)
+- LilyGo T-Watch S3: env `t_watch_s3_companion_radio_touch` (experimental, community port, PR #904)
+- M5Stack Cardputer Zero (Linux, Raspberry Pi CM0) + Cap LoRa-1262: built from `web/` with `-DWADA_ZERO=ON` (`web/zero/build.sh`, release archive `wadamesh-zero.tar.gz` from `scripts/build/zero-release.sh`), a native Linux app on the 1.9" LCD and keyboard that drives a MeshCore companion on the same Pi (community port, experimental); **[Cardputer Zero guide](CARDPUTER_ZERO.md)**
 
 **Released boards** are listed in [`boards.json`](boards.json). A board entered there is built for every release, named in the release notes and offered by the MediaMesh Flasher; nothing else needs editing. `scripts/build/boards.py check` (run in PR CI) makes sure every option combination the flasher offers is a built image, every env exists, and the flasher's copy of the list is current (`python3 scripts/build/boards.py flasher` rewrites it).
 
