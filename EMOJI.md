@@ -17,6 +17,12 @@ You don't usually need to do anything. A standalone looks for the pack in these 
 
 So a standalone on Wi-Fi gets it on its own. To install it on one that never uses Wi-Fi, copy `emoji.pack` (and `emoji/emoji-names.txt`, for search) into an `emoji` folder on its SD card.
 
+**Settings > Keyboard > Full emoji set** shows where it stands (installed, waiting for Wi-Fi, downloading, and why the last try failed) and has **Download now**, which tries straight away, even on a build that isn't a release. **System Information** shows the same line.
+
+The pack shares the tiles partition with the map's tile cache. While the pack isn't kept there, the map keeps off the partition's last 1.2 MB, and if a downloaded pack still finds the partition full, map tiles of the most zoomed-in level are removed (they download again when shown) until it fits. If it can't be kept anywhere, or there isn't the memory to read it, it tries again every 10 minutes.
+
+An update that moves the tiles partition (to make the app slots bigger, as beta_103, beta_106 and beta_108 did) wipes the tiles and the pack kept there. After such an update the standalone says once that map tiles and the full emoji set download again on Wi-Fi; until the pack is back, only the built-in emoji show.
+
 **About** shows `Full emoji set:` followed by the emoji count and where it came from, or what it's waiting for. It needs about 2.5 MB of free PSRAM, so it's on the boards with 8 MB or more: not the 2 MB Heltec V4.
 
 An earlier build's full set, `emoji.wep`, is a different format. It's deleted from internal storage on the first start, which gives its space back.
@@ -25,7 +31,7 @@ An earlier build's full set, `emoji.wep`, is a different format. It's deleted fr
 
 The emoji picker's first cell is 🔍, on every tab. Pick it to open a search sheet. The **React** sheet has 🔍 too, so you can react with any emoji ([REACTIONS.md](REACTIONS.md)).
 
-Search needs the full set and its names, [`emoji/emoji-names.txt`](emoji/emoji-names.txt) (about 105 KB). The names come the same way as the pack: from internal storage (`/emoji-names.txt`), the SD card (`/emoji/emoji-names.txt`), or a download once the pack is in. If they aren't loaded yet, 🔍 says so; **About** shows how far along it is.
+Search needs the full set and its names, [`emoji/emoji-names.txt`](emoji/emoji-names.txt) (about 105 KB). The names come the same way as the pack: from internal storage (`/emoji-names.txt`), the SD card (`/emoji/emoji-names.txt`), or a download once the pack is in. If they aren't loaded yet, 🔍 says so; **System Information** and **Settings > Keyboard** show how far along it is.
 
 - **Typing** shows emoji whose name or keywords start with what you type. `fish` finds 🐟 🐠 🎣, `trop fi` finds 🐠, and `heart` finds every heart.
 - **Flags** come up by country name or code: `lesotho`, `united states`, `us`.

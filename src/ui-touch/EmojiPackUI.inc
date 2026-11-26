@@ -33,8 +33,15 @@ static constexpr size_t kEpMaxBytes = 2u * 1024u * 1024u;   // EmojiPack.cpp's k
 static constexpr size_t kEnMaxBytes = 256u * 1024u;
 
 // The pack: 0 start, 1 being read (upstream's pump), 2 in use, 3 wanted (download
-// when Wi-Fi is up), 4 downloading, 5 off (no room in PSRAM), 6 nowhere to keep a download
+// when Wi-Fi is up), 4 downloading, 5 off (no room in PSRAM), 6 nowhere to keep a download,
+// 7 making room for a download on the tiles partition (map tiles removed, fetched again).
+// 5 and 6 look again every 10 minutes; Settings > Keyboard > Full emoji set downloads now.
 static uint8_t  s_ep_state = 0;
+static bool     s_ep_force = false;      // "Download now": even a build with no release
+static bool     s_ep_notice = false;     // the after-an-update notice, once a boot
+static char     s_ep_err[80] = "";       // why the last download didn't land
+static uint8_t* s_ep_hold = nullptr;     // a download waiting for room (state 7)
+static size_t   s_ep_hold_len = 0;
 static uint8_t  s_ep_src = 0;          // where it came from: 1 kept, 2 SD or store, 3 download
 static uint8_t  s_ep_rsrc = 0;         // the one being read
 static fs::FS*  s_ep_rfs = nullptr;
@@ -101,6 +108,50 @@ static bool epRoomOnStore(size_t n) {
   if (!epStoreFs()) return false;
   const size_t total = s_tiles_fs.totalBytes(), used = s_tiles_fs.usedBytes();
   return total > used && total - used >= n + 64u * 1024u;
+}
+
+// Map tiles off the tiles partition to make room for the pack: up to `budget` files of
+// the most zoomed-in level left (the most numerous, and fetched again when shown),
+// emptying and removing directories as they go. False when there are none left.
+static bool epFreeSomeTiles(int budget) {
+  fs::FS* fs = epStoreFs();
+  if (!fs) return false;
+  WdtHeavyGuard guard;
+  char zdir[40] = "";
+  long best = -1;
+  for (const char* root : { "/tiles/topo", "/tiles" }) {
+    File r = fs->open(root);
+    if (!r || !r.isDirectory()) continue;
+    for (File e = r.openNextFile(); e; e = r.openNextFile()) {
+      const char* n = strrchr(e.path(), '/');
+      n = n ? n + 1 : e.path();
+      char* end = nullptr;
+      const long z = strtol(n, &end, 10);
+      if (e.isDirectory() && end && end != n && *end == '\0' && z > best) {
+        best = z;
+        snprintf(zdir, sizeof zdir, "%s", e.path());
+      }
+    }
+  }
+  if (best < 0) return false;
+  char xdir[64] = "";
+  {
+    File z = fs->open(zdir);
+    File x = z ? z.openNextFile() : File();
+    if (!x) { z.close(); fs->rmdir(zdir); return true; }
+    snprintf(xdir, sizeof xdir, "%s", x.path());
+    if (!x.isDirectory()) { x.close(); z.close(); fs->remove(xdir); return true; }
+  }
+  char victims[24][72];
+  int n = 0;
+  {
+    File x = fs->open(xdir);
+    for (File f = x.openNextFile(); f && n < budget && n < 24; f = x.openNextFile())
+      if (!f.isDirectory()) snprintf(victims[n++], sizeof victims[0], "%s", f.path());
+  }
+  for (int i = 0; i < n; ++i) fs->remove(victims[i]);
+  if (!n) fs->rmdir(xdir);
+  return true;
 }
 
 // An earlier build's emoji-pack.wep: not read any more, so give its ~900 KB back.
@@ -347,7 +398,35 @@ static void enTick(uint32_t now) {
 }
 
 // ---- the loop --------------------------------------------------------------------------
+// A download saved where it fits: the tiles partition, else the SD card. False when
+// neither has room (state 7 then makes room on the partition).
+static bool epKeepDownload(uint8_t* b, size_t len) {
+  fs::FS* card = epCard();
+  fs::FS* keep = epRoomOnStore(len) ? epStoreFs() : card;
+  if (!keep) return false;
+  const char* path = keep == epStoreFs() ? kEpPath : "/emoji/emoji.pack";
+  if (keep == card) { WdtHeavyGuard guard; if (!card->exists("/emoji")) card->mkdir("/emoji"); }
+  if (!epJobStart(keep, path, b, len, File(), epDownloadSaved)) return false;
+  s_ep_dl_kept = b;   // freed once saved
+  s_ep_state = 1;     // epDownloadSaved hands it to the loader
+  return true;
+}
+
+// After an update that moved the tiles partition (or on a new standalone) the map
+// tiles and the pack kept there are gone: say they come back over Wi-Fi, once.
+static void epNoticeIfReset() {
+  if (s_ep_notice || !g_lv.task || !epStoreFs()) return;
+  s_ep_notice = true;
+  if (s_tiles_fs.usedBytes() > 256u * 1024u) return;   // tiles still here: not a reset
+  g_lv.task->showAlert(WiFi.status() == WL_CONNECTED
+                           ? TR("Map tiles and the full emoji set are downloading again")
+                           : TR("Map tiles and the full emoji set download again on Wi-Fi"),
+                       5000);
+}
+
 static void emojiPackTick(uint32_t now) {
+  // Hold the map tiles back from the partition's last 1.2 MB while the pack wants it.
+  s_ep_wants_store_room = epStoreFs() && (s_ep_state == 3 || s_ep_state == 4 || s_ep_state >= 6);
   if (s_ep_job) { epJobStep(); return; }
   switch (s_ep_state) {
     case 0:   // start a few seconds after boot, once the store and the card are up
@@ -356,8 +435,31 @@ static void emojiPackTick(uint32_t now) {
       epDropOldWep();
       s_ep_next = 0;
       if (epBeginNext()) s_ep_state = 1;
-      else if (s_ep_state == 0) s_ep_state = 3;
+      else if (s_ep_state == 0) { s_ep_state = 3; s_ep_next_ms = now; epNoticeIfReset(); }
+      if (s_ep_state == 5) s_ep_next_ms = now + 10UL * 60UL * 1000UL;
       return;
+    case 5:   // no room in PSRAM, or
+    case 6:   // nowhere to keep a download: look again (a card, freed memory) now and then
+      if ((long)(now - s_ep_next_ms) < 0) return;
+      s_ep_state = 0;
+      s_ep_next_ms = now;
+      return;
+    case 7: {   // making room on the tiles partition for a download in hand
+      static uint8_t passes = 0;
+      if (++passes % 4) { epFreeSomeTiles(24); return; }   // check the room every 4th pass
+      if (epRoomOnStore(s_ep_hold_len) || !epFreeSomeTiles(24)) {
+        uint8_t* b = s_ep_hold;
+        const size_t len = s_ep_hold_len;
+        s_ep_hold = nullptr;
+        s_ep_hold_len = 0;
+        if (epKeepDownload(b, len)) return;
+        free(b);
+        snprintf(s_ep_err, sizeof s_ep_err, "%s", "no room on internal storage");
+        s_ep_state = 6;
+        s_ep_next_ms = now + 10UL * 60UL * 1000UL;
+      }
+      return;
+    }
     case 1:   // upstream's pump reads it (UITask loop); here only the outcome
       if (emojiPackLoading()) return;
       if (emojiPackLoaded()) {
@@ -386,12 +488,14 @@ static void emojiPackTick(uint32_t now) {
       return;
 #if EMOJI_PACK_DOWNLOAD
     case 3: {   // wanted: download once Wi-Fi is up
-      if ((long)(now - s_ep_next_ms) < 0 || firmwareReleaseN() < 0) return;
+      if ((long)(now - s_ep_next_ms) < 0 || (firmwareReleaseN() < 0 && !s_ep_force)) return;
       if (WiFi.status() != WL_CONNECTED || (uint32_t)WiFi.localIP() == 0) return;
-      if (!epStoreFs() && !epCard()) { s_ep_state = 6; return; }
-      if (!epRoomFor(kEpMaxBytes)) { s_ep_state = 5; return; }
+      const uint32_t later = now + 10UL * 60UL * 1000UL;
+      if (!epStoreFs() && !epCard()) { s_ep_state = 6; s_ep_next_ms = later; return; }
+      if (!epRoomFor(kEpMaxBytes)) { s_ep_state = 5; s_ep_next_ms = later; return; }
       s_ep_dl = (uint8_t*)epAlloc(kEpMaxBytes);
       if (!s_ep_dl) { s_ep_next_ms = now + 60000; return; }
+      s_ep_force = false;
       s_ep_dl_len = 0;
       s_ep_dl_max = kEpMaxBytes;
       s_ep_dl_path = kEpRepoPath;
@@ -407,18 +511,22 @@ static void emojiPackTick(uint32_t now) {
       uint8_t* b = s_ep_dl;
       s_ep_dl = nullptr;
       const size_t len = s_ep_dl_len;
-      fs::FS* card = epCard();
-      fs::FS* keep = epRoomOnStore(len) ? epStoreFs() : card;
-      const char* path = (keep && keep == epStoreFs()) ? kEpPath : "/emoji/emoji.pack";
-      if (keep && keep == card) { WdtHeavyGuard guard; if (!card->exists("/emoji")) card->mkdir("/emoji"); }
-      if (s_ep_dl_ok && b && len && keep && epJobStart(keep, path, b, len, File(), epDownloadSaved)) {
-        s_ep_dl_kept = b;   // freed once saved
-        s_ep_state = 1;     // epDownloadSaved hands it to the loader
-        return;
+      if (s_ep_dl_ok && b && len) {
+        s_ep_err[0] = '\0';
+        if (epKeepDownload(b, len)) return;
+        // The map tiles filled the partition (as after an update that moved it): make
+        // room, a few tiles a pass, rather than give up with nowhere to keep it.
+        if (epStoreFs()) {
+          s_ep_hold = b;
+          s_ep_hold_len = len;
+          s_ep_state = 7;
+          return;
+        }
       }
-      Serial.printf("[EMOJI] download failed: %s\n", s_ep_dl_ok ? "nowhere to keep it" : s_ep_dl_msg);
+      snprintf(s_ep_err, sizeof s_ep_err, "%s", s_ep_dl_ok ? "nowhere to keep it" : s_ep_dl_msg);
+      Serial.printf("[EMOJI] download failed: %s\n", s_ep_err);
       free(b);
-      s_ep_state = keep ? 3 : 6;
+      s_ep_state = s_ep_dl_ok ? 6 : 3;
       s_ep_next_ms = now + 10UL * 60UL * 1000UL;   // try again in 10 min
       return;
     }
@@ -501,29 +609,62 @@ static int emojiPackSearch(const char* query, const char** out, int max) {
   return n;
 }
 
-// For About: whether the full set is here, and from where.
+// Whether the full set is here, and from where; else what it's waiting for.
+static void emojiPackStatus(char* buf, size_t cap) {
+  if (!cap) return;
+  if (s_ep_state == 2) {
+    snprintf(buf, cap, TR("%d emoji (%s)%s"), emojiPackItemCount(),
+             s_ep_src == 1 ? TR("stored") : s_ep_src == 2 ? TR("from SD") : TR("downloaded"),
+             emojiPackSearchable() ? "" : TR(", no search names"));
+    return;
+  }
+  const char* st =
+      s_ep_state == 4 ? TR("downloading") : s_ep_state == 5 ? TR("no room in PSRAM, trying again soon") :
+      s_ep_state == 6 ? TR("nowhere to keep it, trying again soon") :
+      s_ep_state == 7 ? TR("making room on internal storage") :
+      s_ep_state == 3 ? (!EMOJI_PACK_DOWNLOAD ? TR("not installed")
+                         : WiFi.status() != WL_CONNECTED ? TR("waiting for Wi-Fi") : TR("downloading soon"))
+                      : TR("loading");
+  if (s_ep_err[0] && (s_ep_state == 3 || s_ep_state == 6))
+    snprintf(buf, cap, "%s (%s: %s)", st, TR("last try"), s_ep_err);
+  else
+    snprintf(buf, cap, "%s", st);
+}
+
+// For System Information.
 static int emojiPackText(char* buf, size_t cap) {
   if (!cap) return 0;
-  const char* st;
-  char tmp[64];
-  if (s_ep_state == 2) {
-    snprintf(tmp, sizeof tmp, "%d emoji (%s)%s", emojiPackItemCount(),
-             s_ep_src == 1 ? "stored" : s_ep_src == 2 ? "from SD" : "downloaded",
-             emojiPackSearchable() ? "" : ", no search names");
-    st = tmp;
-  } else {
-    st = s_ep_state == 4 ? "downloading" : s_ep_state == 5 ? "no room in PSRAM" :
-         s_ep_state == 6 ? "nowhere to keep it" :
-         s_ep_state == 3 ? (EMOJI_PACK_DOWNLOAD ? "waiting for Wi-Fi" : "not installed") : "loading";
-  }
+  char st[160];
+  emojiPackStatus(st, sizeof st);
   const int n = snprintf(buf, cap, "Full emoji set: %s\n\n", st);
   return n < 0 ? 0 : (n >= (int)cap ? (int)cap - 1 : n);
 }
+
+// Settings > Keyboard > Full emoji set: download now. 0 asked (it starts within a
+// second), 1 already installed, 2 already under way, 3 no Wi-Fi, 4 not in this build.
+static int emojiPackDownloadNow() {
+#if EMOJI_PACK_DOWNLOAD
+  if (s_ep_state == 2) return 1;
+  if (s_ep_state == 0 || s_ep_state == 1 || s_ep_state == 4 || s_ep_state == 7 || s_ep_job) return 2;
+  if (WiFi.status() != WL_CONNECTED) return 3;
+  s_ep_force = true;
+  s_ep_err[0] = '\0';
+  s_ep_state = 3;
+  s_ep_next_ms = millis();
+  return 0;
+#else
+  return 4;
+#endif
+}
+static bool emojiPackInstalled() { return s_ep_state == 2; }
 #else
 #define EMOJI_PACK 0
 #define EMOJI_PACK_DOWNLOAD 0
 static void emojiPackTick(uint32_t) {}
 static int emojiPackText(char*, size_t) { return 0; }
+static void emojiPackStatus(char* buf, size_t cap) { if (cap) buf[0] = '\0'; }
+static int emojiPackDownloadNow() { return 4; }
+static bool emojiPackInstalled() { return false; }
 static bool emojiPackSearchable() { return false; }
 static int emojiPackSearch(const char*, const char**, int) { return 0; }
 #endif
