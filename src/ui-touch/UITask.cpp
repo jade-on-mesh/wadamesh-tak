@@ -92046,6 +92046,28 @@ static bool ssaverHaveMyPosition() {
   return g_lv.task->getNodeLat() != 0.0 || g_lv.task->getNodeLon() != 0.0;
 }
 
+// The way the device faces, degrees from true north, or -1: the magnetometer
+// (calibrated with the GPS Compass app) where there is one, else the GPS course
+// while moving fast enough for it to mean something. A course is kept once the
+// device stops, until the screensaver ends, so the map doesn't spin back to north
+// at every red light.
+static int s_ssaver_gps_heading = -1;
+static int ssaverHeading() {
+#if defined(HW_HAVE_COMPASS)
+  hwCompassCalLoad();
+  if (s_hw_cal.ok) {
+    const int h = hwCompassHeading();
+    if (h >= 0) return h;
+  }
+#endif
+#if defined(HAS_GPS_MOTION)
+  float spd = NAN, crs = NAN;
+  if (wadaGpsMotion(&spd, &crs) && !isnan(spd) && !isnan(crs) && spd >= 3.0f)
+    s_ssaver_gps_heading = ((int)lroundf(crs) % 360 + 360) % 360;
+#endif
+  return s_ssaver_gps_heading;
+}
+
 // A node farther than this is a bad position (a 0,0 that isn't, a typo), not a
 // neighbour: left off the map rather than shrinking everyone else into the middle.
 static constexpr double kSsaverMaxKm = 500.0;
@@ -92350,6 +92372,7 @@ static void ssaverTeardown(bool lit) {
   if (!s_ssaver_on) return;
   showUnder(s_ssaver_under);
   cstHide();
+  s_ssaver_gps_heading = -1;
   s_ssaver_on = false;
   s_ssaver_is_preview = false;
 #if defined(HAS_CC_BRIGHTNESS)
@@ -92387,6 +92410,8 @@ static bool ssaverTick(uint32_t now) {
   if (!s_ssaver_poll_ms || (uint32_t)(now - s_ssaver_poll_ms) >= 250) {
     s_ssaver_poll_ms = now ? now : 1;
     ssaverPoll(now);
+    // On the map, a device that knows which way it faces turns it to match.
+    cstSetHeading(s_north ? ssaverHeading() : -1);
   }
   if (!s_ssaver_status_ms || (uint32_t)(now - s_ssaver_status_ms) >= 1000) {
     s_ssaver_status_ms = now ? now : 1;
