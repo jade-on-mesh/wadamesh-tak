@@ -23863,6 +23863,46 @@ static void p4KbLightPickCb(lv_event_t* e) {
 }
 #endif
 
+#if !CAP_EMOJI_PACK_DOWNLOAD && CAP_EMOJI_PACK
+// Settings > Keyboard > Full emoji set (EmojiPackUI.inc): its status, and Download now.
+static void emojiPackStatus(char* buf, size_t cap);
+static int  emojiPackDownloadNow();
+static bool emojiPackInstalled();
+static lv_obj_t*   s_epui_note  = nullptr;
+static lv_obj_t*   s_epui_btn   = nullptr;
+static lv_timer_t* s_epui_timer = nullptr;
+static void epUiRefresh() {
+  if (!s_epui_note || !lv_obj_is_valid(s_epui_note)) return;
+  char st[160], line[200];
+  emojiPackStatus(st, sizeof st);
+  snprintf(line, sizeof line, "%s\n%s", st,
+           TR("The emoji beyond the built-in ones. It downloads by itself over Wi-Fi, and again after an update that clears the map cache."));
+  lv_label_set_text(s_epui_note, line);
+  if (s_epui_btn && lv_obj_is_valid(s_epui_btn)) {
+    if (emojiPackInstalled()) lv_obj_add_flag(s_epui_btn, LV_OBJ_FLAG_HIDDEN);
+    else                      lv_obj_clear_flag(s_epui_btn, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+static void epUiTimerCb(lv_timer_t*) {
+  if (!s_epui_note || !lv_obj_is_valid(s_epui_note)) {   // the page closed
+    if (s_epui_timer) { lv_timer_del(s_epui_timer); s_epui_timer = nullptr; }
+    s_epui_note = s_epui_btn = nullptr;
+    return;
+  }
+  epUiRefresh();
+}
+static void epUiDownloadCb(lv_event_t*) {
+  const int r = emojiPackDownloadNow();
+  const char* t = r == 0 ? TR("Downloading the full emoji set")
+                : r == 1 ? TR("The full emoji set is already installed")
+                : r == 2 ? TR("Already on its way")
+                : r == 3 ? TR("Connect to Wi-Fi first")
+                : TR("Not in this build");
+  if (g_lv.task) g_lv.task->showAlert(t, 1800);
+  epUiRefresh();
+}
+#endif
+
 #if CAP_EMOJI_PACK_DOWNLOAD
 static void emojiDlNoteRefresh() {
   if (s_emojidl_btn) {
@@ -24063,6 +24103,17 @@ static void buildKeyboardPage() {
                  touchPrefsGetKbdNav(), pagerKbdNavToggleCb);
   }
   setNavKeyCards();
+#endif
+#if !CAP_EMOJI_PACK_DOWNLOAD && CAP_EMOJI_PACK
+  // This fork's: the full emoji set comes by itself over Wi-Fi (EmojiPackUI.inc);
+  // here is how it's doing, and a way to get it now.
+  {
+    lv_obj_t* c = setCard(TR("Full emoji set"));
+    s_epui_note = setNote(c, "");
+    s_epui_btn = setButton(c, LV_SYMBOL_DOWNLOAD, TR("Download now"), epUiDownloadCb, nullptr, SET_PRIMARY);
+    epUiRefresh();
+    if (!s_epui_timer) s_epui_timer = lv_timer_create(epUiTimerCb, 1000, nullptr);
+  }
 #endif
 #if CAP_EMOJI_PACK_DOWNLOAD
   {
@@ -40934,6 +40985,9 @@ static volatile uint16_t s_tiles_free_kb = 0xFFFF;
 // After format, subsequent boots find a valid (empty) FS and mount fast.
 static fs::LittleFSFS s_tiles_fs;
 static bool           s_tiles_fs_ready = false;
+// The full emoji set wants room on the tiles partition (EmojiPackUI.inc): the map
+// tiles keep off its last 1.2 MB until the pack is downloaded and kept there.
+static volatile bool  s_ep_wants_store_room = false;
 #if WADA_WEB_FILE_TRANSFER_INTERNAL
 // File Transfer's storage on the Attaky and CrowPanel 5.0 (declared with the transfer app above).
 static fs::FS& internalTransferFs()      { return s_tiles_fs; }
@@ -41195,7 +41249,8 @@ static bool tilesFsLowSpace() {
     const size_t freeb = (tot > use) ? (tot - use) : 0;
     s_tiles_free_kb = (uint16_t)((freeb / 1024 > 0xFFFE) ? 0xFFFE : freeb / 1024);   // for the on-screen readout
     // tot == 0 means the partition isn't actually mounted — don't read that as "full".
-    low = (tot > 0) && (freeb < 320 * 1024);           // keep >= 320 KB headroom (tile + dir blocks + GC)
+    // keep >= 320 KB headroom (tile + dir blocks + GC), and room for the emoji pack while it's wanted
+    low = (tot > 0) && (freeb < 320 * 1024 + (s_ep_wants_store_room ? 1200u * 1024u : 0u));
   }
   return low;
 }
