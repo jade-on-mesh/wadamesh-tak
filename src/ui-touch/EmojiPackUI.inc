@@ -30,6 +30,9 @@ static constexpr const char* kEnPath   = "/emoji-names.txt";
 static constexpr const char* kEpOldWep = "/emoji.wep";   // an earlier build's pack (another format)
 static constexpr size_t kEpChunk = 16 * 1024;
 static constexpr size_t kEpMaxBytes = 2u * 1024u * 1024u;   // EmojiPack.cpp's kMaxFile
+// What a download is fetched into: the pack is about 1.06 MB, so 2 MB (with the 1.5 MB
+// kept free on top) asked for more PSRAM than a T-Deck with its map and photos open has.
+static constexpr size_t kEpDlBytes = 1536u * 1024u;
 static constexpr size_t kEnMaxBytes = 256u * 1024u;
 
 // The pack: 0 start, 1 being read (upstream's pump), 2 in use, 3 wanted (download
@@ -92,7 +95,15 @@ static constexpr const char* kEnRepoPath = "emoji/emoji-names.txt";
 #endif
 
 static void* epAlloc(size_t n) { return heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT); }
-static bool epRoomFor(size_t n) { return heap_caps_get_free_size(MALLOC_CAP_SPIRAM) >= n + 1536u * 1024u; }
+// PSRAM for `n` bytes, with some left for the map and photos (less when asked by
+// "Download now"). What it last wanted and found is kept for the status line.
+static size_t s_ep_need = 0, s_ep_free = 0;
+static bool epRoomFor(size_t n) {
+  const size_t spare = s_ep_force ? 256u * 1024u : 768u * 1024u;
+  s_ep_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+  s_ep_need = n + spare;
+  return s_ep_free >= s_ep_need && heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) >= n;
+}
 
 // Where things are kept: the tiles partition (LittleFS), else the SD card for a
 // download, else nowhere.
@@ -465,6 +476,7 @@ static void emojiPackTick(uint32_t now) {
       if (emojiPackLoaded()) {
         s_ep_src = s_ep_rsrc;
         s_ep_state = 2;
+        s_ep_force = false;
         if (s_ep_src == 3 && g_lv.task) g_lv.task->showAlert(TR("Full emoji set installed"), 2200);
         voxThumbLanded();   // lay out the open chat again: its emoji have widths now
         // The card's or the profile store's copy: keep it on the tiles partition.
@@ -492,12 +504,11 @@ static void emojiPackTick(uint32_t now) {
       if (WiFi.status() != WL_CONNECTED || (uint32_t)WiFi.localIP() == 0) return;
       const uint32_t later = now + 10UL * 60UL * 1000UL;
       if (!epStoreFs() && !epCard()) { s_ep_state = 6; s_ep_next_ms = later; return; }
-      if (!epRoomFor(kEpMaxBytes)) { s_ep_state = 5; s_ep_next_ms = later; return; }
-      s_ep_dl = (uint8_t*)epAlloc(kEpMaxBytes);
+      if (!epRoomFor(kEpDlBytes)) { s_ep_state = 5; s_ep_next_ms = later; return; }
+      s_ep_dl = (uint8_t*)epAlloc(kEpDlBytes);
       if (!s_ep_dl) { s_ep_next_ms = now + 60000; return; }
-      s_ep_force = false;
       s_ep_dl_len = 0;
-      s_ep_dl_max = kEpMaxBytes;
+      s_ep_dl_max = kEpDlBytes;
       s_ep_dl_path = kEpRepoPath;
       s_ep_dl_done = false;
       s_ep_state = 4;
@@ -625,7 +636,10 @@ static void emojiPackStatus(char* buf, size_t cap) {
       s_ep_state == 3 ? (!EMOJI_PACK_DOWNLOAD ? TR("not installed")
                          : WiFi.status() != WL_CONNECTED ? TR("waiting for Wi-Fi") : TR("downloading soon"))
                       : TR("loading");
-  if (s_ep_err[0] && (s_ep_state == 3 || s_ep_state == 6))
+  if (s_ep_state == 5 && s_ep_need)
+    snprintf(buf, cap, "%s (%.1f MB %s, %s %.1f MB)", st, s_ep_free / 1048576.0, TR("free"), TR("needs"),
+             s_ep_need / 1048576.0);
+  else if (s_ep_err[0] && (s_ep_state == 3 || s_ep_state == 6))
     snprintf(buf, cap, "%s (%s: %s)", st, TR("last try"), s_ep_err);
   else
     snprintf(buf, cap, "%s", st);
@@ -649,8 +663,9 @@ static int emojiPackDownloadNow() {
   if (WiFi.status() != WL_CONNECTED) return 3;
   s_ep_force = true;
   s_ep_err[0] = '\0';
-  s_ep_state = 3;
-  s_ep_next_ms = millis();
+  // No room last time: try the copy that's kept first (it may be here already), then download.
+  s_ep_state = s_ep_state == 5 ? 0 : 3;
+  s_ep_next_ms = millis() | 1u;
   return 0;
 #else
   return 4;
