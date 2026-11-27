@@ -2,6 +2,7 @@
 #include "TDeckProDisplay.h"
 
 #include <Arduino.h>
+#include <helpers/esp32/LedcCompat.h>   // LEDC by channel on core 2 and core 3
 #include <cstring>
 
 TDeckProDisplay::BusyHook TDeckProDisplay::_busy_hook = nullptr;
@@ -51,8 +52,7 @@ bool TDeckProDisplay::begin() {
   _epd.epd2.setBusyCallback(&TDeckProDisplay::busyCallback);
 
 #if defined(PIN_TFT_LEDA_CTL) && (PIN_TFT_LEDA_CTL >= 0)
-  ledcSetup(TDECK_PRO_FRONTLIGHT_CHANNEL, 12000, 8);
-  ledcAttachPin(PIN_TFT_LEDA_CTL, TDECK_PRO_FRONTLIGHT_CHANNEL);
+  wmLedcAttach(TDECK_PRO_FRONTLIGHT_CHANNEL, PIN_TFT_LEDA_CTL, 12000, 8);
   writeBrightness(0);
 #else
   _brightness = 0;
@@ -220,7 +220,7 @@ void TDeckProDisplay::setBrightness(uint8_t brightness) {
 
 void TDeckProDisplay::writeBrightness(uint8_t brightness) {
 #if defined(PIN_TFT_LEDA_CTL) && (PIN_TFT_LEDA_CTL >= 0)
-  ledcWrite(TDECK_PRO_FRONTLIGHT_CHANNEL, brightness);
+  wmLedcWrite(TDECK_PRO_FRONTLIGHT_CHANNEL, brightness);
 #else
   (void)brightness;
 #endif

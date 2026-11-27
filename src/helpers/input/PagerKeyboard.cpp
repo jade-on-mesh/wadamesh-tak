@@ -4,6 +4,7 @@
 #if defined(HAS_PAGER_KEYBOARD) && defined(ESP32)
 
 #include <Arduino.h>
+#include "../esp32/LedcCompat.h"   // LEDC by channel on core 2 and core 3
 #include <Wire.h>
 #include <Adafruit_TCA8418.h>
 #include "PagerKeyboardState.h"
@@ -151,11 +152,10 @@ int pagerKeyboardReadKey() {
 
 void pagerKeyboardSetBacklight(uint8_t level) {
   if (!s_bl_ready) {
-    ledcSetup(kKbBacklightPwmChannel, 1000 /* Hz */, 8 /* bits */);
-    ledcAttachPin(KB_BACKLIGHT, kKbBacklightPwmChannel);
+    wmLedcAttach(kKbBacklightPwmChannel, KB_BACKLIGHT, 1000 /* Hz */, 8 /* bits */);
     s_bl_ready = true;
   }
-  ledcWrite(kKbBacklightPwmChannel, level);
+  wmLedcWrite(kKbBacklightPwmChannel, level);
 }
 
 bool pagerKeyboardAltHeld() { return s_state.altHeld(); }

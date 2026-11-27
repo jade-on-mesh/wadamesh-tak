@@ -1266,6 +1266,7 @@ extern "C" const lv_font_t clock_font_96;
 #include "ui_icons.h"
 #include "map_icons.h"   // the app's map icons (Material Icons, map_icons_14)
 #include "../helpers/PsramStatic.h"   // UI-only buffers in PSRAM (internal RAM is for Wi-Fi, BLE, TLS, stacks)
+#include "../helpers/esp32/LedcCompat.h"
 static lv_font_t g_font_semi_12;
 static lv_font_t g_font_semi_14;
 static lv_font_t g_font_semi_16;
@@ -2850,22 +2851,21 @@ static void v4BeepTaskFn(void* arg) {
   const bool loud = s_v4_loud;
 #if defined(THINKNODE_M9_BUZZER_PIN)
   const uint32_t duty = s_v4_duty;
-  ledcSetup(kM9BuzzCh, 2000, 8);
-  ledcAttachPin(UI_BUZZER_PIN, kM9BuzzCh);
+  wmLedcAttach(kM9BuzzCh, UI_BUZZER_PIN, 2000, 8);
 #endif
   for (int i = 0; i < 3; ++i) {
     const uint32_t hz = loud ? chime[i].hz_loud : chime[i].hz_soft;
 #if defined(THINKNODE_M9_BUZZER_PIN)
-    ledcChangeFrequency(kM9BuzzCh, hz, 8);
-    ledcWrite(kM9BuzzCh, duty);
+    wmLedcFrequency(kM9BuzzCh, UI_BUZZER_PIN, hz, 8);
+    wmLedcWrite(kM9BuzzCh, duty);
 #else
     tone(UI_BUZZER_PIN, hz);
 #endif
     vTaskDelay(pdMS_TO_TICKS(chime[i].ms));
   }
 #if defined(THINKNODE_M9_BUZZER_PIN)
-  ledcWrite(kM9BuzzCh, 0);
-  ledcDetachPin(UI_BUZZER_PIN);
+  wmLedcWrite(kM9BuzzCh, 0);
+  wmLedcDetach(UI_BUZZER_PIN);
   pinMode(UI_BUZZER_PIN, OUTPUT);
   digitalWrite(UI_BUZZER_PIN, LOW);  // hold transistor base / piezo LOW -> zero idle current
 #else
@@ -66510,11 +66510,10 @@ static void applyBrightness(uint8_t pct) {
   if (pct > 100) pct = 100;
   s_brightness_pct = pct;
   if (!s_bl_pwm_ready) {
-    ledcSetup(kBlPwmChannel, 20000, 8);              // 20 kHz, 8-bit
-    ledcAttachPin(PIN_TFT_LEDA_CTL, kBlPwmChannel);  // takes the pin over from the display's digitalWrite
+    wmLedcAttach(kBlPwmChannel, PIN_TFT_LEDA_CTL, 20000, 8);   // 20 kHz, 8-bit; takes the pin over from the display's digitalWrite
     s_bl_pwm_ready = true;
   }
-  ledcWrite(kBlPwmChannel, (uint32_t)pct * 255u / 100u);
+  wmLedcWrite(kBlPwmChannel, (uint32_t)pct * 255u / 100u);
 }
 #elif defined(HAS_TANMATSU)
 // Tanmatsu: backlights + audio go through the bsp — the CH32 coprocessor (screen +
@@ -66647,11 +66646,10 @@ static void applyBrightness(uint8_t pct) {
   if (pct > 100) pct = 100;
   s_brightness_pct = pct;
   if (!s_bl_pwm_ready) {
-    ledcSetup(kM9BlPwmChannel, 5000, 8);            // 5kHz, 8-bit — confirmed clean on the PNP
-    ledcAttachPin(PIN_TFT_BL_EN, kM9BlPwmChannel);  // takes the pin over from board.backlight's digitalWrite
+    wmLedcAttach(kM9BlPwmChannel, PIN_TFT_BL_EN, 5000, 8);   // 5kHz, 8-bit — confirmed clean on the PNP; takes the pin over from board.backlight's digitalWrite
     s_bl_pwm_ready = true;
   }
-  ledcWrite(kM9BlPwmChannel, (uint32_t)(100 - pct) * 255u / 100u);   // inverted duty
+  wmLedcWrite(kM9BlPwmChannel, (uint32_t)(100 - pct) * 255u / 100u);   // inverted duty
 }
 #endif
 
@@ -92106,7 +92104,7 @@ static inline void touchScreenBacklight(bool on) {
   // the PWM duty directly: 0 = off, saved brightness = on.
   if (!s_bl_pwm_ready) applyBrightness(s_brightness_pct);   // ensure LEDC is attached
   if (on) touchPanelSleep(false);   // wake the panel BEFORE lighting it (old frame intact)
-  ledcWrite(kBlPwmChannel, on ? ((uint32_t)s_brightness_pct * 255u / 100u) : 0u);
+  wmLedcWrite(kBlPwmChannel, on ? ((uint32_t)s_brightness_pct * 255u / 100u) : 0u);
   if (!on) touchPanelSleep(true);   // then stop the panel driving the crystals (anti burn-in)
 #if defined(HELTEC_LORA_V4_R8)
   // Dark screen: throttle the CHSC6x poll task (8 ms -> 50 ms) — its blocking
@@ -92145,7 +92143,7 @@ static inline void touchScreenBacklight(bool on) {
     applyBrightness(s_brightness_pct);
   } else {
     if (!s_bl_pwm_ready) applyBrightness(s_brightness_pct);
-    ledcWrite(kM9BlPwmChannel, 255);   // inverted: 255 = 0% conduction = off
+    wmLedcWrite(kM9BlPwmChannel, 255);   // inverted: 255 = 0% conduction = off
     touchPanelSleep(true);
   }
 #elif defined(HAS_WIO_TRACKER_L2) || defined(HAS_CROWPANEL_35) || defined(HAS_CROWPANEL_50) || defined(HAS_CROWPANEL_P4_101) || \

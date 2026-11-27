@@ -836,8 +836,17 @@ void setup() {
   // CPU1=IDLE1, core 0 in spi_flash_op_block_func). The burst can't be chunked under the limit easily
   // and the per-core WdtHeavyGuard only covers core 0, so give the dog enough headroom to ride the
   // burst out while still catching a genuine multi-second hang. (Fixes the random WDT reboots, GH #56.)
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
+  {
+    // ESP-IDF 5 (IDF5_MIGRATION.md): the TWDT already runs, so reconfigure it. Same
+    // 20 s and panic; both cores' idle tasks stay watched, as IDF 4's re-init kept them.
+    const esp_task_wdt_config_t twdt = { 20000, (1u << portNUM_PROCESSORS) - 1u, true };
+    esp_task_wdt_reconfigure(&twdt);
+  }
+#else
   esp_task_wdt_init(20, true);   // 20 s grace (was ~5 s), keep panic. Re-init reconfigures the
                                  // already-running TWDT + keeps the idle-task subscriptions.
+#endif
 
 #if defined(ESP32_PLATFORM) && defined(HAS_TOUCH_UI)
   // Record which slot we booted from so the recovery's "Boot firmware" can return
