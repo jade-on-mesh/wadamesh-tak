@@ -467,6 +467,12 @@ jobs:
   idf5-spike:
     runs-on: ubuntu-latest
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        # _idf5: pioarduino's stock settings. _idf5_tuned: framework code out of
+        # internal RAM (custom_sdkconfig), to measure what that frees.
+        env: [LilyGo_TDeck_idf5, LilyGo_TDeck_idf5_tuned]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -480,7 +486,7 @@ jobs:
           path: |
             ~/.platformio
             .pio
-          key: pio-idf5-${{ runner.os }}-${{ hashFiles('platformio.ini', 'platformio_idf5.ini') }}
+          key: pio-idf5-${{ runner.os }}-${{ matrix.env }}-${{ hashFiles('platformio.ini', 'platformio_idf5.ini') }}
       - name: Install PlatformIO
         run: pip install --upgrade platformio
       - name: Build (T-Deck, Arduino 3 / IDF 5)
@@ -488,28 +494,40 @@ jobs:
         run: |
           unset WIFI_SSID WIFI_PWD
           set -o pipefail
-          export PLATFORMIO_BUILD_FLAGS="-Wl,-Map,.pio/build/LilyGo_TDeck_idf5/firmware.map"
-          pio run -c platformio_idf5.ini -e LilyGo_TDeck_idf5 2>&1 | tee build.log
+          export PLATFORMIO_BUILD_FLAGS="-Wl,-Map,.pio/build/${{ matrix.env }}/firmware.map"
+          pio run -c platformio_idf5.ini -e ${{ matrix.env }} 2>&1 | tee build.log
       - name: Errors and size
         if: always()
         shell: bash
         run: |
+          set +o pipefail
+          B=.pio/build/${{ matrix.env }}
+          SZ=$(ls ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-size 2>/dev/null || ls ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/*-size | head -1)
           {
-            echo "### IDF 5 spike: LilyGo_TDeck_idf5"
+            echo "### IDF 5 spike: ${{ matrix.env }}"
             grep -E "^(RAM|Flash):" build.log || true
-            n=$(grep -cE ": (fatal )?error:" build.log || true)
-            echo "compile errors: ${n}"
+            echo "compile errors: $(grep -cE ': (fatal )?error:' build.log || true)"
+            if [ -f "$B/firmware.elf" ]; then
+              echo "firmware.bin: $(stat -c %s $B/firmware.bin 2>/dev/null) bytes"
+              echo '```'
+              "$SZ" -A "$B/firmware.elf" | grep -E "^\.(iram0|dram0|flash)" || true
+              "$SZ" -A "$B/firmware.elf" | awk '/^\.(iram0|dram0)/ && $1 !~ /dummy/ {s+=$2} END {print "internal RAM (static, iram0+dram0): " s " bytes"}'
+              echo '```'
+            fi
             echo '```'
-            grep -E ": (fatal )?error:" build.log | sed 's#^.*/\(src\|variants\|lib\|\.pio/libdeps/[^/]*\)/#\1/#' | sort | uniq | head -80
+            grep -E ": (fatal )?error:|multiple definition|undefined reference" build.log | sed 's#^.*/\(src\|variants\|lib\|arch\|\.pio/libdeps/[^/]*\)/#\1/#' | sort -u | head -80
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          grep -E ": (fatal )?error:" build.log | head -40 || true
-          tail -30 build.log
+          tail -5 build.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: idf5-spike-build-log
-          path: build.log
+          name: idf5-spike-${{ matrix.env }}
+          path: |
+            build.log
+            .pio/build/${{ matrix.env }}/firmware*.bin
+            .pio/build/${{ matrix.env }}/firmware.map
+          if-no-files-found: warn
 
   # The T-Display P4 (AMOLED, SX1262, esp-hosted C6) is an ESP-IDF project, built in
   # Espressif's IDF image by scripts/build/ci-p4.sh. Its vendored libraries come from
