@@ -610,7 +610,7 @@ bool touchPrefsSetSigPollMins(uint16_t mins) {
 }
 // "Only when moving (GPS)": with a GPS fix the automatic probe waits until we have moved,
 // see the scheduler in UITask::loop. Its own key, default ON, so no cfg blob change.
-static void prefsPutUChar(const char* key, uint8_t v);   // defined below
+static bool prefsPutUChar(const char* key, uint8_t v);   // defined below
 bool touchPrefsGetSigProbeMoving() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("sig_mv", 1) != 0; }
 void touchPrefsSetSigProbeMoving(bool on) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("sig_mv", on ? 1 : 0); }
 
@@ -1514,6 +1514,14 @@ bool touchPrefsSetClockFloor(uint32_t epoch) {
   s_cfg.clock_floor = epoch;
   return cfgFlush();
 }
+// After a trusted backward correction (ClockFloorRTC::stepBacks): the persisted floor was
+// built on a clock that ran ahead, and keeping it would restore the bad time at every boot.
+bool touchPrefsLowerClockFloor(uint32_t epoch) {
+  if (!s_begun) touchPrefsBegin();
+  if (epoch >= s_cfg.clock_floor) return true;
+  s_cfg.clock_floor = epoch;
+  return cfgFlush();
+}
 
 // Periodic self-advert intervals (0 = off). Validation mirrors MeshCore: flood in hours (cap 168);
 // local zero-hop in minutes, 0 or 60-240 (MeshCore's MIN_LOCAL_ADVERT_INTERVAL is 60).
@@ -1658,7 +1666,7 @@ bool touchPrefsSetNavDirKey(int idx, uint8_t ch) {
   return cfgFlush();
 }
 
-static void prefsPutUChar(const char* key, uint8_t v);   // standalone keys (defined below)
+static bool prefsPutUChar(const char* key, uint8_t v);   // standalone keys (defined below)
 
 // Since the launcher redesign Home opens on the app grid, unless the user has
 // picked the command centre SINCE then (standalone key "home_cmdr"). The config
@@ -2415,12 +2423,13 @@ bool touchPrefsSetNameIgnored(const char* name, bool ignored) {
 
 // Notification-sound prefs (individual NVS keys — integer getters don't emit the
 // [E] NOT_FOUND log that getString/getBytes do on a fresh device) -----------
-static void prefsPutUChar(const char* key, uint8_t v) {
+static bool prefsPutUChar(const char* key, uint8_t v) {
   s_prefs.end();
-  if (!s_prefs.begin(TOUCH_NS, false)) { s_begun = s_prefs.begin(TOUCH_NS, true); return; }
-  s_prefs.putUChar(key, v);
+  if (!s_prefs.begin(TOUCH_NS, false)) { s_begun = s_prefs.begin(TOUCH_NS, true); return false; }
+  const bool written = s_prefs.putUChar(key, v) == sizeof(v);
   s_prefs.end();
   s_begun = s_prefs.begin(TOUCH_NS, true);
+  return written;
 }
 // Same re-open dance as prefsPutUChar above, for the one 16-bit setting.
 static void prefsPutUShort(const char* key, uint16_t v) {
@@ -2683,6 +2692,19 @@ void touchPrefsSetPickupWake(bool on)  { if (!s_begun) touchPrefsBegin(); prefsP
 #endif
 bool touchPrefsGetGlanceEnabled()   { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("glance_en", 1) != 0; }
 void touchPrefsSetGlanceEnabled(bool on)    { if (!s_begun) touchPrefsBegin(); prefsPutUChar("glance_en", on ? 1 : 0); }
+bool touchPrefsGetFixedNavigation() {
+  if (!s_begun) touchPrefsBegin();
+  return s_prefs.getUChar("nav_fixed", 0) == 1;
+}
+bool touchPrefsSetFixedNavigation(bool fixed) {
+  if (!s_begun) touchPrefsBegin();
+  const uint8_t previous = s_prefs.getUChar("nav_fixed", 0);
+  if (!prefsPutUChar("nav_fixed", fixed ? 1 : 0)) return false;
+  if (touchPrefsFlush()) return true;
+  // A timed-out file write can retry in the background.
+  prefsPutUChar("nav_fixed", previous);
+  return false;
+}
 uint8_t touchPrefsGetChatIcons() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("chat_icons", 0) ? 1 : 0; }
 void touchPrefsSetChatIcons(uint8_t style) { if (!s_begun) touchPrefsBegin(); prefsPutUChar("chat_icons", style ? 1 : 0); }
 bool touchPrefsGetMoreColors() { if (!s_begun) touchPrefsBegin(); return s_prefs.getUChar("col_more", 1) != 0; }
@@ -3229,7 +3251,7 @@ static int backupKeys(BkKey* out, int cap) {
 #if defined(TLORA_PAGER) || defined(HAS_THINKNODE_M9) || defined(HAS_M9_IMU)
     "low_batt", "face_down", "pick_wake",                // low-battery warning and IMU motion quiet/wake modes
 #endif
-    "chat_icons", "col_more", "col_style", "col_rb", "bg_kind", "gps_save", "gps_every",
+    "nav_fixed", "chat_icons", "col_more", "col_style", "col_rb", "bg_kind", "gps_save", "gps_every",
     "glass", "bg_dim", "lock_dim", "sig_mv",   // NOT "ant_ext": a restore must never point a unit at an empty antenna socket
   };
   for (const char* k : k_u8) add(k, 'c');
