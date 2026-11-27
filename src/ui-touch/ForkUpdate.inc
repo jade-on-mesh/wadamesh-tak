@@ -622,8 +622,12 @@ static void workerFn(void* arg) {
   xSemaphoreGive(j.done);
 }
 
+// An HTTPS job's own task's stack, when the worker is busy.
+constexpr uint32_t kOwnStack = 16384;
+
 // Runs `j` on the audio worker when it is idle, else on its own 16 KB task
-// (core 0, beside Wi-Fi), and waits for it.
+// (core 0, beside Wi-Fi) when there's room, else on the worker once it's free;
+// and waits for it.
 static int run(Job& j) {
   tlsUsePsram();
   // Already on the shared worker (the Pager's net worker runs there): waiting
@@ -638,30 +642,35 @@ static int run(Job& j) {
   }
   j.done = xSemaphoreCreateBinary();
   if (!j.done) { say(j, "out of memory"); return j.kind == Kind::Latest ? -1 : 0; }
-  // The worker may be busy for a moment (a voice clip, the Reader): wait up to
-  // 5 s for it rather than need a second free 16 KB block.
-  bool on_worker = VoxAudioTask::run(workerFn, &j);
-  for (int i = 0; !on_worker && VoxAudioTask::exists() && i < 50; i++) {
-    vTaskDelay(pdMS_TO_TICKS(100));
-    on_worker = VoxAudioTask::run(workerFn, &j);
-  }
-  if (on_worker) {
+  auto finish = [&]() -> int {
     xSemaphoreTake(j.done, portMAX_DELAY);
     vSemaphoreDelete(j.done);
     return j.result;
+  };
+  // The worker, when it's free now.
+  if (VoxAudioTask::run(workerFn, &j)) return finish();
+  // Busy (a voice clip, the Reader, a run of photo decodes): our own task when
+  // there's a 16 KB block for its stack to spare...
+  if (heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) >= kOwnStack + 4 * 1024 &&
+      xTaskCreatePinnedToCore(taskFn, "fork_upd", kOwnStack, &j, 1, nullptr, 0) == pdPASS)
+    return finish();
+  // ...else wait for the worker, first in line once the job queued behind it
+  // (often a photo decode, which keeps it busy for seconds at a time) has gone,
+  // for up to a minute. This used to give up after 5 s, and on a
+  // T-Deck showing photos (largest block 15 KB) every update check failed:
+  // "out of memory (RAM 31K/15K, need 16K)".
+  for (int i = 0; VoxAudioTask::exists() && i < 600; i++) {
+    if (VoxAudioTask::run(workerFn, &j) || VoxAudioTask::runNext(workerFn, &j)) return finish();
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
-  if (xTaskCreatePinnedToCore(taskFn, "fork_upd", 16384, &j, 1, nullptr, 0) != pdPASS) {
-    vSemaphoreDelete(j.done);
-    // Its 16 KB stack must be one piece of internal RAM (TLS can't run on a PSRAM stack).
-    char m[64], ram[32];
-    ramNote(ram, sizeof ram);
-    snprintf(m, sizeof m, "out of memory (%s, need 16K)", ram);
-    say(j, m);
-    return j.kind == Kind::Latest ? -1 : 0;
-  }
-  xSemaphoreTake(j.done, portMAX_DELAY);
+  if (xTaskCreatePinnedToCore(taskFn, "fork_upd", kOwnStack, &j, 1, nullptr, 0) == pdPASS) return finish();
   vSemaphoreDelete(j.done);
-  return j.result;
+  // Its 16 KB stack must be one piece of internal RAM (TLS can't run on a PSRAM stack).
+  char m[80], ram[32];
+  ramNote(ram, sizeof ram);
+  snprintf(m, sizeof m, "busy, and out of memory (%s, need 16K)", ram);
+  say(j, m);
+  return j.kind == Kind::Latest ? -1 : 0;
 }
 
 }  // namespace forkupd_dev
