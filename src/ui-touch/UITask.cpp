@@ -20515,6 +20515,97 @@ static void buildRadioSettings() {
   }
 }
 
+// ---- Watch a node -----------------------------------------------------------
+// A Watch button on a contact's sheet. Every 30 s the watched contacts' lastmod
+// (our clock when a packet from them last reached us) is looked at; NodeWatch.h
+// decides when one has gone quiet for the threshold below, and when it is back.
+// What it says while the screen is dark waits for the screen to light.
+#include "NodeWatch.h"   // host-tested: test/test_node_watch.cpp
+static auto& s_nw = psramStatic<nodewatch::List>();   // PSRAM: not internal RAM
+static bool     s_nw_loaded  = false;
+static uint32_t s_nw_next_ms = 0;
+static char     s_nw_pending[80] = "";
+static lv_obj_t* s_nw_hours_ta = nullptr;
+
+static void nodeWatchLoad() {
+  if (s_nw_loaded) return;
+  s_nw_loaded = true;
+  uint8_t b[nodewatch::kBlobMax];
+  const size_t n = touchPrefsGetBlob(nodewatch::kBlobKey, b, sizeof b);
+  s_nw.unpack(n ? b : nullptr, n);
+}
+static void nodeWatchSave() {
+  uint8_t b[nodewatch::kBlobMax];
+  const size_t n = s_nw.pack(b, sizeof b);
+  if (n) touchPrefsSetBlob(nodewatch::kBlobKey, b, n);   // kept with nobody watched: it holds the threshold
+}
+static bool nodeWatchIs(const uint8_t* key) {
+  nodeWatchLoad();
+  return s_nw.has(key);
+}
+static const char* nodeWatchName(const ContactInfo& c) {
+  const char* nick = nickFor(c.id.pub_key);
+  return (nick && nick[0]) ? nick : (c.name[0] ? c.name : "?");
+}
+static void nodeWatchSay(const char* text) {
+  if (!g_lv.task || !text || !text[0]) return;
+  if (g_lv.task->isScreenOff()) {
+    snprintf(s_nw_pending, sizeof s_nw_pending, "%s", text);   // the newest one waits
+  } else {
+    g_lv.task->showAlert(text, 6000);
+  }
+  if (!g_lv.task->isBuzzerQuiet() && !dndActive()) uiPlaySlot(TOUCH_SND_DM);
+}
+static void nodeWatchService() {
+  if (s_nw_pending[0] && g_lv.task && !g_lv.task->isScreenOff()) {
+    g_lv.task->showAlert(s_nw_pending, 6000);
+    s_nw_pending[0] = '\0';
+  }
+  const uint32_t now_ms = millis();
+  if ((int32_t)(now_ms - s_nw_next_ms) < 0) return;
+  s_nw_next_ms = now_ms + 30000UL;
+  nodeWatchLoad();
+  if (s_nw.n == 0) return;
+  mesh::RTCClock* rtc = the_mesh.getRTCClock();
+  const uint32_t now_s = rtc ? rtc->getCurrentTime() : 0;
+  const bool clock_ok = now_s && wallClockIsCurrent();
+  const uint32_t quiet_ms = s_nw.quietMs();
+  for (int i = 0; i < s_nw.n; ++i) {
+    nodewatch::Entry& w = s_nw.e[i];
+    ContactInfo* c = the_mesh.lookupContactByPubKey(w.key, nodewatch::kKeyLen);
+    const uint32_t lm = c ? c->lastmod : 0;
+    const uint32_t age = (!w.seen && clock_ok && lm && now_s >= lm) ? now_s - lm : 0;
+    const nodewatch::Result r = nodewatch::step(w, lm, now_ms, age, quiet_ms);
+    if (r.ev == nodewatch::Event::None || !c) continue;
+    char gap[24], msg[80];
+    nodewatch::formatGap(r.gap_s, gap, sizeof gap);
+    if (r.ev == nodewatch::Event::WentQuiet)
+      snprintf(msg, sizeof msg, TR("%s went quiet: last heard %s ago"), nodeWatchName(*c), gap);
+    else
+      snprintf(msg, sizeof msg, TR("%s is back on the air, quiet for %s"), nodeWatchName(*c), gap);
+    nodeWatchSay(msg);
+  }
+}
+// Settings > Contact Management > Watched nodes: the quiet threshold, saved on blur.
+static void nwHoursDeleteCb(lv_event_t*) { s_nw_hours_ta = nullptr; }
+static void nwHoursSaveCb(lv_event_t* e) {
+  if (blurFromDelete(e)) return;   // the widget is being destroyed
+  if (lv_event_get_code(e) != LV_EVENT_DEFOCUSED || !s_nw_hours_ta) return;
+  kbMirrorSyncToReal();
+  nodeWatchLoad();
+  const uint8_t h = nodewatch::List::clampHours(atoi(lv_textarea_get_text(s_nw_hours_ta)));
+  char b[8]; snprintf(b, sizeof b, "%u", (unsigned)h);
+  lv_textarea_set_text(s_nw_hours_ta, b);
+  if (h == s_nw.quiet_hours) return;
+  s_nw.quiet_hours = h;
+  // Re-judge from scratch: a node already past a lower threshold is quiet silently,
+  // and one under a higher one can go quiet again.
+  for (int i = 0; i < s_nw.n; ++i) s_nw.e[i].seen = false;
+  s_nw_next_ms = millis();
+  nodeWatchSave();
+  if (g_lv.task) { char msg[48]; snprintf(msg, sizeof msg, TR("Quiet after %u hours"), (unsigned)h); g_lv.task->showAlert(msg, 1100); }
+}
+
 // New-contact toast toggle (Contact Management page). Persists immediately like the
 // auto-add switches; default ON. Diag-log line + tab badge are unaffected — this
 // only gates the low-key chip in UITask::notify().
@@ -20610,6 +20701,20 @@ static void buildAutoAddSettings() {
     lv_obj_t* c = setCard("Notifications");
     setSwitchRow(c, "Notify on new contact", "A short note on screen when a node is added.",
                  touchPrefsGetNewContactToast(), toggleNewContactToastCb);
+   }
+
+  // Watch a node: the button is on a contact's sheet; this is how long is "quiet".
+  {
+    lv_obj_t* c = setCard("Watched nodes");
+    setNote(c, "Tap Watch on a contact to hear when it goes quiet for this long, and when it is back on the air.");
+    s_nw_hours_ta = setNumFieldRow(c, "Quiet after (hours)",
+                                   "1 to 72. Repeaters advert every 12 hours, so 13 suits them.", 2);
+    lv_obj_add_event_cb(s_nw_hours_ta, nwHoursSaveCb, LV_EVENT_DEFOCUSED, nullptr);   // saves on blur
+    lv_obj_add_event_cb(s_nw_hours_ta, nwHoursDeleteCb, LV_EVENT_DELETE, nullptr);
+    nodeWatchLoad();
+    char hb[8];
+    snprintf(hb, sizeof hb, "%u", (unsigned)s_nw.quiet_hours);
+    lv_textarea_set_text(s_nw_hours_ta, hb);
   }
 }
 
@@ -27561,6 +27666,34 @@ static bool raOverlayAboveClose();   // closes a popup opened over the app (defi
 // star marker + favorites filter) AND mirrors into the firmware contact
 // table's flags bit 0 — the bit the core's overwrite-oldest eviction skips
 // (#178). Without the mirror a device-starred contact was still evictable.
+// Watch a node: toggles this contact on the watch list (see nodeWatchService()).
+static void actionSheetWatchCb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED || !g_lv.task) return;
+  ContactInfo c;
+  const bool ok = the_mesh.getContactByIdx(s_action_sheet_mesh_idx, c);
+  closeActionSheet();
+  if (!ok) { g_lv.task->showAlert(TR("Contact gone"), 1200); return; }
+  nodeWatchLoad();
+  bool full = false;
+  const bool on = s_nw.toggle(c.id.pub_key, &full);
+  char msg[80];
+  if (full) {
+    snprintf(msg, sizeof msg, TR("Watch list full (max %d)"), nodewatch::kMax);
+    g_lv.task->showAlert(msg, 1500);
+    return;
+  }
+  nodeWatchSave();
+  if (on) {
+    s_nw_next_ms = millis();   // take its baseline now
+    char q[16];
+    nodewatch::formatGap((uint32_t)s_nw.quiet_hours * 3600u, q, sizeof q);
+    snprintf(msg, sizeof msg, TR("Watching %s: tells you after %s quiet"), nodeWatchName(c), q);
+  } else {
+    snprintf(msg, sizeof msg, TR("Stopped watching %s"), nodeWatchName(c));
+  }
+  g_lv.task->showAlert(msg, 2200);
+}
+
 static void actionSheetFavoriteCb(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED || !g_lv.task) return;
   ContactInfo c;
@@ -28391,7 +28524,7 @@ static void openContactActionSheet(uint32_t mesh_idx, bool is_repeater, const ch
     ContactInfo _hc;
     has_hound = the_mesh.getContactByIdx(mesh_idx, _hc) && (_hc.gps_lat != 0 || _hc.gps_lon != 0);
   }
-  const int grid_items = (from_map ? 5 : 8) + (is_repeater ? 2 : 0) + (is_room ? 2 : 0) + (has_los ? 1 : 0) +
+  const int grid_items = (from_map ? 6 : 9) +   // +1: Watch (is_repeater ? 2 : 0) + (is_room ? 2 : 0) + (has_los ? 1 : 0) +
                          (has_map_btn ? 1 : 0) + (has_hound ? 1 : 0);
   // P4 portrait: the 2-column grid cut most labels off with "..." on the narrow
   // panel, so every action gets its own full-width row. The card grows to fit and
@@ -28586,6 +28719,13 @@ static void openContactActionSheet(uint32_t mesh_idx, bool is_repeater, const ch
 #else
   mk_btn(TOUCH_SYM_STAR "  Favorite", actionSheetFavoriteCb, 0);
 #endif
+  // Watch a node: a pop-up when it goes quiet, and when it is back.
+  {
+    ContactInfo _wc;
+    const bool _watched = the_mesh.getContactByIdx(s_action_sheet_mesh_idx, _wc) && nodeWatchIs(_wc.id.pub_key);
+    mk_btn(_watched ? TR(LV_SYMBOL_EYE_CLOSE "  Unwatch") : TR(LV_SYMBOL_EYE_OPEN "  Watch"),
+           actionSheetWatchCb, 0);
+  }
   // A name of your own for this contact (shown in Contacts, Chats and the map).
   if (!from_map) mk_btn(TR(LV_SYMBOL_EDIT "  Nickname"), actionSheetNicknameCb, 0);
   // Share position with this contact (#266) — label flips on the current grant.
@@ -97507,6 +97647,7 @@ void UITask::loop() {
 #if CAP_CONTACT_PURGE
   contactPurgeService();      // Settings > Contact Management: remove old contacts (#719)
 #endif
+  nodeWatchService();         // Watch a node: went quiet / back on the air
 
   // Accidental tab-switch guard: while content is actively being scrolled (and
   // for a short grace period after the scroll ends), make the bottom tab bar

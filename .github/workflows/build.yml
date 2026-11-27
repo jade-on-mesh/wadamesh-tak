@@ -183,6 +183,11 @@ jobs:
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
               -o /tmp/test_message_edit test/test_message_edit.cpp
           /tmp/test_message_edit
+      - name: Watch a node (went quiet / back on the air, the saved list)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
+              -o /tmp/test_node_watch test/test_node_watch.cpp
+          /tmp/test_node_watch
       - name: VOX serving clips recorded on the radio (Open TAK's request bytes, simulated mesh)
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I src \
