@@ -470,9 +470,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # _idf5: pioarduino's stock settings. _idf5_tuned: framework code out of
-        # internal RAM (custom_sdkconfig), to measure what that frees.
-        env: [LilyGo_TDeck_idf5, LilyGo_TDeck_idf5_tuned]
+        # pioarduino's stock settings. The tuned settings (framework code out of
+        # internal RAM) need Arduino libraries built with them: see IDF5_MIGRATION.md.
+        env: [LilyGo_TDeck_idf5]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -517,8 +517,7 @@ jobs:
             echo '```'
             grep -E ": (fatal )?error:|multiple definition|undefined reference" build.log | sed 's#^.*/\(src\|variants\|lib\|arch\|\.pio/libdeps/[^/]*\)/#\1/#' | sort -u | head -80
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          tail -5 build.log
+          } | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
