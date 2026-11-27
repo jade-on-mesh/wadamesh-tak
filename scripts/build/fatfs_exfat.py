@@ -23,5 +23,15 @@ Import("env")  # noqa: F821 - provided by PlatformIO/SCons
 
 ROOT = os.path.join(env.subst("$PROJECT_DIR"), "arch", "esp32", "fatfs_exfat")  # noqa: F821
 
+# Arduino core 3 (ESP-IDF 5, the IDF5_MIGRATION.md spike): this copy is IDF 4.4.7's
+# component and does not build against IDF 5's VFS and flash headers. Until it is
+# re-vendored from IDF 5.5, those builds keep the framework's FatFs (no exFAT).
+# platformio/espressif32 6.x labels core 2.0.17 "3.20017.x"; pioarduino uses "3.3.11".
+_fw = env.PioPlatform().get_package_version("framework-arduinoespressif32") or ""  # noqa: F821
+_v = [int(x) for x in _fw.split(".")[:2] if x.isdigit()]
+if len(_v) == 2 and _v[0] >= 3 and _v[1] < 10000:
+    print("fatfs_exfat: Arduino core %s, skipping the IDF 4.4 exFAT FatFs (IDF5_MIGRATION.md)" % _fw)
+    Return()  # noqa: F821
+
 env.Prepend(CPPPATH=[os.path.join(ROOT, d) for d in ("src", "vfs", "diskio")])  # noqa: F821
 env.BuildSources(os.path.join("$BUILD_DIR", "fatfs_exfat"), ROOT)  # noqa: F821
