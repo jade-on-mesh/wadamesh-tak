@@ -525,8 +525,9 @@ jobs:
       fail-fast: false
       matrix:
         # _idf5: pioarduino's stock libraries. _idf5_tuned: the same build against the
-        # libraries idf5-libs made with our settings (IDF5_MIGRATION.md, phase 3).
-        env: [LilyGo_TDeck_idf5, LilyGo_TDeck_idf5_tuned]
+        # libraries idf5-libs made with our settings (IDF5_MIGRATION.md, phase 3). The
+        # released T-Deck env (platform 6.11) is built here too, for the same report.
+        env: [LilyGo_TDeck_idf5, LilyGo_TDeck_idf5_tuned, LilyGo_TDeck_companion_radio_touch]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -567,7 +568,7 @@ jobs:
         run: |
           set +o pipefail
           B=.pio/build/${{ matrix.env }}
-          SZ=$(ls ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-size 2>/dev/null || ls ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/*-size | head -1)
+          SZ=$(ls ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-size ~/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-size 2>/dev/null | head -1)
           {
             echo "### IDF 5 spike: ${{ matrix.env }}"
             grep -E "^(RAM|Flash):" build.log || true

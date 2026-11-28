@@ -11,7 +11,13 @@
 CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH=y
 CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH=y
 CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH=y
-CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY=y
+# Not CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY: it links libbtdm_app_flash.a instead of
+# libbtdm_app.a, 136 KB more flash to free 20 KB of IRAM (measured on the T-Deck).
+
+# Flash back for the slot: esp_err_to_name() returns the number as text instead of
+# a ~10 KB name table, and a failed assert still stops but without its file/line text.
+CONFIG_ESP_ERR_TO_NAME_LOOKUP=n
+CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT=y
 
 # NimBLE's host pools in PSRAM (the Pager's fix, now for every board).
 CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_INTERNAL=n
