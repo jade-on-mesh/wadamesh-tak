@@ -94,6 +94,39 @@ What we probably shouldn't copy from MESHtop:
    - Put ported code behind `ESP_ARDUINO_VERSION_MAJOR >= 3`.
 8. **CI time.** `custom_sdkconfig` rebuilds the Arduino libraries for each board, adding minutes per job. Cache them.
 
+## Spike results (27 Nov 2026, T-Deck, pioarduino 55.03.311 = Arduino 3.3.11 / IDF 5.5.5)
+
+**It builds.** All ~900 files compile. Five small fixes, all inert on 6.11:
+
+| Fix | What it does |
+|---|---|
+| `LedcCompat.h` | Keeps LEDC addressed by channel on both cores. |
+| IDF 5 watchdog call | Uses `esp_task_wdt_reconfigure` on IDF 5. |
+| `esp_mac.h` force-include | Supplies `esp_efuse_mac_get_default`, which IDF 5 moved. |
+| The core's ESP-NOW radio left out | It uses IDF 4 callback signatures, and no board uses it. |
+| exFAT FatFs skipped | It needs re-vendoring from IDF 5.5. |
+
+The spike environment also needs four settings: `-D ESP32`, `lib_archive = yes`, the framework's `SD` library named explicitly, and `-Wno-error=return-type`.
+
+**With stock settings, it is worse on both counts:**
+
+| T-Deck | 6.11 (today) | IDF 5, stock |
+|---|---|---|
+| firmware.bin | 4,751,776 B | **4,873,120 B** |
+| App slot (4.625 MB) | fits, 98 KB free | **23 KB too big** |
+| Code in IRAM (.iram0.text) | 91,975 B | 107,343 B |
+| Static internal RAM (iram0 + dram0) | 235,564 B | 251,939 B (**+16 KB**) |
+
+PlatformIO's "Flash 96.9%" line undercounts on IDF 5. The .bin size is what has to fit the slot. The IDF 5 figure doesn't include exFAT yet.
+
+**Conclusion.** A plain switch buys nothing; it costs flash and internal RAM. The gains need the tuned framework settings. pioarduino's `custom_sdkconfig` can't apply them to this project: it turns the build into Arduino-as-an-IDF-component, which ignores `build_src_filter` and the library finder, and it failed on 55.03.311. So the next step is to build Arduino 3.3.11's libraries with **esp32-arduino-lib-builder** and our sdkconfig, and point `platform_packages` at them:
+
+- IRAM off for FreeRTOS, the ring buffer, heap, Wi-Fi and LWIP.
+- Log level stripped.
+- Unused components off.
+
+Then measure again. Go only if the bin fits the slot and static internal RAM comes in under today's 235 KB.
+
 ## Phases
 
 0. **IDF 4 quick win.** NimBLE pools in PSRAM, as above. Small PR, bench check of BLE companion.
