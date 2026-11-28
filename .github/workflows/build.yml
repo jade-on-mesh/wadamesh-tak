@@ -506,7 +506,7 @@ jobs:
       - name: Build the libraries (esp32-arduino-lib-builder)
         if: steps.libs-cache.outputs.cache-hit != 'true'
         shell: bash
-        run: scripts/build/ci-idf5-libs.sh "$RUNNER_TEMP/dependencies.lock" ~/idf5-libs 2>&1 | tail -400
+        run: scripts/build/ci-idf5-libs.sh "$RUNNER_TEMP/dependencies.lock" ~/idf5-libs 2>&1 | grep -v "unknown kconfig symbol"
       - name: Pack
         shell: bash
         run: tar -C ~ -cf idf5-libs.tar idf5-libs && ls -la idf5-libs.tar && grep -E "FREERTOS_PLACE|RINGBUF_PLACE|HEAP_PLACE|BT_CTRL_RUN_IN_FLASH|NIMBLE_MEM_ALLOC_MODE_EXTERNAL" ~/idf5-libs/esp32s3/sdkconfig || true

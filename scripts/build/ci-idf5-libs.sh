@@ -40,7 +40,16 @@ cp -f "$LOCK" dependencies.lock
 sed -i "s|^if \[ \$? -ne 0 \]; then exit 1; fi|if [ \$? -ne 0 ]; then exit 1; fi\ngit -C \"\$AR_COMPS/arduino\" checkout -q $AR_REF \|\| exit 1|" tools/install-arduino.sh
 grep -q "checkout -q $AR_REF" tools/install-arduino.sh
 
-./build.sh -t esp32s3 -I "$IDF_REF" -A master -D default
+if ! ./build.sh -t esp32s3 -I "$IDF_REF" -A master -D default; then
+  # idf.py keeps the details out of the console: show what CMake and Kconfig said.
+  for f in build/log/idf_py_stderr_output_* build/log/idf_py_stdout_output_*; do
+    [ -f "$f" ] || continue
+    echo "==== $f"
+    grep -n -i -B3 -A3 "kconfig option\|error\|undefined\|not found" "$f" | grep -v "unknown kconfig symbol" | tail -80
+  done
+  grep -rn "\$CONFIG{" managed_components/*/idf_component.yml components/*/idf_component.yml main/idf_component.yml 2>/dev/null | head -40
+  exit 1
+fi
 
 SRC="out/tools/esp32-arduino-libs"
 [ -f "$SRC/esp32s3/lib/libfreertos.a" ] || { echo "no esp32s3 libraries in $SRC" >&2; exit 1; }
