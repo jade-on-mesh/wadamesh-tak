@@ -583,6 +583,12 @@ jobs:
             grep -E ": (fatal )?error:|multiple definition|undefined reference" build.log | sed 's#^.*/\(src\|variants\|lib\|arch\|\.pio/libdeps/[^/]*\)/#\1/#' | sort -u | head -80
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "==== bytes by library (map_by_lib.py)"
+          [ -f "$B/firmware.map" ] && python3 scripts/build/map_by_lib.py "$B/firmware.map" 45 || true
+          echo "==== framework sdkconfig (log, optimisation, asserts)"
+          for f in "$IDF5_LIBS/esp32s3/sdkconfig" ~/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/sdkconfig; do
+            [ -f "$f" ] && { echo "-- $f"; grep -E "^CONFIG_(LOG_DEFAULT_LEVEL|LOG_MAXIMUM_LEVEL|COMPILER_OPTIMIZATION|COMPILER_OPTIMIZATION_ASSERTION|ESP_ERR_TO_NAME_LOOKUP|BT_CTRL_RUN_IN_FLASH_ONLY|BOOTLOADER_LOG_LEVEL)" "$f"; break; }
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
