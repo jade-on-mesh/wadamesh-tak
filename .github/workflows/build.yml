@@ -464,15 +464,69 @@ jobs:
 
   # ESP-IDF 5 spike (IDF5_MIGRATION.md, phase 1): the T-Deck on pioarduino. Never
   # blocks a PR or a release; it reports whether the build compiles, and its size.
+  # Arduino 3.3.11's ESP32-S3 libraries rebuilt with our settings
+  # (arch/esp32/idf5_libs_esp32s3.defconfig) for LilyGo_TDeck_idf5_tuned. Long the first
+  # time (about an hour); cached on the settings and the script after that.
+  # Both idf5 jobs only run on idf5* branches (not for other PRs, upstream syncs or
+  # releases): the library build takes an hour uncached, and its cache is per branch.
+  idf5-libs:
+    if: ${{ !inputs.ref && startsWith(github.head_ref || github.ref_name, 'idf5') }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Cache tuned libraries
+        id: libs-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/idf5-libs
+          key: idf5-libs-esp32s3-${{ hashFiles('arch/esp32/idf5_libs_esp32s3.defconfig', 'scripts/build/ci-idf5-libs.sh') }}
+      - name: Stock dependencies.lock (pioarduino 55.03.311)
+        if: steps.libs-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o libs.tar.xz https://github.com/espressif/arduino-esp32/releases/download/3.3.11/esp32-core-3.3.11-libs.tar.xz
+          mkdir -p stock && tar -xJf libs.tar.xz -C stock --wildcards '*/esp32s3/dependencies.lock' '*/esp32s3/versions.txt' 2>/dev/null || tar -xJf libs.tar.xz -C stock
+          LOCK=$(find stock -path '*esp32s3/dependencies.lock' | head -1)
+          test -n "$LOCK" && cp "$LOCK" "$RUNNER_TEMP/dependencies.lock"
+          cat "$(find stock -path '*esp32s3/versions.txt' | head -1)" | head -4 || true
+          rm -rf stock libs.tar.xz
+      - name: Build tools
+        if: steps.libs-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git wget curl libssl-dev libncurses-dev flex bison gperf cmake ninja-build ccache jq libffi-dev libusb-1.0-0 dfu-util
+      - name: Build the libraries (esp32-arduino-lib-builder)
+        if: steps.libs-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: scripts/build/ci-idf5-libs.sh "$RUNNER_TEMP/dependencies.lock" ~/idf5-libs 2>&1 | tail -400
+      - name: Pack
+        shell: bash
+        run: tar -C ~ -cf idf5-libs.tar idf5-libs && ls -la idf5-libs.tar && grep -E "FREERTOS_PLACE|RINGBUF_PLACE|HEAP_PLACE|BT_CTRL_RUN_IN_FLASH|NIMBLE_MEM_ALLOC_MODE_EXTERNAL" ~/idf5-libs/esp32s3/sdkconfig || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: idf5-libs-esp32s3
+          path: idf5-libs.tar
+          retention-days: 7
+
   idf5-spike:
+    needs: idf5-libs
+    if: ${{ !cancelled() && !inputs.ref && startsWith(github.head_ref || github.ref_name, 'idf5') }}
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        # pioarduino's stock settings. The tuned settings (framework code out of
-        # internal RAM) need Arduino libraries built with them: see IDF5_MIGRATION.md.
-        env: [LilyGo_TDeck_idf5]
+        # _idf5: pioarduino's stock libraries. _idf5_tuned: the same build against the
+        # libraries idf5-libs made with our settings (IDF5_MIGRATION.md, phase 3).
+        env: [LilyGo_TDeck_idf5, LilyGo_TDeck_idf5_tuned]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -489,6 +543,17 @@ jobs:
           key: pio-idf5-${{ runner.os }}-${{ matrix.env }}-${{ hashFiles('platformio.ini', 'platformio_idf5.ini') }}
       - name: Install PlatformIO
         run: pip install --upgrade platformio
+      - name: Tuned libraries
+        if: matrix.env == 'LilyGo_TDeck_idf5_tuned'
+        uses: actions/download-artifact@v4
+        with:
+          name: idf5-libs-esp32s3
+      - name: Unpack tuned libraries
+        if: matrix.env == 'LilyGo_TDeck_idf5_tuned'
+        shell: bash
+        run: |
+          tar -C "$RUNNER_TEMP" -xf idf5-libs.tar
+          echo "IDF5_LIBS=$RUNNER_TEMP/idf5-libs" >> "$GITHUB_ENV"
       - name: Build (T-Deck, Arduino 3 / IDF 5)
         shell: bash
         run: |
