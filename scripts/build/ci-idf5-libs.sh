@@ -17,6 +17,7 @@ WORK="${IDF5_LIBS_WORK:-$HOME/lib-builder}"
 LB_REF=ee57070
 IDF_REF=v5.5.5
 AR_REF=0d7a8614b
+TUSB_REF=53f8c53c2
 
 # lib-builder clones "<owner>/arduino-esp32" for GITHUB_REPOSITORY_OWNER, with any
 # GITHUB_TOKEN: point it at Espressif's, without our token.
@@ -49,6 +50,9 @@ KC
 # takes a branch, so check the commit out right after it.
 sed -i "s|^if \[ \$? -ne 0 \]; then exit 1; fi|if [ \$? -ne 0 ]; then exit 1; fi\ngit -C \"\$AR_COMPS/arduino\" checkout -q $AR_REF \|\| exit 1|" tools/install-arduino.sh
 grep -q "checkout -q $AR_REF" tools/install-arduino.sh
+# Same for TinyUSB, which update-components.sh takes from master.
+sed -i "s|^if \[ \$? -ne 0 \]; then exit 1; fi|if [ \$? -ne 0 ]; then exit 1; fi\ngit -C \"\$TINYUSB_REPO_DIR\" fetch -q origin \&\& git -C \"\$TINYUSB_REPO_DIR\" checkout -q $TUSB_REF \|\| exit 1|" tools/update-components.sh
+grep -q "checkout -q $TUSB_REF" tools/update-components.sh
 
 lb_build() { ./build.sh -t esp32s3 -I "$IDF_REF" -A master -D default; }
 lb_diag() {
@@ -67,6 +71,7 @@ if ! lb_build; then
   # the manager rejects it, try once with fresh resolution so there is still a result.
   echo "==== retrying without the stock dependencies.lock"
   rm -f dependencies.lock
+  git -C components/arduino_tinyusb/tinyusb checkout -q master 2>/dev/null || true   # its pull needs a branch
   lb_build || { lb_diag; exit 1; }
   echo "NOTE: built with freshly resolved components, not the stock lock"
 fi
