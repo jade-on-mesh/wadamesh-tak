@@ -35,6 +35,16 @@ git clean -qfd configs tools main
 { echo; echo "# ---- Wadamesh TAK (arch/esp32/idf5_libs_esp32s3.defconfig) ----"; cat "$ROOT/arch/esp32/idf5_libs_esp32s3.defconfig"; } >> configs/defconfig.esp32s3
 cp -f "$LOCK" dependencies.lock
 
+# esp_video's manifest gates its optional esp_h264 on a Kconfig option that no Kconfig
+# in this tree defines; IDF 5.5.5's component manager then stops at "Missing required
+# kconfig option after retry". Define it (off, esp_video's own default behaviour).
+cat >> main/Kconfig.projbuild <<'KC'
+
+config ESP_VIDEO_USE_CUSTOMIZED_ESP_H264_VERSION
+    bool "Wadamesh TAK CI: placeholder for esp_video's manifest rule"
+    default n
+KC
+
 # Pin arduino-esp32 to the commit the stock libraries used: install-arduino.sh only
 # takes a branch, so check the commit out right after it.
 sed -i "s|^if \[ \$? -ne 0 \]; then exit 1; fi|if [ \$? -ne 0 ]; then exit 1; fi\ngit -C \"\$AR_COMPS/arduino\" checkout -q $AR_REF \|\| exit 1|" tools/install-arduino.sh
@@ -45,11 +55,11 @@ lb_diag() {
   # idf.py keeps the details out of the console: show what CMake and Kconfig said, and
   # every component manifest rule that depends on a Kconfig option.
   for f in build/log/idf_py_stderr_output_*; do
-    [ -f "$f" ] && { echo "==== $f"; grep -v "unknown kconfig symbol" "$f" | tail -60; }
+    [ -f "$f" ] && { echo "==== $f"; grep -v "unknown kconfig symbol" "$f" | grep -v "SEC_CERT_DAC\|esp_matter/" | tail -60; } || true
   done
   echo "==== manifest rules on Kconfig options"
   find . esp-idf/components -name idf_component.yml -not -path "./esp-idf/*/test*" 2>/dev/null \
-    | xargs grep -n 'CONFIG' 2>/dev/null | head -60
+    | xargs grep -n 'CONFIG' 2>/dev/null | head -60 || true
 }
 if ! lb_build; then
   lb_diag
