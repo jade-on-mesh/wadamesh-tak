@@ -40,15 +40,25 @@ cp -f "$LOCK" dependencies.lock
 sed -i "s|^if \[ \$? -ne 0 \]; then exit 1; fi|if [ \$? -ne 0 ]; then exit 1; fi\ngit -C \"\$AR_COMPS/arduino\" checkout -q $AR_REF \|\| exit 1|" tools/install-arduino.sh
 grep -q "checkout -q $AR_REF" tools/install-arduino.sh
 
-if ! ./build.sh -t esp32s3 -I "$IDF_REF" -A master -D default; then
-  # idf.py keeps the details out of the console: show what CMake and Kconfig said.
-  for f in build/log/idf_py_stderr_output_* build/log/idf_py_stdout_output_*; do
-    [ -f "$f" ] || continue
-    echo "==== $f"
-    grep -n -i -B3 -A3 "kconfig option\|error\|undefined\|not found" "$f" | grep -v "unknown kconfig symbol" | tail -80
+lb_build() { ./build.sh -t esp32s3 -I "$IDF_REF" -A master -D default; }
+lb_diag() {
+  # idf.py keeps the details out of the console: show what CMake and Kconfig said, and
+  # every component manifest rule that depends on a Kconfig option.
+  for f in build/log/idf_py_stderr_output_*; do
+    [ -f "$f" ] && { echo "==== $f"; grep -v "unknown kconfig symbol" "$f" | tail -60; }
   done
-  grep -rn "\$CONFIG{" managed_components/*/idf_component.yml components/*/idf_component.yml main/idf_component.yml 2>/dev/null | head -40
-  exit 1
+  echo "==== manifest rules on Kconfig options"
+  find . esp-idf/components -name idf_component.yml -not -path "./esp-idf/*/test*" 2>/dev/null \
+    | xargs grep -n 'CONFIG' 2>/dev/null | head -60
+}
+if ! lb_build; then
+  lb_diag
+  # The stock component lock is what makes this build match pioarduino's libraries; if
+  # the manager rejects it, try once with fresh resolution so there is still a result.
+  echo "==== retrying without the stock dependencies.lock"
+  rm -f dependencies.lock
+  lb_build || { lb_diag; exit 1; }
+  echo "NOTE: built with freshly resolved components, not the stock lock"
 fi
 
 SRC="out/tools/esp32-arduino-libs"
