@@ -77,7 +77,7 @@ if ! lb_build; then
 fi
 
 SRC="out/tools/esp32-arduino-libs"
-[ -f "$SRC/esp32s3/lib/libfreertos.a" ] || { echo "no esp32s3 libraries in $SRC" >&2; exit 1; }
+[ -f "$SRC/esp32s3/lib/libbt.a" ] && [ -f "$SRC/esp32s3/qio_opi/libfreertos.a" ] || { echo "no esp32s3 libraries in $SRC" >&2; ls -R "$SRC" | head -40; exit 1; }
 rm -rf "$OUT"; mkdir -p "$OUT"
 cp -a "$SRC/esp32s3" "$OUT/"
 [ -f "$SRC/versions.txt" ] && cp -a "$SRC/versions.txt" "$OUT/" || true
