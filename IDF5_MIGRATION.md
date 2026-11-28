@@ -127,6 +127,42 @@ PlatformIO's "Flash 96.9%" line undercounts on IDF 5. The .bin size is what has 
 
 Then measure again. Go only if the bin fits the slot and static internal RAM comes in under today's 235 KB.
 
+## Tuned libraries (27 Nov 2026, phase 3)
+
+CI rebuilds Arduino 3.3.11's S3 libraries with esp32-arduino-lib-builder (`scripts/build/ci-idf5-libs.sh`). It is pinned to exactly what pioarduino's own libraries came from:
+- lib-builder ee57070
+- ESP-IDF v5.5.5
+- arduino-esp32 0d7a8614b
+- TinyUSB 53f8c53c2
+- their `dependencies.lock`
+
+`arch/esp32/idf5_libs_esp32s3.defconfig` is added on top. `LilyGo_TDeck_idf5_tuned` is the same T-Deck build linked against these libraries. The first build takes about 40 minutes; after that it's cached.
+
+| T-Deck | 6.11 (today) | IDF 5, stock | IDF 5, tuned |
+|---|---|---|---|
+| firmware.bin | 4,751,312 B | 4,875,328 B | **4,801,344 B** |
+| App slot (4,849,664 B) | 98 KB free | 23 KB over | **48 KB free** |
+| Code in IRAM | 90.8 KB | 106.0 KB | 84.4 KB |
+| Static DRAM (data + bss) | 140.8 KB | 148.2 KB | 126.3 KB |
+| **Static internal RAM** | **235,451 B** | 252,035 B | **211,556 B (−23.9 KB)** |
+
+The tuned build passes the go bar: it fits the slot, and its static internal RAM is lower than today's.
+
+**What freed the RAM:**
+- FreeRTOS, heap and ring-buffer code out of IRAM.
+- NimBLE's pools in PSRAM.
+- Wi-Fi, LWIP and WPA buffers out of static DRAM.
+
+**Tried and dropped: `CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY`.** It swaps in `libbtdm_app_flash.a`, which costs 136 KB more flash to free only 20 KB of IRAM.
+
+**Flash savers kept:**
+- `CONFIG_ESP_ERR_TO_NAME_LOOKUP=n`
+- Silent asserts: a failed assert still stops, but without its file/line text.
+
+**Not counted yet:**
+- exFAT. Re-vendoring the FatFs from IDF 5.5 should replace the framework's `libfatfs` at about the same size.
+- Runtime. Nothing here has run on a device: boot, LoRa, BLE companion, Wi-Fi, audio, SD and sleep are all still untested. That is phase 4.
+
 ## Phases
 
 0. **IDF 4 quick win.** NimBLE pools in PSRAM, as above. Small PR, bench check of BLE companion.
