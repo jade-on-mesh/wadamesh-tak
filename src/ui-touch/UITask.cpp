@@ -53621,21 +53621,11 @@ static void chatTalkWaveDrawCb(lv_event_t* e) {
 }
 static void voxBubbleTextState(const VoxWire::Envelope& env, bool outgoing, char* out, size_t cap);
 
-// What a photo or voice bubble says, from the clip's download / playback state,
-// with how a downloaded clip got here ("Received via MediaMesh") when known.
+// What a photo or voice bubble says, from the clip's download / playback state.
+// (It no longer adds "Received via MediaMesh / main mesh": VoxFetch still records
+// how a clip arrived, but the line was a diagnostic and is not shown.)
 static void voxBubbleText(const VoxWire::Envelope& env, bool outgoing, char* out, size_t cap) {
   voxBubbleTextState(env, outgoing, out, cap);
-  if (outgoing || !out || cap == 0) return;
-  const char* via = VoxPhotos::viaText(env.sid);
-  if (!via) return;
-  const size_t used = strlen(out);
-  if (used + 2 < cap) snprintf(out + used, cap - used, "\n%s", TR(via));
-  // The MediaMesh repeater that relayed the last radio2 packet: "(1ffb)".
-  char hop[8];
-  if (VoxPhotos::viaRepeater(env.sid, hop, sizeof hop)) {
-    const size_t u2 = strlen(out);
-    if (u2 + strlen(hop) + 4 < cap) snprintf(out + u2, cap - u2, " (%s)", hop);
-  }
 }
 
 // A Mimi voice message: this radio can't play Mimi, so it plays a Codec2 copy
